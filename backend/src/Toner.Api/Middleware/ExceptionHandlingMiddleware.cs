@@ -1,6 +1,8 @@
 using System.Net;
+using System.Security.Claims;
 using FluentValidation;
 using Toner.Application.Common.Exceptions;
+using Toner.Application.Common.Interfaces;
 
 namespace Toner.Api.Middleware;
 
@@ -15,7 +17,11 @@ public class ExceptionHandlingMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    // IExceptionLogger es scoped (crea un DbContext por log), así que se resuelve por request como
+    // parámetro de InvokeAsync — no por constructor. UseMiddleware<T> construye la instancia una sola
+    // vez contra el proveedor raíz de la app, así que un servicio scoped en el constructor rompería la
+    // validación de scopes (o, sin validación, sería el mismo scope "atrapado" para toda la vida del proceso).
+    public async Task InvokeAsync(HttpContext context, IExceptionLogger exceptionLogger)
     {
         try
         {
@@ -28,6 +34,18 @@ public class ExceptionHandlingMiddleware
             if (statusCode == HttpStatusCode.InternalServerError)
             {
                 _logger.LogError(ex, "Error no controlado procesando {Method} {Path}", context.Request.Method, context.Request.Path);
+
+                // CancellationToken.None a propósito: si el cliente cancela la request, igual
+                // queremos que el intento de log a base de datos se complete (best-effort).
+                await exceptionLogger.LogAsync(
+                    source: "Api",
+                    exception: ex,
+                    requestMethod: context.Request.Method,
+                    requestPath: context.Request.Path,
+                    statusCode: (int)statusCode,
+                    userId: TryGetUserId(context.User),
+                    userEmail: context.User.FindFirstValue(ClaimTypes.Email),
+                    cancellationToken: CancellationToken.None);
             }
 
             context.Response.ContentType = "application/problem+json";
@@ -56,4 +74,10 @@ public class ExceptionHandlingMiddleware
 
         _ => (HttpStatusCode.InternalServerError, "Ocurrió un error inesperado.", null)
     };
+
+    private static Guid? TryGetUserId(ClaimsPrincipal user)
+    {
+        var raw = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(raw, out var id) ? id : null;
+    }
 }

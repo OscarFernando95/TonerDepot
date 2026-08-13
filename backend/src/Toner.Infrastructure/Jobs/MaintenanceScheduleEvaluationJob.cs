@@ -15,19 +15,43 @@ public class MaintenanceScheduleEvaluationJob
 {
     private readonly IApplicationDbContext _db;
     private readonly IAssignmentEngine _assignmentEngine;
+    private readonly IExceptionLogger _exceptionLogger;
     private readonly ILogger<MaintenanceScheduleEvaluationJob> _logger;
 
     public MaintenanceScheduleEvaluationJob(
         IApplicationDbContext db,
         IAssignmentEngine assignmentEngine,
+        IExceptionLogger exceptionLogger,
         ILogger<MaintenanceScheduleEvaluationJob> logger)
     {
         _db = db;
         _assignmentEngine = assignmentEngine;
+        _exceptionLogger = exceptionLogger;
         _logger = logger;
     }
 
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await EvaluateSchedulesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // El dashboard de Hangfire (única otra fuente de verdad sobre un fallo de este job) no
+            // se expone fuera de Development, así que sin esto un fallo en producción es invisible
+            // hasta que alguien nota que no se generaron órdenes. CancellationToken.None: el log debe
+            // completarse aunque el motivo del fallo sea que cancellationToken ya se canceló.
+            await _exceptionLogger.LogAsync(
+                source: $"Jobs.{nameof(MaintenanceScheduleEvaluationJob)}",
+                exception: ex,
+                cancellationToken: CancellationToken.None);
+
+            throw; // Hangfire debe seguir viendo la excepción para aplicar su política de reintentos.
+        }
+    }
+
+    private async Task<int> EvaluateSchedulesAsync(CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var schedules = await _db.MaintenanceSchedules.Where(s => s.IsActive).ToListAsync(cancellationToken);

@@ -20,5 +20,15 @@ public class ContractAssetConfiguration : IEntityTypeConfiguration<ContractAsset
             .WithMany(a => a.ContractAssets)
             .HasForeignKey(ca => ca.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Backstop a nivel de base de datos para "un activo no puede tener dos vínculos de contrato
+        // activos al mismo tiempo": el chequeo equivalente en ContractAssetService.AddAsync es
+        // verificar-y-luego-insertar y por sí solo no evita la condición de carrera entre dos
+        // requests concurrentes. El índice único parcial (solo sobre filas con EndDate NULL) hace que
+        // la segunda inserción falle con una violación de único real, que TonerDbContext traduce a
+        // ConflictException en vez de dejar corromper el dato en silencio.
+        builder.HasIndex(ca => ca.AssetId)
+            .IsUnique()
+            .HasFilter("\"EndDate\" IS NULL");
     }
 }

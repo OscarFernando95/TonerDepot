@@ -22,6 +22,7 @@ using Toner.Application.Tickets;
 using Toner.Application.Users;
 using Toner.Infrastructure.Auth;
 using Toner.Infrastructure.Jobs;
+using Toner.Infrastructure.Logging;
 using Toner.Infrastructure.Persistence;
 using Toner.Infrastructure.Persistence.Seed;
 
@@ -70,12 +71,21 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddDbContext<TonerDbContext>(options =>
+// Se registra vía IDbContextFactory (en vez del AddDbContext tradicional) para que
+// TonerExceptionLogger pueda crear un DbContext nuevo e independiente del scoped de la request/job
+// actual — necesario para poder loguear un error incluso si ese DbContext scoped quedó en un estado
+// inválido por la misma excepción que se está registrando. AddDbContext y AddDbContextFactory no
+// pueden convivir para el mismo TContext (ambos compiten por DbContextOptions<TContext> con lifetimes
+// distintos), así que el TonerDbContext scoped de siempre se deriva de la factory en vez de registrarse
+// aparte.
+builder.Services.AddDbContextFactory<TonerDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         npgsql => npgsql.MigrationsAssembly("Toner.Infrastructure")));
 
+builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
+builder.Services.AddScoped<IExceptionLogger, TonerExceptionLogger>();
 builder.Services.AddScoped<DataSeeder>();
 
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();

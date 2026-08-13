@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
 
@@ -38,6 +40,8 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public DbSet<TimeLog> TimeLogs => Set<TimeLog>();
     public DbSet<Evidence> Evidences => Set<Evidence>();
 
+    public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -47,13 +51,27 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public override int SaveChanges()
     {
         TouchUpdatedAt();
-        return base.SaveChanges();
+        try
+        {
+            return base.SaveChanges();
+        }
+        catch (DbUpdateException ex) when (TryGetUniqueViolationMessage(ex, out var message))
+        {
+            throw new ConflictException(message);
+        }
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         TouchUpdatedAt();
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (TryGetUniqueViolationMessage(ex, out var message))
+        {
+            throw new ConflictException(message);
+        }
     }
 
     private void TouchUpdatedAt()
@@ -65,5 +83,24 @@ public class TonerDbContext : DbContext, IApplicationDbContext
                 entry.Entity.UpdatedAt = DateTime.UtcNow;
             }
         }
+    }
+
+    // Traduce una violación de índice único de Postgres (SqlState 23505) a la excepción de negocio
+    // que Application ya entiende, en vez de dejar escapar un DbUpdateException/PostgresException
+    // específico de Npgsql hacia capas que no deberían conocer el proveedor de base de datos.
+    // Cubre las condiciones de carrera del patrón "verificar-y-luego-insertar" que usan los servicios
+    // (dos requests concurrentes pasan el chequeo en memoria antes de que cualquiera inserte); otros
+    // tipos de DbUpdateException (ej. violación de llave foránea) siguen siendo un 500 genuino.
+    private static bool TryGetUniqueViolationMessage(DbUpdateException ex, out string message)
+    {
+        if (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pgEx)
+        {
+            var field = pgEx.ColumnName ?? pgEx.ConstraintName ?? "un valor único";
+            message = $"Ya existe un registro con ese valor en '{field}'.";
+            return true;
+        }
+
+        message = string.Empty;
+        return false;
     }
 }
