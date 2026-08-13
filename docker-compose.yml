@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: toner-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-toner}
+      POSTGRES_USER: ${POSTGRES_USER:-toner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-toner_dev_password}
+    ports:
+      - "5433:5432" # 5432 puede estar ocupado por un Postgres nativo del sistema
+    volumes:
+      - toner_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-toner} -d ${POSTGRES_DB:-toner}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: toner-azurite
+    restart: unless-stopped
+    command: "azurite --blobHost 0.0.0.0 --blobPort 10000 --location /data --loose"
+    ports:
+      - "10000:10000"
+    volumes:
+      - toner_azurite_data:/data
+
+  smtp4dev:
+    image: rnwood/smtp4dev:v3
+    container_name: toner-smtp4dev
+    restart: unless-stopped
+    ports:
+      - "5080:80" # UI web para ver los correos capturados (5000 lo ocupa AirPlay Receiver en macOS)
+      - "2525:25" # Puerto SMTP para que la API envíe correo local
+
+volumes:
+  toner_postgres_data:
+  toner_azurite_data:

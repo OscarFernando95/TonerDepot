@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4E055788-F320-4387-BBEF-AF048804F00A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toner.Domain", "src\Toner.Domain\Toner.Domain.csproj", "{E3110D92-0933-4CCA-991D-CD575EB0139C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toner.Application", "src\Toner.Application\Toner.Application.csproj", "{B333A381-A981-4702-9A41-1EF6E38AF2C6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toner.Infrastructure", "src\Toner.Infrastructure\Toner.Infrastructure.csproj", "{F5A8DBAD-56CA-4CB2-94AF-8CFDAD4D4217}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toner.Api", "src\Toner.Api\Toner.Api.csproj", "{C905EDC2-626D-4884-BD02-2FB4CD643665}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{60FEE093-6897-4188-9ADD-9F9C2E94A07D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toner.Domain.Tests", "tests\Toner.Domain.Tests\Toner.Domain.Tests.csproj", "{6F965DBD-1800-471A-A655-779A7F294367}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toner.Application.Tests", "tests\Toner.Application.Tests\Toner.Application.Tests.csproj", "{BE10FDE4-DCF3-429D-9D19-B6AB89E00E1B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E3110D92-0933-4CCA-991D-CD575EB0139C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3110D92-0933-4CCA-991D-CD575EB0139C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3110D92-0933-4CCA-991D-CD575EB0139C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3110D92-0933-4CCA-991D-CD575EB0139C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B333A381-A981-4702-9A41-1EF6E38AF2C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B333A381-A981-4702-9A41-1EF6E38AF2C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B333A381-A981-4702-9A41-1EF6E38AF2C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B333A381-A981-4702-9A41-1EF6E38AF2C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5A8DBAD-56CA-4CB2-94AF-8CFDAD4D4217}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5A8DBAD-56CA-4CB2-94AF-8CFDAD4D4217}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5A8DBAD-56CA-4CB2-94AF-8CFDAD4D4217}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5A8DBAD-56CA-4CB2-94AF-8CFDAD4D4217}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C905EDC2-626D-4884-BD02-2FB4CD643665}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C905EDC2-626D-4884-BD02-2FB4CD643665}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C905EDC2-626D-4884-BD02-2FB4CD643665}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C905EDC2-626D-4884-BD02-2FB4CD643665}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F965DBD-1800-471A-A655-779A7F294367}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F965DBD-1800-471A-A655-779A7F294367}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F965DBD-1800-471A-A655-779A7F294367}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F965DBD-1800-471A-A655-779A7F294367}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE10FDE4-DCF3-429D-9D19-B6AB89E00E1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE10FDE4-DCF3-429D-9D19-B6AB89E00E1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE10FDE4-DCF3-429D-9D19-B6AB89E00E1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE10FDE4-DCF3-429D-9D19-B6AB89E00E1B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E3110D92-0933-4CCA-991D-CD575EB0139C} = {4E055788-F320-4387-BBEF-AF048804F00A}
+		{B333A381-A981-4702-9A41-1EF6E38AF2C6} = {4E055788-F320-4387-BBEF-AF048804F00A}
+		{F5A8DBAD-56CA-4CB2-94AF-8CFDAD4D4217} = {4E055788-F320-4387-BBEF-AF048804F00A}
+		{C905EDC2-626D-4884-BD02-2FB4CD643665} = {4E055788-F320-4387-BBEF-AF048804F00A}
+		{6F965DBD-1800-471A-A655-779A7F294367} = {60FEE093-6897-4188-9ADD-9F9C2E94A07D}
+		{BE10FDE4-DCF3-429D-9D19-B6AB89E00E1B} = {60FEE093-6897-4188-9ADD-9F9C2E94A07D}
+	EndGlobalSection
+EndGlobal

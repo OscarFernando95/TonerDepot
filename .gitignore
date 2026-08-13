@@ -1,0 +1,21 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.user
+
+# Node / Vue
+frontend-web/node_modules/
+frontend-web/dist/
+mobile/build/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+.claude/settings.local.json
+
+# Environment
+.env
+
+# OS
+.DS_Store

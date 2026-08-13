@@ -1,0 +1,143 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import * as usersApi from '../../api/users'
+import * as clientsApi from '../../api/clients'
+import { RoleNames, type ClientDto, type UserDto } from '../../api/types'
+
+const users = ref<UserDto[]>([])
+const clients = ref<ClientDto[]>([])
+const loading = ref(false)
+const dialogVisible = ref(false)
+const saving = ref(false)
+
+const roleOptions = Object.values(RoleNames)
+
+const form = reactive({
+  email: '',
+  password: '',
+  fullName: '',
+  roleName: RoleNames.Coordinador as string,
+  clientId: '' as string
+})
+
+const requiresClient = computed(() => form.roleName === RoleNames.Cliente)
+
+async function loadData() {
+  loading.value = true
+  try {
+    const [usersRes, clientsRes] = await Promise.all([usersApi.listUsers(), clientsApi.listClients()])
+    users.value = usersRes.data
+    clients.value = clientsRes.data
+  } finally {
+    loading.value = false
+  }
+}
+
+function openCreateDialog() {
+  form.email = ''
+  form.password = ''
+  form.fullName = ''
+  form.roleName = RoleNames.Coordinador
+  form.clientId = ''
+  dialogVisible.value = true
+}
+
+async function handleSave() {
+  saving.value = true
+  try {
+    await usersApi.createUser({
+      email: form.email,
+      password: form.password,
+      fullName: form.fullName,
+      roleName: form.roleName as any,
+      clientId: requiresClient.value ? form.clientId : null
+    })
+    ElMessage.success('Usuario creado.')
+    dialogVisible.value = false
+    await loadData()
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo crear el usuario.')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleStatus(user: UserDto) {
+  const nextStatus = !user.isActive
+  await ElMessageBox.confirm(
+    `¿${nextStatus ? 'Activar' : 'Desactivar'} a ${user.fullName}?`,
+    'Confirmar',
+    { type: 'warning' }
+  )
+  await usersApi.setUserStatus(user.id, nextStatus)
+  ElMessage.success('Usuario actualizado.')
+  await loadData()
+}
+
+onMounted(loadData)
+</script>
+
+<template>
+  <div>
+    <div class="page-header">
+      <h1>Usuarios</h1>
+      <el-button type="primary" @click="openCreateDialog">Nuevo usuario</el-button>
+    </div>
+
+    <el-table :data="users" v-loading="loading" stripe>
+      <el-table-column prop="fullName" label="Nombre" />
+      <el-table-column prop="email" label="Correo" />
+      <el-table-column prop="roleName" label="Rol" width="140" />
+      <el-table-column label="Estado" width="120">
+        <template #default="{ row }">
+          <el-tag :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? 'Activo' : 'Inactivo' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="" width="120">
+        <template #default="{ row }">
+          <el-button link @click="toggleStatus(row)">
+            {{ row.isActive ? 'Desactivar' : 'Activar' }}
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-dialog v-model="dialogVisible" title="Nuevo usuario" width="440px">
+      <el-form :model="form" label-position="top">
+        <el-form-item label="Nombre completo">
+          <el-input v-model="form.fullName" />
+        </el-form-item>
+        <el-form-item label="Correo">
+          <el-input v-model="form.email" type="email" />
+        </el-form-item>
+        <el-form-item label="Contraseña">
+          <el-input v-model="form.password" type="password" show-password />
+        </el-form-item>
+        <el-form-item label="Rol">
+          <el-select v-model="form.roleName" style="width: 100%">
+            <el-option v-for="r in roleOptions" :key="r" :label="r" :value="r" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="requiresClient" label="Cliente">
+          <el-select v-model="form.clientId" style="width: 100%" filterable placeholder="Selecciona un cliente">
+            <el-option v-for="c in clients" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">Cancelar</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">Guardar</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<style scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+</style>

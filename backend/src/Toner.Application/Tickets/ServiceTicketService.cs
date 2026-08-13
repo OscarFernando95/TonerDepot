@@ -1,0 +1,215 @@
+using Microsoft.EntityFrameworkCore;
+using Toner.Application.Assignment;
+using Toner.Application.Common;
+using Toner.Application.Common.Dtos;
+using Toner.Application.Common.Exceptions;
+using Toner.Application.Common.Interfaces;
+using Toner.Application.Tickets.Dtos;
+using Toner.Domain.Entities;
+using Toner.Domain.Enums;
+
+namespace Toner.Application.Tickets;
+
+public class ServiceTicketService : IServiceTicketService
+{
+    // Asignado solo se alcanza vía AssignAsync (que además crea el AssignmentHistory), nunca por SetStatusAsync.
+    private static readonly Dictionary<ServiceTicketStatus, ServiceTicketStatus[]> AllowedTransitions = new()
+    {
+        [ServiceTicketStatus.Abierto] = new[] { ServiceTicketStatus.Cancelado },
+        [ServiceTicketStatus.SinAsignar] = new[] { ServiceTicketStatus.Cancelado },
+        [ServiceTicketStatus.Asignado] = new[] { ServiceTicketStatus.EnProceso, ServiceTicketStatus.Cancelado },
+        [ServiceTicketStatus.EnProceso] = new[] { ServiceTicketStatus.Resuelto, ServiceTicketStatus.Cancelado },
+        [ServiceTicketStatus.Resuelto] = new[] { ServiceTicketStatus.Cerrado, ServiceTicketStatus.EnProceso },
+        [ServiceTicketStatus.Cerrado] = Array.Empty<ServiceTicketStatus>(),
+        [ServiceTicketStatus.Cancelado] = Array.Empty<ServiceTicketStatus>()
+    };
+
+    // Antes de EnProceso todavía se puede reasignar a otro técnico sin restricción especial.
+    private static readonly ServiceTicketStatus[] AssignableStatuses =
+    {
+        ServiceTicketStatus.Abierto, ServiceTicketStatus.SinAsignar, ServiceTicketStatus.Asignado
+    };
+
+    private readonly IApplicationDbContext _db;
+    private readonly IAssignmentEngine _assignmentEngine;
+
+    public ServiceTicketService(IApplicationDbContext db, IAssignmentEngine assignmentEngine)
+    {
+        _db = db;
+        _assignmentEngine = assignmentEngine;
+    }
+
+    public async Task<ServiceTicketDto> CreateAsync(RequestingUser requestingUser, CreateServiceTicketRequest request, CancellationToken cancellationToken = default)
+    {
+        if (!requestingUser.IsStaff)
+        {
+            var locationClientId = await _db.ClientLocations
+                .Where(l => l.Id == request.ClientLocationId)
+                .Select(l => l.ClientId)
+                .FirstAsync(cancellationToken);
+
+            if (locationClientId != requestingUser.ClientId)
+            {
+                throw new ForbiddenException("No puedes reportar tickets para una sede que no pertenece a tu cliente.");
+            }
+        }
+
+        var priority = string.IsNullOrEmpty(request.Priority)
+            ? ServiceTicketPriority.Media
+            : Enum.Parse<ServiceTicketPriority>(request.Priority);
+
+        var ticket = new ServiceTicket
+        {
+            ClientLocationId = request.ClientLocationId,
+            AssetId = request.AssetId,
+            ReportedByUserId = requestingUser.UserId,
+            Description = request.Description.Trim(),
+            Status = ServiceTicketStatus.Abierto,
+            Priority = priority
+        };
+
+        _db.ServiceTickets.Add(ticket);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // Intento de asignación automática por cobertura/carga apenas se crea el ticket; si no hay
+        // candidato, el motor mismo deja el ticket en SinAsignar y registra el intento fallido.
+        await _assignmentEngine.AssignServiceTicketAsync(ticket.Id, cancellationToken);
+
+        return await ToDtoAsync(ticket.Id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ServiceTicketDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default)
+    {
+        var query = Projected(_db);
+
+        if (requestingUser.IsTechnician)
+        {
+            query = query.Where(t => t.TechnicianId == requestingUser.TechnicianId);
+        }
+        else if (!requestingUser.IsStaff)
+        {
+            query = query.Where(t => t.ClientId == requestingUser.ClientId);
+        }
+
+        return await query.OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
+    }
+
+    public async Task<ServiceTicketDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
+    {
+        var ticket = await Projected(_db).FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceTicket), id);
+
+        if (requestingUser.IsTechnician && ticket.TechnicianId != requestingUser.TechnicianId)
+        {
+            throw new ForbiddenException("Este ticket no está asignado a ti.");
+        }
+
+        if (!requestingUser.IsStaff && !requestingUser.IsTechnician && ticket.ClientId != requestingUser.ClientId)
+        {
+            throw new ForbiddenException("No puedes ver un ticket que no pertenece a tu cliente.");
+        }
+
+        return ticket;
+    }
+
+    public async Task<ServiceTicketDto> AssignAsync(Guid id, AssignTicketRequest request, Guid assignedByUserId, CancellationToken cancellationToken = default)
+    {
+        var ticket = await _db.ServiceTickets.FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceTicket), id);
+
+        if (!AssignableStatuses.Contains(ticket.Status))
+        {
+            throw new ConflictException($"No se puede asignar un ticket en estado '{ticket.Status}'.");
+        }
+
+        ticket.TechnicianId = request.TechnicianId;
+        ticket.Status = ServiceTicketStatus.Asignado;
+
+        _db.AssignmentHistories.Add(new AssignmentHistory
+        {
+            ServiceTicketId = ticket.Id,
+            TechnicianId = request.TechnicianId,
+            AssignedByUserId = assignedByUserId,
+            AssignmentType = AssignmentType.Manual,
+            Reason = request.Reason?.Trim()
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    public async Task<ServiceTicketDto> SetStatusAsync(Guid id, string status, CancellationToken cancellationToken = default)
+    {
+        var ticket = await _db.ServiceTickets.FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceTicket), id);
+
+        var newStatus = Enum.Parse<ServiceTicketStatus>(status);
+
+        if (!AllowedTransitions[ticket.Status].Contains(newStatus))
+        {
+            throw new ConflictException($"No se puede pasar de '{ticket.Status}' a '{newStatus}'.");
+        }
+
+        ticket.Status = newStatus;
+        ticket.ResolvedAt = newStatus == ServiceTicketStatus.Resuelto ? DateTime.UtcNow : ticket.ResolvedAt;
+        ticket.ClosedAt = newStatus == ServiceTicketStatus.Cerrado ? DateTime.UtcNow : ticket.ClosedAt;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var ticketExists = await _db.ServiceTickets.AnyAsync(t => t.Id == id, cancellationToken);
+        if (!ticketExists)
+        {
+            throw new NotFoundException(nameof(ServiceTicket), id);
+        }
+
+        return await _db.AssignmentHistories
+            .Include(a => a.Technician!).ThenInclude(t => t.User)
+            .Include(a => a.AssignedByUser)
+            .Where(a => a.ServiceTicketId == id)
+            .OrderByDescending(a => a.AssignedAt)
+            .Select(a => new AssignmentHistoryDto
+            {
+                Id = a.Id,
+                TechnicianId = a.TechnicianId,
+                TechnicianName = a.Technician != null ? a.Technician.User.FullName : null,
+                AssignedByUserName = a.AssignedByUser != null ? a.AssignedByUser.FullName : null,
+                AssignmentType = a.AssignmentType.ToString(),
+                Reason = a.Reason,
+                AssignedAt = a.AssignedAt
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<ServiceTicketDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>
+        await Projected(_db).FirstAsync(t => t.Id == id, cancellationToken);
+
+    private static IQueryable<ServiceTicketDto> Projected(IApplicationDbContext db) =>
+        db.ServiceTickets.Select(t => new ServiceTicketDto
+        {
+            Id = t.Id,
+            ClientLocationId = t.ClientLocationId,
+            ClientLocationName = t.ClientLocation.Name,
+            ClientId = t.ClientLocation.ClientId,
+            ClientName = t.ClientLocation.Client.Name,
+            AssetId = t.AssetId,
+            AssetBrandName = t.Asset != null ? t.Asset.AssetBrand.Name : null,
+            AssetModel = t.Asset != null ? t.Asset.Model : null,
+            AssetSerialNumber = t.Asset != null ? t.Asset.SerialNumber : null,
+            ReportedByUserId = t.ReportedByUserId,
+            ReportedByUserName = t.ReportedByUser.FullName,
+            Description = t.Description,
+            Status = t.Status.ToString(),
+            Priority = t.Priority.ToString(),
+            TechnicianId = t.TechnicianId,
+            TechnicianName = t.Technician != null ? t.Technician.User.FullName : null,
+            ResolvedAt = t.ResolvedAt,
+            ClosedAt = t.ClosedAt,
+            CreatedAt = t.CreatedAt
+        });
+}

@@ -1,0 +1,31 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Toner.Domain.Entities;
+
+namespace Toner.Infrastructure.Persistence.Configurations;
+
+public class MaintenanceOrderConfiguration : IEntityTypeConfiguration<MaintenanceOrder>
+{
+    public void Configure(EntityTypeBuilder<MaintenanceOrder> builder)
+    {
+        builder.ConfigureBaseEntity();
+        builder.ToTable("MaintenanceOrders");
+
+        builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+
+        builder.HasOne(o => o.MaintenanceSchedule)
+            .WithMany(s => s.MaintenanceOrders)
+            .HasForeignKey(o => o.MaintenanceScheduleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(o => o.Asset)
+            .WithMany()
+            .HasForeignKey(o => o.AssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(o => o.Technician)
+            .WithMany(t => t.AssignedMaintenanceOrders)
+            .HasForeignKey(o => o.TechnicianId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
