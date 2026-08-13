@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User } from '@element-plus/icons-vue'
 import * as usersApi from '../../api/users'
@@ -29,6 +29,14 @@ const form = reactive({
 
 const requiresClient = computed(() => form.roleName === RoleNames.Cliente)
 
+// Cascada Departamento→Ciudad: departmentName es local al formulario, no se manda al backend.
+const departmentName = ref('')
+const departments = computed(() => [...new Set(cities.value.map((c) => c.stateOrProvince))].sort())
+const citiesInDepartment = computed(() => cities.value.filter((c) => c.stateOrProvince === departmentName.value))
+watch(departmentName, () => {
+  form.cityId = ''
+})
+
 async function loadData() {
   loading.value = true
   try {
@@ -52,6 +60,7 @@ function openCreateDialog() {
   form.phone = ''
   form.address = ''
   form.cityId = ''
+  departmentName.value = ''
   form.roleName = RoleNames.Coordinador
   form.clientId = ''
   dialogVisible.value = true
@@ -152,9 +161,20 @@ onMounted(loadData)
         <el-form-item label="Dirección">
           <el-input v-model="form.address" />
         </el-form-item>
+        <el-form-item label="Departamento">
+          <el-select v-model="departmentName" style="width: 100%" filterable placeholder="Selecciona un departamento">
+            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="Ciudad">
-          <el-select v-model="form.cityId" style="width: 100%" filterable placeholder="Selecciona una ciudad">
-            <el-option v-for="c in cities" :key="c.id" :label="c.name" :value="c.id" />
+          <el-select
+            v-model="form.cityId"
+            style="width: 100%"
+            filterable
+            :disabled="!departmentName"
+            placeholder="Selecciona una ciudad"
+          >
+            <el-option v-for="c in citiesInDepartment" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="Rol">

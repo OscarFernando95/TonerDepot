@@ -7,7 +7,8 @@ namespace Toner.Application.Tests.TestSupport;
 // los campos obligatorios de cada entidad en cada archivo de test.
 public static class TestEntities
 {
-    public static City City(string name = "Bogotá") => new() { Name = name };
+    public static City City(string name = "Bogotá", string stateOrProvince = "Cundinamarca") =>
+        new() { Name = name, StateOrProvince = stateOrProvince };
 
     public static AssetBrand AssetBrand(string name = "Ricoh") => new() { Name = name };
 

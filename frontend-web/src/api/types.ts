@@ -57,12 +57,7 @@ export interface CreateUserRequest {
 export interface CityDto {
   id: string
   name: string
-  stateOrProvince: string | null
-}
-
-export interface CreateCityRequest {
-  name: string
-  stateOrProvince?: string | null
+  stateOrProvince: string
 }
 
 export interface ClientDto {
@@ -83,9 +78,19 @@ export interface CreateClientRequest {
   contactName?: string | null
   contactEmail?: string | null
   contactPhone?: string | null
+  // Al menos una sede es obligatoria — garantiza que todo cliente nace con dónde prestarle servicio.
+  locations: CreateClientLocationRequest[]
 }
 
-export type UpdateClientRequest = CreateClientRequest
+// A propósito NO es `= CreateClientRequest`: a diferencia de crear, editar los datos de un cliente
+// nunca toca sus sedes (eso sigue siendo un flujo aparte desde el detalle del cliente).
+export interface UpdateClientRequest {
+  name: string
+  taxId?: string | null
+  contactName?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
+}
 
 export interface ClientLocationDto {
   id: string

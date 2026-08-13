@@ -1,4 +1,3 @@
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Toner.Application.Cities;
@@ -7,33 +6,23 @@ using Toner.Domain.Common;
 
 namespace Toner.Api.Controllers;
 
+// Solo lectura: las ciudades son un catálogo fijo, sembrado desde el dataset de municipios de Colombia
+// (ver DataSeeder). Ya no hay endpoint para crear ciudades a mano.
 [ApiController]
 [Route("api/cities")]
 [Authorize(Roles = RoleNames.StaffRoles)]
 public class CitiesController : ControllerBase
 {
     private readonly ICityService _cityService;
-    private readonly IValidator<CreateCityRequest> _createValidator;
 
-    public CitiesController(ICityService cityService, IValidator<CreateCityRequest> createValidator)
+    public CitiesController(ICityService cityService)
     {
         _cityService = cityService;
-        _createValidator = createValidator;
     }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CityDto>>> List(CancellationToken cancellationToken)
     {
         return Ok(await _cityService.ListAsync(cancellationToken));
-    }
-
-    [HttpPost]
-    [Authorize(Roles = RoleNames.Administrador)]
-    public async Task<ActionResult<CityDto>> Create([FromBody] CreateCityRequest request, CancellationToken cancellationToken)
-    {
-        await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-        var city = await _cityService.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(List), new { }, city);
     }
 }

@@ -17,6 +17,14 @@ public class ClientService : IClientService
 
     public async Task<ClientDto> CreateAsync(CreateClientRequest request, CancellationToken cancellationToken = default)
     {
+        // Defensivo, además del validator: el servicio puede llamarse directo (tests, otro servicio a
+        // futuro) sin pasar por FluentValidation — mismo criterio que AssetService.ApplyStatusChange
+        // con el área obligatoria.
+        if (request.Locations is null || request.Locations.Count == 0)
+        {
+            throw new ConflictException("Debe indicar al menos una sede para crear el cliente.");
+        }
+
         var client = new Client
         {
             Name = request.Name.Trim(),
@@ -26,11 +34,26 @@ public class ClientService : IClientService
             ContactPhone = request.ContactPhone?.Trim(),
             IsActive = true
         };
-
         _db.Clients.Add(client);
+
+        foreach (var locationRequest in request.Locations)
+        {
+            _db.ClientLocations.Add(new ClientLocation
+            {
+                ClientId = client.Id,
+                CityId = locationRequest.CityId,
+                Name = locationRequest.Name.Trim(),
+                Address = locationRequest.Address.Trim(),
+                ContactName = locationRequest.ContactName?.Trim(),
+                ContactPhone = locationRequest.ContactPhone?.Trim(),
+                IsActive = true
+            });
+        }
+
+        // Un solo SaveChangesAsync: Client + todas sus ClientLocation se confirman juntos, atómicamente.
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(client, locationCount: 0);
+        return ToDto(client, locationCount: request.Locations.Count);
     }
 
     public async Task<IReadOnlyList<ClientDto>> ListAsync(CancellationToken cancellationToken = default)

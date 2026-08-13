@@ -1,24 +1,16 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as clientsApi from '../../api/clients'
 import type { ClientDto } from '../../api/types'
+import CreateClientDialog from '../../components/CreateClientDialog.vue'
 
 const router = useRouter()
 
 const clients = ref<ClientDto[]>([])
 const loading = ref(false)
-const dialogVisible = ref(false)
-const saving = ref(false)
-
-const form = reactive({
-  name: '',
-  taxId: '',
-  contactName: '',
-  contactEmail: '',
-  contactPhone: ''
-})
+const createClientDialogRef = ref<InstanceType<typeof CreateClientDialog> | null>(null)
 
 async function loadClients() {
   loading.value = true
@@ -27,35 +19,6 @@ async function loadClients() {
     clients.value = data
   } finally {
     loading.value = false
-  }
-}
-
-function openCreateDialog() {
-  form.name = ''
-  form.taxId = ''
-  form.contactName = ''
-  form.contactEmail = ''
-  form.contactPhone = ''
-  dialogVisible.value = true
-}
-
-async function handleSave() {
-  saving.value = true
-  try {
-    await clientsApi.createClient({
-      name: form.name,
-      taxId: form.taxId || null,
-      contactName: form.contactName || null,
-      contactEmail: form.contactEmail || null,
-      contactPhone: form.contactPhone || null
-    })
-    ElMessage.success('Cliente creado.')
-    dialogVisible.value = false
-    await loadClients()
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo crear el cliente.')
-  } finally {
-    saving.value = false
   }
 }
 
@@ -82,7 +45,7 @@ onMounted(loadClients)
   <div>
     <div class="page-header">
       <h1>Clientes</h1>
-      <el-button type="primary" @click="openCreateDialog">Nuevo cliente</el-button>
+      <el-button type="primary" @click="createClientDialogRef?.open()">Nuevo cliente</el-button>
     </div>
 
     <el-table :data="clients" v-loading="loading" stripe @row-click="goToDetail" class="clickable-rows">
@@ -107,29 +70,7 @@ onMounted(loadClients)
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" title="Nuevo cliente" width="480px">
-      <el-form :model="form" label-position="top">
-        <el-form-item label="Nombre">
-          <el-input v-model="form.name" />
-        </el-form-item>
-        <el-form-item label="NIT">
-          <el-input v-model="form.taxId" />
-        </el-form-item>
-        <el-form-item label="Contacto">
-          <el-input v-model="form.contactName" />
-        </el-form-item>
-        <el-form-item label="Correo de contacto">
-          <el-input v-model="form.contactEmail" type="email" />
-        </el-form-item>
-        <el-form-item label="Teléfono de contacto">
-          <el-input v-model="form.contactPhone" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">Cancelar</el-button>
-        <el-button type="primary" :loading="saving" @click="handleSave">Guardar</el-button>
-      </template>
-    </el-dialog>
+    <CreateClientDialog ref="createClientDialogRef" @created="loadClients" />
   </div>
 </template>
 

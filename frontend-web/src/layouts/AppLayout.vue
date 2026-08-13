@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   HomeFilled,
   OfficeBuilding,
-  MapLocation,
   Printer,
   PriceTag,
   Document,
@@ -52,10 +51,6 @@ function handleLogout() {
         <el-menu-item v-if="canSeeClients" index="clients" :route="{ name: 'clients' }">
           <el-icon><OfficeBuilding /></el-icon>
           <span>Clientes</span>
-        </el-menu-item>
-        <el-menu-item v-if="canSeeClients" index="cities" :route="{ name: 'cities' }">
-          <el-icon><MapLocation /></el-icon>
-          <span>Ciudades</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="assets" :route="{ name: 'assets' }">
           <el-icon><Printer /></el-icon>

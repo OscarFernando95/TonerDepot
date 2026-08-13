@@ -2,11 +2,13 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
 import * as clientsApi from '../../api/clients'
 import * as clientLocationsApi from '../../api/clientLocations'
 import * as assetsApi from '../../api/assets'
 import { useAuthStore } from '../../stores/auth'
+import CreateClientDialog from '../../components/CreateClientDialog.vue'
 import {
   RoleNames,
   ServiceTicketPriorities,
@@ -29,6 +31,7 @@ const assets = ref<AssetDto[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const saving = ref(false)
+const createClientDialogRef = ref<InstanceType<typeof CreateClientDialog> | null>(null)
 
 const priorityOptions = Object.values(ServiceTicketPriorities)
 
@@ -89,6 +92,13 @@ watch(
     locations.value = data
   }
 )
+
+function onClientCreatedFromTicket(newClient: ClientDto) {
+  clients.value.push(newClient)
+  // Dispara el watch de form.clientId de arriba, que carga las sedes del cliente recién creado — ya
+  // no van a estar vacías, porque ahora todo cliente nace con al menos una.
+  form.clientId = newClient.id
+}
 
 async function handleSave() {
   saving.value = true
@@ -178,9 +188,12 @@ onMounted(loadTickets)
     <el-dialog v-model="dialogVisible" title="Nuevo ticket" width="480px">
       <el-form :model="form" label-position="top">
         <el-form-item v-if="!isClient" label="Cliente">
-          <el-select v-model="form.clientId" style="width: 100%" filterable placeholder="Selecciona un cliente">
-            <el-option v-for="c in clients" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
+          <div class="client-select-row">
+            <el-select v-model="form.clientId" style="flex: 1" filterable placeholder="Selecciona un cliente">
+              <el-option v-for="c in clients" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+            <el-button :icon="Plus" circle title="Crear cliente" @click="createClientDialogRef?.open()" />
+          </div>
         </el-form-item>
         <el-form-item label="Sede">
           <el-select
@@ -224,6 +237,8 @@ onMounted(loadTickets)
         <el-button type="primary" :loading="saving" @click="handleSave">Guardar</el-button>
       </template>
     </el-dialog>
+
+    <CreateClientDialog ref="createClientDialogRef" @created="onClientCreatedFromTicket" />
   </div>
 </template>
 
@@ -237,5 +252,11 @@ onMounted(loadTickets)
 
 .clickable-rows :deep(tbody tr) {
   cursor: pointer;
+}
+
+.client-select-row {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
 }
 </style>
