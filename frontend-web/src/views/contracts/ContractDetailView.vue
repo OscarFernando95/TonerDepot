@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as contractsApi from '../../api/contracts'
 import * as contractAssetsApi from '../../api/contractAssets'
 import * as assetsApi from '../../api/assets'
-import { ContractStatuses, type AssetDto, type ContractAssetDto, type ContractDto } from '../../api/types'
+import * as clientLocationsApi from '../../api/clientLocations'
+import {
+  ContractStatuses,
+  type AssetDto,
+  type ClientLocationDto,
+  type ContractAssetDto,
+  type ContractDto
+} from '../../api/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,7 +21,12 @@ const contractId = route.params.id as string
 const contract = ref<ContractDto | null>(null)
 const contractAssets = ref<ContractAssetDto[]>([])
 const assets = ref<AssetDto[]>([])
+const locations = ref<ClientLocationDto[]>([])
 const loading = ref(false)
+
+// Solo se puede vincular un activo que esté disponible en bodega (ver ContractAssetService.AddAsync) —
+// se filtra acá para no ofrecer opciones que el backend va a rechazar.
+const availableAssets = computed(() => assets.value.filter((a) => a.lifecycleStatus === 'EnBodega'))
 
 const statusOptions = Object.values(ContractStatuses)
 
@@ -30,7 +42,7 @@ const changingStatus = ref(false)
 
 const addAssetDialogVisible = ref(false)
 const savingAsset = ref(false)
-const addAssetForm = reactive({ assetId: '' })
+const addAssetForm = reactive({ assetId: '', clientLocationId: '' })
 
 async function loadAll() {
   loading.value = true
@@ -44,6 +56,10 @@ async function loadAll() {
     contractAssets.value = contractAssetsRes.data
     assets.value = assetsRes.data
     syncForm()
+
+    // Acotado al cliente del contrato: el backend exige que la sede pertenezca a ese cliente.
+    const { data: locationsData } = await clientLocationsApi.listClientLocations(contract.value.clientId)
+    locations.value = locationsData
   } finally {
     loading.value = false
   }
@@ -93,21 +109,27 @@ async function changeStatus(status: string) {
 
 function openAddAssetDialog() {
   addAssetForm.assetId = ''
+  addAssetForm.clientLocationId = ''
   addAssetDialogVisible.value = true
 }
 
 async function saveAddAsset() {
   savingAsset.value = true
   try {
-    await contractAssetsApi.addContractAsset(contractId, { assetId: addAssetForm.assetId })
-    ElMessage.success('Activo vinculado al contrato.')
+    await contractAssetsApi.addContractAsset(contractId, {
+      assetId: addAssetForm.assetId,
+      clientLocationId: addAssetForm.clientLocationId
+    })
+    ElMessage.success('Activo vinculado al contrato — queda "Pendiente de instalar" en la sede elegida.')
     addAssetDialogVisible.value = false
-    const [{ data: caData }, { data: contractData }] = await Promise.all([
+    const [{ data: caData }, { data: contractData }, { data: assetsData }] = await Promise.all([
       contractAssetsApi.listContractAssets(contractId),
-      contractsApi.getContract(contractId)
+      contractsApi.getContract(contractId),
+      assetsApi.listAssets()
     ])
     contractAssets.value = caData
     contract.value = contractData
+    assets.value = assetsData
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo vincular el activo.')
   } finally {
@@ -217,15 +239,23 @@ onMounted(loadAll)
     <el-dialog v-model="addAssetDialogVisible" title="Vincular activo" width="420px">
       <el-form :model="addAssetForm" label-position="top">
         <el-form-item label="Activo">
-          <el-select v-model="addAssetForm.assetId" style="width: 100%" filterable placeholder="Selecciona un activo">
+          <el-select v-model="addAssetForm.assetId" style="width: 100%" filterable placeholder="Selecciona un activo en bodega">
             <el-option
-              v-for="a in assets"
+              v-for="a in availableAssets"
               :key="a.id"
               :label="`${a.assetBrandName} ${a.model} — ${a.serialNumber}`"
               :value="a.id"
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="Sede de destino">
+          <el-select v-model="addAssetForm.clientLocationId" style="width: 100%" filterable placeholder="Selecciona una sede">
+            <el-option v-for="l in locations" :key="l.id" :label="l.name" :value="l.id" />
+          </el-select>
+        </el-form-item>
+        <p class="dialog-hint">
+          El activo quedará "Pendiente de instalar" en esta sede hasta que el técnico confirme la instalación.
+        </p>
       </el-form>
       <template #footer>
         <el-button @click="addAssetDialogVisible = false">Cancelar</el-button>
@@ -263,5 +293,11 @@ onMounted(loadAll)
 .section-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.dialog-hint {
+  color: #6b7280;
+  font-size: 0.8rem;
+  margin: 0;
 }
 </style>

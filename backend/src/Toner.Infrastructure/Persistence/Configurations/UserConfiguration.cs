@@ -11,11 +11,17 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.ConfigureBaseEntity();
         builder.ToTable("Users");
 
-        builder.Property(u => u.Email).IsRequired().HasMaxLength(256);
-        builder.HasIndex(u => u.Email).IsUnique();
+        // Ya no es la credencial de login (eso es Cedula) — queda como dato de contacto opcional.
+        builder.Property(u => u.Email).HasMaxLength(256);
+
+        builder.Property(u => u.Cedula).IsRequired().HasMaxLength(20);
+        builder.HasIndex(u => u.Cedula).IsUnique();
 
         builder.Property(u => u.PasswordHash).IsRequired();
         builder.Property(u => u.FullName).IsRequired().HasMaxLength(200);
+        builder.Property(u => u.Phone).HasMaxLength(30);
+        builder.Property(u => u.Address).HasMaxLength(300);
+        builder.Property(u => u.MustChangePassword).IsRequired().HasDefaultValue(false);
 
         builder.HasOne(u => u.Role)
             .WithMany(r => r.Users)
@@ -25,6 +31,11 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasOne(u => u.Client)
             .WithMany(c => c.Users)
             .HasForeignKey(u => u.ClientId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(u => u.City)
+            .WithMany(c => c.Users)
+            .HasForeignKey(u => u.CityId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(u => u.Technician)

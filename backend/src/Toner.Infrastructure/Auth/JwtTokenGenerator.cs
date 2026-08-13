@@ -25,11 +25,18 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         {
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Role, user.Role.Name),
+            new("must_change_password", user.MustChangePassword.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        // El correo ya es opcional (la credencial de login es la cédula) — solo se agrega el claim si
+        // hay un valor real, de lo contrario quedaría un claim vacío sin sentido.
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            claims.Add(new Claim(ClaimTypes.Email, user.Email));
+        }
 
         if (user.ClientId.HasValue)
         {

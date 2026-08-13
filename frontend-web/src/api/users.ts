@@ -12,3 +12,7 @@ export function createUser(request: CreateUserRequest) {
 export function setUserStatus(id: string, isActive: boolean) {
   return http.patch<UserDto>(`/users/${id}/status`, { isActive })
 }
+
+export function resetUserPassword(id: string) {
+  return http.post<UserDto>(`/users/${id}/reset-password`)
+}

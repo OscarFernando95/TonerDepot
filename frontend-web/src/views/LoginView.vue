@@ -8,17 +8,17 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const form = reactive({ email: '', password: '' })
+const form = reactive({ cedula: '', password: '' })
 const loading = ref(false)
 
 async function handleSubmit() {
   loading.value = true
   try {
-    await auth.login(form.email, form.password)
+    await auth.login(form.cedula, form.password)
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
   } catch {
-    ElMessage.error('Correo o contraseña incorrectos.')
+    ElMessage.error('Cédula o contraseña incorrectos.')
   } finally {
     loading.value = false
   }
@@ -32,8 +32,8 @@ async function handleSubmit() {
       <p class="login-subtitle">Gestión de alquiler y servicio técnico de impresoras</p>
 
       <el-form :model="form" label-position="top" @submit.prevent="handleSubmit">
-        <el-form-item label="Correo">
-          <el-input v-model="form.email" type="email" placeholder="tu@correo.com" autofocus />
+        <el-form-item label="Cédula">
+          <el-input v-model="form.cedula" placeholder="Número de cédula" autofocus />
         </el-form-item>
         <el-form-item label="Contraseña">
           <el-input v-model="form.password" type="password" show-password @keyup.enter="handleSubmit" />

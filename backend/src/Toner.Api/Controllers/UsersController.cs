@@ -42,4 +42,11 @@ public class UsersController : ControllerBase
         var user = await _userService.SetActiveStatusAsync(id, request.IsActive, cancellationToken);
         return Ok(user);
     }
+
+    [HttpPost("{id:guid}/reset-password")]
+    public async Task<ActionResult<UserDto>> ResetPassword(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await _userService.ResetPasswordAsync(id, cancellationToken);
+        return Ok(user);
+    }
 }

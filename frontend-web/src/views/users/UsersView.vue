@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { User } from '@element-plus/icons-vue'
 import * as usersApi from '../../api/users'
 import * as clientsApi from '../../api/clients'
-import { RoleNames, type ClientDto, type UserDto } from '../../api/types'
+import * as citiesApi from '../../api/cities'
+import { RoleNames, type CityDto, type ClientDto, type UserDto } from '../../api/types'
 
 const users = ref<UserDto[]>([])
 const clients = ref<ClientDto[]>([])
+const cities = ref<CityDto[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -14,9 +17,12 @@ const saving = ref(false)
 const roleOptions = Object.values(RoleNames)
 
 const form = reactive({
+  cedula: '',
   email: '',
-  password: '',
   fullName: '',
+  phone: '',
+  address: '',
+  cityId: '' as string,
   roleName: RoleNames.Coordinador as string,
   clientId: '' as string
 })
@@ -26,18 +32,26 @@ const requiresClient = computed(() => form.roleName === RoleNames.Cliente)
 async function loadData() {
   loading.value = true
   try {
-    const [usersRes, clientsRes] = await Promise.all([usersApi.listUsers(), clientsApi.listClients()])
+    const [usersRes, clientsRes, citiesRes] = await Promise.all([
+      usersApi.listUsers(),
+      clientsApi.listClients(),
+      citiesApi.listCities()
+    ])
     users.value = usersRes.data
     clients.value = clientsRes.data
+    cities.value = citiesRes.data
   } finally {
     loading.value = false
   }
 }
 
 function openCreateDialog() {
+  form.cedula = ''
   form.email = ''
-  form.password = ''
   form.fullName = ''
+  form.phone = ''
+  form.address = ''
+  form.cityId = ''
   form.roleName = RoleNames.Coordinador
   form.clientId = ''
   dialogVisible.value = true
@@ -47,13 +61,16 @@ async function handleSave() {
   saving.value = true
   try {
     await usersApi.createUser({
-      email: form.email,
-      password: form.password,
+      cedula: form.cedula,
+      email: form.email || null,
       fullName: form.fullName,
+      phone: form.phone,
+      address: form.address,
+      cityId: form.cityId,
       roleName: form.roleName as any,
       clientId: requiresClient.value ? form.clientId : null
     })
-    ElMessage.success('Usuario creado.')
+    ElMessage.success('Usuario creado. Contraseña inicial: Toner123')
     dialogVisible.value = false
     await loadData()
   } catch (err: any) {
@@ -75,44 +92,70 @@ async function toggleStatus(user: UserDto) {
   await loadData()
 }
 
+async function resetPassword(user: UserDto) {
+  await ElMessageBox.confirm(
+    `¿Restablecer la contraseña de ${user.fullName} a la contraseña genérica?`,
+    'Confirmar',
+    { type: 'warning' }
+  )
+  await usersApi.resetUserPassword(user.id)
+  ElMessage.success('Contraseña restablecida a Toner123. El usuario deberá cambiarla en su próximo inicio de sesión.')
+  await loadData()
+}
+
 onMounted(loadData)
 </script>
 
 <template>
   <div>
     <div class="page-header">
-      <h1>Usuarios</h1>
+      <h1><el-icon><User /></el-icon> Usuarios</h1>
       <el-button type="primary" @click="openCreateDialog">Nuevo usuario</el-button>
     </div>
 
     <el-table :data="users" v-loading="loading" stripe>
       <el-table-column prop="fullName" label="Nombre" />
-      <el-table-column prop="email" label="Correo" />
+      <el-table-column prop="cedula" label="Cédula" width="130" />
+      <el-table-column label="Correo">
+        <template #default="{ row }">{{ row.email ?? '—' }}</template>
+      </el-table-column>
       <el-table-column prop="roleName" label="Rol" width="140" />
-      <el-table-column label="Estado" width="120">
+      <el-table-column label="Estado" width="110">
         <template #default="{ row }">
           <el-tag :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? 'Activo' : 'Inactivo' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="" width="120">
+      <el-table-column label="" width="220">
         <template #default="{ row }">
           <el-button link @click="toggleStatus(row)">
             {{ row.isActive ? 'Desactivar' : 'Activar' }}
           </el-button>
+          <el-button link @click="resetPassword(row)">Restablecer contraseña</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" title="Nuevo usuario" width="440px">
+    <el-dialog v-model="dialogVisible" title="Nuevo usuario" width="480px">
       <el-form :model="form" label-position="top">
         <el-form-item label="Nombre completo">
           <el-input v-model="form.fullName" />
         </el-form-item>
-        <el-form-item label="Correo">
+        <el-form-item label="Cédula">
+          <el-input v-model="form.cedula" />
+        </el-form-item>
+        <el-form-item label="Celular">
+          <el-input v-model="form.phone" />
+        </el-form-item>
+        <el-form-item label="Correo (opcional)">
           <el-input v-model="form.email" type="email" />
         </el-form-item>
-        <el-form-item label="Contraseña">
-          <el-input v-model="form.password" type="password" show-password />
+        <el-form-item label="Dirección">
+          <el-input v-model="form.address" />
+        </el-form-item>
+        <el-form-item label="Ciudad">
+          <el-select v-model="form.cityId" style="width: 100%" filterable placeholder="Selecciona una ciudad">
+            <el-option v-for="c in cities" :key="c.id" :label="c.name" :value="c.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="Rol">
           <el-select v-model="form.roleName" style="width: 100%">
@@ -139,5 +182,11 @@ onMounted(loadData)
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.page-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 </style>

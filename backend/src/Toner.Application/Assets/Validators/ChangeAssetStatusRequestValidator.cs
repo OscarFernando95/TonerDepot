@@ -20,6 +20,17 @@ public class ChangeAssetStatusRequestValidator : AbstractValidator<ChangeAssetSt
             .WithMessage("El ClientLocationId especificado no existe.")
             .When(x => x.ClientLocationId.HasValue);
 
+        RuleFor(x => x.ClientLocationId)
+            .NotNull()
+            .WithMessage("Debe indicar ClientLocationId para mover el activo a Pendiente de instalar.")
+            .When(x => x.NewStatus == nameof(AssetLifecycleStatus.PendienteInstalacion));
+
+        RuleFor(x => x.Area)
+            .NotEmpty()
+            .MaximumLength(150)
+            .WithMessage("El área es obligatoria al instalar el activo.")
+            .When(x => x.NewStatus == nameof(AssetLifecycleStatus.Instalado));
+
         RuleFor(x => x.Notes).MaximumLength(500);
     }
 }

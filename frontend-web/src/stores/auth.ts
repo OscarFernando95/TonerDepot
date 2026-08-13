@@ -18,8 +18,8 @@ export const useAuthStore = defineStore('auth', () => {
     return raw ? (JSON.parse(raw) as CurrentUser) : null
   }
 
-  async function login(email: string, password: string) {
-    const { data } = await authApi.login(email, password)
+  async function login(cedula: string, password: string) {
+    const { data } = await authApi.login(cedula, password)
     if (!data.succeeded || !data.token || !data.user) {
       throw new Error('Credenciales inválidas')
     }
@@ -40,5 +40,13 @@ export const useAuthStore = defineStore('auth', () => {
     return !!user.value && roles.includes(user.value.role)
   }
 
-  return { token, user, isAuthenticated, role, login, logout, hasRole }
+  function setMustChangePassword(value: boolean) {
+    if (!user.value) {
+      return
+    }
+    user.value = { ...user.value, mustChangePassword: value }
+    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+  }
+
+  return { token, user, isAuthenticated, role, login, logout, hasRole, setMustChangePassword }
 })

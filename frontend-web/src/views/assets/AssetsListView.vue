@@ -1,21 +1,28 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Printer } from '@element-plus/icons-vue'
 import * as assetsApi from '../../api/assets'
 import * as assetBrandsApi from '../../api/assetBrands'
+import * as clientsApi from '../../api/clients'
+import * as citiesApi from '../../api/cities'
 import {
   AssetLifecycleStatusLabels,
   AssetTypes,
   type AssetBrandDto,
   type AssetDto,
-  type AssetTypeName
+  type AssetTypeName,
+  type CityDto,
+  type ClientDto
 } from '../../api/types'
 
 const router = useRouter()
 
 const assets = ref<AssetDto[]>([])
 const brands = ref<AssetBrandDto[]>([])
+const clients = ref<ClientDto[]>([])
+const cities = ref<CityDto[]>([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -29,12 +36,32 @@ const form = reactive({
   type: AssetTypes.Impresora as AssetTypeName
 })
 
+const filters = reactive({
+  cityName: '' as string,
+  clientId: '' as string
+})
+
+const filteredAssets = computed(() =>
+  assets.value.filter(
+    (a) =>
+      (!filters.cityName || a.cityName === filters.cityName) &&
+      (!filters.clientId || a.currentClientId === filters.clientId)
+  )
+)
+
 async function loadData() {
   loading.value = true
   try {
-    const [assetsRes, brandsRes] = await Promise.all([assetsApi.listAssets(), assetBrandsApi.listAssetBrands()])
+    const [assetsRes, brandsRes, clientsRes, citiesRes] = await Promise.all([
+      assetsApi.listAssets(),
+      assetBrandsApi.listAssetBrands(),
+      clientsApi.listClients(),
+      citiesApi.listCities()
+    ])
     assets.value = assetsRes.data
     brands.value = brandsRes.data
+    clients.value = clientsRes.data
+    cities.value = citiesRes.data
   } finally {
     loading.value = false
   }
@@ -72,6 +99,7 @@ function statusTagType(status: string) {
     case 'Instalado':
       return 'success'
     case 'EnMantenimiento':
+    case 'PendienteInstalacion':
       return 'warning'
     case 'DadoDeBaja':
       return 'danger'
@@ -90,7 +118,7 @@ onMounted(loadData)
 <template>
   <div>
     <div class="page-header">
-      <h1>Activos</h1>
+      <h1><el-icon><Printer /></el-icon> Activos</h1>
       <el-button type="primary" @click="openCreateDialog" :disabled="brands.length === 0">Nuevo activo</el-button>
     </div>
     <el-alert
@@ -101,12 +129,21 @@ onMounted(loadData)
       title="Primero crea una marca en la sección Marcas para poder registrar activos."
     />
 
-    <el-table :data="assets" v-loading="loading" stripe @row-click="goToDetail" class="clickable-rows">
+    <div class="filters-bar">
+      <el-select v-model="filters.cityName" clearable filterable placeholder="Filtrar por ciudad" style="width: 220px">
+        <el-option v-for="c in cities" :key="c.id" :label="c.name" :value="c.name" />
+      </el-select>
+      <el-select v-model="filters.clientId" clearable filterable placeholder="Filtrar por cliente" style="width: 240px">
+        <el-option v-for="c in clients" :key="c.id" :label="c.name" :value="c.id" />
+      </el-select>
+    </div>
+
+    <el-table :data="filteredAssets" v-loading="loading" stripe @row-click="goToDetail" class="clickable-rows">
       <el-table-column prop="assetBrandName" label="Marca" width="120" />
       <el-table-column prop="model" label="Modelo" />
       <el-table-column prop="serialNumber" label="Serie" width="140" />
       <el-table-column prop="type" label="Tipo" width="120" />
-      <el-table-column label="Estado" width="150">
+      <el-table-column label="Estado" width="160">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.lifecycleStatus)" size="small">
             {{ AssetLifecycleStatusLabels[row.lifecycleStatus as keyof typeof AssetLifecycleStatusLabels] }}
@@ -120,6 +157,15 @@ onMounted(loadData)
           </span>
           <span v-else class="muted">—</span>
         </template>
+      </el-table-column>
+      <el-table-column label="Área" width="140">
+        <template #default="{ row }">{{ row.area ?? '—' }}</template>
+      </el-table-column>
+      <el-table-column label="Ciudad" width="140">
+        <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
+      </el-table-column>
+      <el-table-column label="Última lectura" width="130">
+        <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
       </el-table-column>
     </el-table>
 
@@ -158,7 +204,19 @@ onMounted(loadData)
   margin-bottom: 1rem;
 }
 
+.page-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .page-alert {
+  margin-bottom: 1rem;
+}
+
+.filters-bar {
+  display: flex;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 

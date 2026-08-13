@@ -17,6 +17,7 @@ public class AssetConfiguration : IEntityTypeConfiguration<Asset>
 
         builder.Property(a => a.Type).HasConversion<string>().HasMaxLength(30);
         builder.Property(a => a.LifecycleStatus).HasConversion<string>().HasMaxLength(30);
+        builder.Property(a => a.Area).HasMaxLength(150);
 
         builder.HasOne(a => a.AssetBrand)
             .WithMany(b => b.Assets)

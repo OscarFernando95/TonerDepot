@@ -47,11 +47,16 @@ const savingStatus = ref(false)
 const statusForm = reactive({
   newStatus: '' as AssetLifecycleStatusName | '',
   clientLocationId: '',
+  area: '',
   notes: ''
 })
 
+// PendienteInstalacion solo se alcanza automáticamente al vincular un activo a un contrato — no es una
+// opción manual del selector, aunque la tabla espejo la incluya como transición válida para otros usos.
 const availableTransitions = computed(() =>
-  asset.value ? AssetAllowedTransitions[asset.value.lifecycleStatus] : []
+  (asset.value ? AssetAllowedTransitions[asset.value.lifecycleStatus] : []).filter(
+    (s) => s !== 'PendienteInstalacion'
+  )
 )
 const requiresLocationPicker = computed(
   () => statusForm.newStatus === 'Instalado' && !asset.value?.currentClientLocationId
@@ -102,6 +107,7 @@ async function saveInfo() {
 function openStatusDialog() {
   statusForm.newStatus = ''
   statusForm.clientLocationId = ''
+  statusForm.area = ''
   statusForm.notes = ''
   statusDialogVisible.value = true
 }
@@ -113,6 +119,7 @@ async function saveStatus() {
     const { data } = await assetsApi.changeAssetStatus(assetId, {
       newStatus: statusForm.newStatus,
       clientLocationId: statusForm.clientLocationId || null,
+      area: statusForm.area || null,
       notes: statusForm.notes || null
     })
     asset.value = data
@@ -132,6 +139,7 @@ function statusTagType(status: string) {
     case 'Instalado':
       return 'success'
     case 'EnMantenimiento':
+    case 'PendienteInstalacion':
       return 'warning'
     case 'DadoDeBaja':
       return 'danger'
@@ -177,6 +185,7 @@ onMounted(loadAll)
       </div>
       <p class="location-line" v-if="asset.currentClientLocationName">
         Ubicado en <strong>{{ asset.currentClientName }} — {{ asset.currentClientLocationName }}</strong>
+        <span v-if="asset.area"> ({{ asset.area }})</span>
       </p>
 
       <el-card class="section-card">
@@ -271,6 +280,9 @@ onMounted(loadAll)
               :value="l.id"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="statusForm.newStatus === 'Instalado'" label="Área">
+          <el-input v-model="statusForm.area" placeholder="Ej: Contabilidad, Recepción" />
         </el-form-item>
         <el-form-item label="Notas">
           <el-input v-model="statusForm.notes" type="textarea" :rows="2" />

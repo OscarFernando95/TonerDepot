@@ -9,4 +9,5 @@ public class City : BaseEntity
 
     public ICollection<ClientLocation> ClientLocations { get; set; } = new List<ClientLocation>();
     public ICollection<TechnicianCoverage> TechnicianCoverages { get; set; } = new List<TechnicianCoverage>();
+    public ICollection<User> Users { get; set; } = new List<User>();
 }

@@ -12,5 +12,9 @@ public class AddContractAssetRequestValidator : AbstractValidator<AddContractAss
         RuleFor(x => x.AssetId)
             .MustAsync(async (id, ct) => await db.Assets.AnyAsync(a => a.Id == id, ct))
             .WithMessage("El AssetId especificado no existe.");
+
+        RuleFor(x => x.ClientLocationId)
+            .MustAsync(async (id, ct) => await db.ClientLocations.AnyAsync(l => l.Id == id, ct))
+            .WithMessage("El ClientLocationId especificado no existe.");
     }
 }

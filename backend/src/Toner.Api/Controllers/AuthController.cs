@@ -34,7 +34,7 @@ public class AuthController : ControllerBase
         var result = await _authService.LoginAsync(request, cancellationToken);
         if (!result.Succeeded)
         {
-            return Unauthorized(new { title = "Correo o contraseña incorrectos." });
+            return Unauthorized(new { title = "Cédula o contraseña incorrectos." });
         }
 
         return Ok(result);

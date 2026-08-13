@@ -17,6 +17,10 @@ public class Asset : BaseEntity
     public Guid? CurrentClientLocationId { get; set; }
     public ClientLocation? CurrentClientLocation { get; set; }
 
+    // Área física dentro de la sede (ej. "Contabilidad", "Recepción"). La ingresa el técnico/staff al
+    // confirmar la instalación (transición a Instalado), no antes; se limpia al volver a EnBodega.
+    public string? Area { get; set; }
+
     public ICollection<AssetStatusLog> StatusLogs { get; set; } = new List<AssetStatusLog>();
     public ICollection<ContractAsset> ContractAssets { get; set; } = new List<ContractAsset>();
     public ICollection<MeterReading> MeterReadings { get; set; } = new List<MeterReading>();

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,7 +33,7 @@ public class ContractAssetsController : ControllerBase
     {
         await _addValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var contractAsset = await _contractAssetService.AddAsync(contractId, request, cancellationToken);
+        var contractAsset = await _contractAssetService.AddAsync(contractId, request, CurrentUserId, cancellationToken);
         return CreatedAtAction(nameof(List), new { contractId }, contractAsset);
     }
 
@@ -41,4 +42,6 @@ public class ContractAssetsController : ControllerBase
     {
         return Ok(await _contractAssetService.EndAsync(contractId, id, cancellationToken));
     }
+
+    private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }

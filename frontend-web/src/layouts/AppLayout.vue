@@ -1,6 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  HomeFilled,
+  OfficeBuilding,
+  MapLocation,
+  Printer,
+  PriceTag,
+  Document,
+  Calendar,
+  Tools,
+  Tickets,
+  UserFilled,
+  Suitcase,
+  User,
+  Monitor,
+  Files
+} from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { RoleNames } from '../api/types'
 
@@ -30,45 +46,59 @@ function handleLogout() {
       <div class="app-brand">Toner</div>
       <el-menu :default-active="activeMenu" router class="app-menu" background-color="transparent">
         <el-menu-item index="dashboard" :route="{ name: 'dashboard' }">
+          <el-icon><HomeFilled /></el-icon>
           <span>Inicio</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="clients" :route="{ name: 'clients' }">
+          <el-icon><OfficeBuilding /></el-icon>
           <span>Clientes</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="cities" :route="{ name: 'cities' }">
+          <el-icon><MapLocation /></el-icon>
           <span>Ciudades</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="assets" :route="{ name: 'assets' }">
+          <el-icon><Printer /></el-icon>
           <span>Activos</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="asset-brands" :route="{ name: 'asset-brands' }">
+          <el-icon><PriceTag /></el-icon>
           <span>Marcas</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="contracts" :route="{ name: 'contracts' }">
+          <el-icon><Document /></el-icon>
           <span>Contratos</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="maintenance-schedules" :route="{ name: 'maintenance-schedules' }">
+          <el-icon><Calendar /></el-icon>
           <span>Cronogramas</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="maintenance-orders" :route="{ name: 'maintenance-orders' }">
+          <el-icon><Tools /></el-icon>
           <span>Órdenes de mantenimiento</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClientPortal" index="my-assets" :route="{ name: 'my-assets' }">
+          <el-icon><Monitor /></el-icon>
           <span>Mis activos</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClientPortal" index="my-contracts" :route="{ name: 'my-contracts' }">
+          <el-icon><Files /></el-icon>
           <span>Mis contratos</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeTickets" index="tickets" :route="{ name: 'tickets' }">
+          <el-icon><Tickets /></el-icon>
           <span>Tickets</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeClients" index="technicians" :route="{ name: 'technicians' }">
+          <el-icon><UserFilled /></el-icon>
           <span>Técnicos</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeMyWork" index="my-work" :route="{ name: 'my-work' }">
+          <el-icon><Suitcase /></el-icon>
           <span>Mi trabajo</span>
         </el-menu-item>
         <el-menu-item v-if="canSeeUsers" index="users" :route="{ name: 'users' }">
+          <el-icon><User /></el-icon>
           <span>Usuarios</span>
         </el-menu-item>
       </el-menu>

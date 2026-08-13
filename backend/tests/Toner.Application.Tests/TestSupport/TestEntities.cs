@@ -21,10 +21,18 @@ public static class TestEntities
         Address = "Calle 123"
     };
 
+    public static Contract Contract(Client client, ContractStatus status = ContractStatus.Activo) => new()
+    {
+        ClientId = client.Id,
+        StartDate = DateTime.UtcNow,
+        Status = status
+    };
+
     public static Role Role(string name) => new() { Name = name };
 
-    public static User User(Role role, string? email = null, Guid? clientId = null) => new()
+    public static User User(Role role, string? email = null, Guid? clientId = null, string? cedula = null) => new()
     {
+        Cedula = cedula ?? Guid.NewGuid().ToString("N")[..10],
         Email = email ?? $"{Guid.NewGuid():N}@test.local",
         PasswordHash = "hash",
         FullName = "Usuario Test",

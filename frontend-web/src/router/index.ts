@@ -22,6 +22,11 @@ const router = createRouter({
           component: () => import('../views/DashboardView.vue')
         },
         {
+          path: 'change-password',
+          name: 'change-password',
+          component: () => import('../views/auth/ChangePasswordView.vue')
+        },
+        {
           path: 'clients',
           name: 'clients',
           component: () => import('../views/clients/ClientsListView.vue'),
@@ -143,6 +148,13 @@ router.beforeEach((to) => {
 
   if (!auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+
+  // Bloquea toda navegación hasta que el usuario cambie la contraseña genérica — el backend refuerza
+  // esto mismo con el claim must_change_password (ver MustChangePasswordMiddleware), este guard es solo
+  // la parte de UX. "Salir" sigue accesible porque el botón de logout vive en AppLayout, no en una ruta.
+  if (auth.user?.mustChangePassword && to.name !== 'change-password') {
+    return { name: 'change-password' }
   }
 
   const allowedRoles = to.meta.roles as string[] | undefined

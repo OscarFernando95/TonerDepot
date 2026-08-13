@@ -21,12 +21,12 @@ public class AuthService : IAuthService
 
     public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
     {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var cedula = request.Cedula.Trim();
 
         var user = await _db.Users
             .Include(u => u.Role)
             .Include(u => u.Technician)
-            .FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
+            .FirstOrDefaultAsync(u => u.Cedula == cedula, cancellationToken);
 
         if (user is null || !user.IsActive || !_passwordHasher.Verify(request.Password, user.PasswordHash))
         {
@@ -59,16 +59,19 @@ public class AuthService : IAuthService
         }
 
         user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
+        user.MustChangePassword = false;
         await _db.SaveChangesAsync(cancellationToken);
     }
 
     private static CurrentUserDto ToCurrentUserDto(User user) => new()
     {
         Id = user.Id,
+        Cedula = user.Cedula,
         Email = user.Email,
         FullName = user.FullName,
         Role = user.Role.Name,
         ClientId = user.ClientId,
-        TechnicianId = user.Technician?.Id
+        TechnicianId = user.Technician?.Id,
+        MustChangePassword = user.MustChangePassword
     };
 }

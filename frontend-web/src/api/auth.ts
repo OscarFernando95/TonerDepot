@@ -1,8 +1,8 @@
 import { http } from './http'
 import type { CurrentUser, LoginResult } from './types'
 
-export function login(email: string, password: string) {
-  return http.post<LoginResult>('/auth/login', { email, password })
+export function login(cedula: string, password: string) {
+  return http.post<LoginResult>('/auth/login', { cedula, password })
 }
 
 export function me() {

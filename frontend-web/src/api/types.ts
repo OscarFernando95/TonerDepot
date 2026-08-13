@@ -10,11 +10,13 @@ export type RoleName = (typeof RoleNames)[keyof typeof RoleNames]
 
 export interface CurrentUser {
   id: string
-  email: string
+  cedula: string
+  email: string | null
   fullName: string
   role: RoleName
   clientId: string | null
   technicianId: string | null
+  mustChangePassword: boolean
 }
 
 export interface LoginResult {
@@ -26,19 +28,28 @@ export interface LoginResult {
 
 export interface UserDto {
   id: string
-  email: string
+  cedula: string
+  email: string | null
   fullName: string
+  phone: string | null
+  address: string | null
+  cityId: string | null
+  cityName: string | null
   roleName: RoleName
   isActive: boolean
+  mustChangePassword: boolean
   clientId: string | null
   technicianId: string | null
   createdAt: string
 }
 
 export interface CreateUserRequest {
-  email: string
-  password: string
+  cedula: string
+  email?: string | null
   fullName: string
+  phone: string
+  address: string
+  cityId: string
   roleName: RoleName
   clientId?: string | null
 }
@@ -111,7 +122,8 @@ export const AssetLifecycleStatuses = {
   EnBodega: 'EnBodega',
   Instalado: 'Instalado',
   EnMantenimiento: 'EnMantenimiento',
-  DadoDeBaja: 'DadoDeBaja'
+  DadoDeBaja: 'DadoDeBaja',
+  PendienteInstalacion: 'PendienteInstalacion'
 } as const
 
 export type AssetLifecycleStatusName = (typeof AssetLifecycleStatuses)[keyof typeof AssetLifecycleStatuses]
@@ -120,15 +132,19 @@ export const AssetLifecycleStatusLabels: Record<AssetLifecycleStatusName, string
   EnBodega: 'En bodega',
   Instalado: 'Instalado',
   EnMantenimiento: 'En mantenimiento',
-  DadoDeBaja: 'Dado de baja'
+  DadoDeBaja: 'Dado de baja',
+  PendienteInstalacion: 'Pendiente de instalar'
 }
 
 // Transiciones válidas espejo de AssetService.AllowedTransitions en el backend — solo para
 // habilitar/deshabilitar opciones en el selector; el backend sigue siendo la autoridad real.
+// PendienteInstalacion solo se alcanza automáticamente al vincular un activo a un contrato — el
+// selector de "Cambiar estado" del frontend la excluye a propósito de las opciones manuales.
 export const AssetAllowedTransitions: Record<AssetLifecycleStatusName, AssetLifecycleStatusName[]> = {
-  EnBodega: ['Instalado', 'DadoDeBaja'],
+  EnBodega: ['Instalado', 'PendienteInstalacion', 'DadoDeBaja'],
   Instalado: ['EnMantenimiento', 'EnBodega', 'DadoDeBaja'],
   EnMantenimiento: ['Instalado', 'EnBodega', 'DadoDeBaja'],
+  PendienteInstalacion: ['Instalado', 'EnBodega'],
   DadoDeBaja: []
 }
 
@@ -149,9 +165,13 @@ export interface AssetDto {
   serialNumber: string
   type: AssetTypeName
   lifecycleStatus: AssetLifecycleStatusName
+  area: string | null
   currentClientLocationId: string | null
   currentClientLocationName: string | null
+  currentClientId: string | null
   currentClientName: string | null
+  cityName: string | null
+  lastMeterReading: number | null
   createdAt: string
 }
 
@@ -167,6 +187,7 @@ export type UpdateAssetRequest = CreateAssetRequest
 export interface ChangeAssetStatusRequest {
   newStatus: AssetLifecycleStatusName
   clientLocationId?: string | null
+  area?: string | null
   notes?: string | null
 }
 
@@ -244,6 +265,7 @@ export interface ContractAssetDto {
 
 export interface AddContractAssetRequest {
   assetId: string
+  clientLocationId: string
   startDate?: string | null
 }
 

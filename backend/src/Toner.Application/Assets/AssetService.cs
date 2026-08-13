@@ -11,9 +11,16 @@ namespace Toner.Application.Assets;
 public class AssetService : IAssetService
 {
     // Transiciones válidas del ciclo de vida. DadoDeBaja es terminal: ninguna transición sale de ahí.
+    // PendienteInstalacion solo se alcanza desde EnBodega (vía ContractAssetService.AddAsync) — esto
+    // además de reflejar la realidad operativa (no tiene sentido "despachar" un activo que ya está
+    // instalado en otro lado) hace que vincular a un contrato un activo que no está en bodega falle solo
+    // con la validación de esta tabla, sin necesitar un chequeo aparte en ContractAssetService.
     private static readonly Dictionary<AssetLifecycleStatus, AssetLifecycleStatus[]> AllowedTransitions = new()
     {
-        [AssetLifecycleStatus.EnBodega] = new[] { AssetLifecycleStatus.Instalado, AssetLifecycleStatus.DadoDeBaja },
+        [AssetLifecycleStatus.EnBodega] = new[]
+        {
+            AssetLifecycleStatus.Instalado, AssetLifecycleStatus.PendienteInstalacion, AssetLifecycleStatus.DadoDeBaja
+        },
         [AssetLifecycleStatus.Instalado] = new[]
         {
             AssetLifecycleStatus.EnMantenimiento, AssetLifecycleStatus.EnBodega, AssetLifecycleStatus.DadoDeBaja
@@ -21,6 +28,10 @@ public class AssetService : IAssetService
         [AssetLifecycleStatus.EnMantenimiento] = new[]
         {
             AssetLifecycleStatus.Instalado, AssetLifecycleStatus.EnBodega, AssetLifecycleStatus.DadoDeBaja
+        },
+        [AssetLifecycleStatus.PendienteInstalacion] = new[]
+        {
+            AssetLifecycleStatus.Instalado, AssetLifecycleStatus.EnBodega
         },
         [AssetLifecycleStatus.DadoDeBaja] = Array.Empty<AssetLifecycleStatus>()
     };
@@ -67,7 +78,38 @@ public class AssetService : IAssetService
             query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == requestingUser.ClientId);
         }
 
-        return await ProjectedFrom(query).OrderBy(a => a.Model).ToListAsync(cancellationToken);
+        var items = await ProjectedFrom(query).OrderBy(a => a.Model).ToListAsync(cancellationToken);
+
+        await AttachLastMeterReadingsAsync(items, cancellationToken);
+
+        return items;
+    }
+
+    // Se resuelve en dos pasos (en vez de una subconsulta correlacionada dentro del Select principal)
+    // para que el comportamiento sea idéntico bajo Npgsql (producción) y el proveedor InMemory que usan
+    // los tests — una subconsulta OrderBy().FirstOrDefault() correlacionada no siempre traduce igual
+    // entre proveedores.
+    private async Task AttachLastMeterReadingsAsync(IReadOnlyList<AssetDto> items, CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var assetIds = items.Select(i => i.Id).ToList();
+        var readings = await _db.MeterReadings
+            .Where(m => assetIds.Contains(m.AssetId))
+            .Select(m => new { m.AssetId, m.ReadingDate, m.CounterValue })
+            .ToListAsync(cancellationToken);
+
+        var lastByAsset = readings
+            .GroupBy(r => r.AssetId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReadingDate).First().CounterValue);
+
+        foreach (var item in items)
+        {
+            item.LastMeterReading = lastByAsset.TryGetValue(item.Id, out var value) ? value : null;
+        }
     }
 
     public async Task<AssetDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
@@ -89,6 +131,8 @@ public class AssetService : IAssetService
                 throw new ForbiddenException("Este activo no está instalado en ninguna de tus sedes.");
             }
         }
+
+        asset.LastMeterReading = await GetLastMeterReadingAsync(id, cancellationToken);
 
         return asset;
     }
@@ -121,6 +165,21 @@ public class AssetService : IAssetService
         Guid changedByUserId,
         CancellationToken cancellationToken = default)
     {
+        await PrepareStatusChangeAsync(id, request, changedByUserId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    // Igual que ChangeStatusAsync pero sin guardar: deja el Asset trackeado y el AssetStatusLog en cola
+    // para que el caller (ContractAssetService.AddAsync) los persista en el mismo SaveChangesAsync que su
+    // propio ContractAsset, logrando una sola transacción implícita en vez de dos operaciones separadas.
+    public async Task<Asset> PrepareStatusChangeAsync(
+        Guid id,
+        ChangeAssetStatusRequest request,
+        Guid changedByUserId,
+        CancellationToken cancellationToken = default)
+    {
         var asset = await _db.Assets.FirstOrDefaultAsync(a => a.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Asset), id);
 
@@ -131,22 +190,50 @@ public class AssetService : IAssetService
             throw new ConflictException($"No se puede pasar de '{asset.LifecycleStatus}' a '{newStatus}'.");
         }
 
+        ApplyStatusChange(asset, request, newStatus, changedByUserId);
+
+        return asset;
+    }
+
+    private void ApplyStatusChange(Asset asset, ChangeAssetStatusRequest request, AssetLifecycleStatus newStatus, Guid changedByUserId)
+    {
         var previousStatus = asset.LifecycleStatus;
 
         if (newStatus == AssetLifecycleStatus.Instalado)
         {
-            // Reinstalar tras mantenimiento conserva la sede actual si no se especifica una nueva;
-            // la primera instalación (desde EnBodega) sí exige indicarla.
+            // Reinstalar tras mantenimiento (o confirmar una instalación que estaba Pendiente) conserva
+            // la sede ya asignada si no se especifica una nueva; la primera instalación directa desde
+            // EnBodega sí exige indicarla.
             var targetLocationId = request.ClientLocationId ?? asset.CurrentClientLocationId;
             if (targetLocationId is null)
             {
                 throw new ConflictException("Debe indicar ClientLocationId para instalar el activo en una sede.");
             }
+
+            if (string.IsNullOrWhiteSpace(request.Area))
+            {
+                throw new ConflictException("El área es obligatoria al instalar el activo.");
+            }
+
             asset.CurrentClientLocationId = targetLocationId;
+            asset.Area = request.Area.Trim();
+        }
+        else if (newStatus == AssetLifecycleStatus.PendienteInstalacion)
+        {
+            // A diferencia de Instalado, la sede acá SIEMPRE es la nueva indicada (nunca se reusa la
+            // actual) — es un destino distinto, no una reinstalación en el mismo lugar.
+            if (request.ClientLocationId is null)
+            {
+                throw new ConflictException("Debe indicar ClientLocationId para mover el activo a Pendiente de instalar.");
+            }
+
+            asset.CurrentClientLocationId = request.ClientLocationId;
+            asset.Area = null;
         }
         else if (newStatus == AssetLifecycleStatus.EnBodega)
         {
             asset.CurrentClientLocationId = null;
+            asset.Area = null;
         }
 
         asset.LifecycleStatus = newStatus;
@@ -159,10 +246,6 @@ public class AssetService : IAssetService
             ChangedByUserId = changedByUserId,
             Notes = request.Notes?.Trim()
         });
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return await ToDtoAsync(id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<AssetStatusLogDto>> GetStatusHistoryAsync(Guid id, CancellationToken cancellationToken = default)
@@ -262,8 +345,17 @@ public class AssetService : IAssetService
 
     private async Task<AssetDto> ToDtoAsync(Guid id, CancellationToken cancellationToken)
     {
-        return await Projected(_db).FirstAsync(a => a.Id == id, cancellationToken);
+        var dto = await Projected(_db).FirstAsync(a => a.Id == id, cancellationToken);
+        dto.LastMeterReading = await GetLastMeterReadingAsync(id, cancellationToken);
+        return dto;
     }
+
+    private Task<long?> GetLastMeterReadingAsync(Guid assetId, CancellationToken cancellationToken) =>
+        _db.MeterReadings
+            .Where(m => m.AssetId == assetId)
+            .OrderByDescending(m => m.ReadingDate)
+            .Select(m => (long?)m.CounterValue)
+            .FirstOrDefaultAsync(cancellationToken);
 
     private static IQueryable<AssetDto> Projected(IApplicationDbContext db) => ProjectedFrom(db.Assets);
 
@@ -277,9 +369,12 @@ public class AssetService : IAssetService
             SerialNumber = a.SerialNumber,
             Type = a.Type.ToString(),
             LifecycleStatus = a.LifecycleStatus.ToString(),
+            Area = a.Area,
             CurrentClientLocationId = a.CurrentClientLocationId,
             CurrentClientLocationName = a.CurrentClientLocation != null ? a.CurrentClientLocation.Name : null,
+            CurrentClientId = a.CurrentClientLocation != null ? a.CurrentClientLocation.Client.Id : (Guid?)null,
             CurrentClientName = a.CurrentClientLocation != null ? a.CurrentClientLocation.Client.Name : null,
+            CityName = a.CurrentClientLocation != null ? a.CurrentClientLocation.City.Name : null,
             CreatedAt = a.CreatedAt
         });
 }

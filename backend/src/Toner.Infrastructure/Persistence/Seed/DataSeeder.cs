@@ -52,8 +52,13 @@ public class DataSeeder
 
         _db.Users.Add(new User
         {
+            // Fijo a pedido: es la cuenta de arranque, no un usuario creado desde el módulo de Usuarios.
+            Cedula = "1234567890",
             Email = adminEmail.Trim().ToLowerInvariant(),
             PasswordHash = _passwordHasher.Hash(adminPassword),
+            // Su contraseña viene de configuración explícita (AdminBootstrap:Password), no de la
+            // genérica — no aplica forzar cambio como a los usuarios creados desde la UI.
+            MustChangePassword = false,
             FullName = adminFullName,
             RoleId = adminRole.Id,
             IsActive = true
