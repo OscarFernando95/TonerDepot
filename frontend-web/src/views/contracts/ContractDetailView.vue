@@ -197,11 +197,11 @@ onMounted(loadAll)
             <template #default="{ row }">{{ row.assetBrandName }} {{ row.assetModel }} — {{ row.assetSerialNumber }}</template>
           </el-table-column>
           <el-table-column label="Desde" width="140">
-            <template #default="{ row }">{{ new Date(row.startDate).toLocaleDateString() }}</template>
+            <template #default="{ row }">{{ new Date(row.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }}</template>
           </el-table-column>
           <el-table-column label="Hasta" width="140">
             <template #default="{ row }">
-              <span v-if="row.endDate">{{ new Date(row.endDate).toLocaleDateString() }}</span>
+              <span v-if="row.endDate">{{ new Date(row.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }}</span>
               <el-tag v-else type="success" size="small">Activo</el-tag>
             </template>
           </el-table-column>

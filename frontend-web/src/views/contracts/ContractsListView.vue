@@ -96,8 +96,8 @@ onMounted(loadData)
       <el-table-column prop="clientName" label="Cliente" />
       <el-table-column label="Vigencia" width="220">
         <template #default="{ row }">
-          {{ new Date(row.startDate).toLocaleDateString() }} —
-          {{ row.endDate ? new Date(row.endDate).toLocaleDateString() : 'indefinida' }}
+          {{ new Date(row.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }} —
+          {{ row.endDate ? new Date(row.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : 'indefinida' }}
         </template>
       </el-table-column>
       <el-table-column label="Estado" width="120">
