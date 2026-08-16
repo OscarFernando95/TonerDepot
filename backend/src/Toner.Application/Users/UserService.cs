@@ -107,6 +107,11 @@ public class UserService : IUserService
             ?? throw new NotFoundException(nameof(User), userId);
 
         user.IsActive = isActive;
+        // Invalida cualquier JWT ya emitido en ambas direcciones (no solo al desactivar) — más simple
+        // que condicionar por dirección, y no tiene downside: nadie tiene un token válido para una
+        // cuenta que estaba inactiva, así que regenerar también al reactivar no invalida nada que
+        // debiera seguir vivo (ver SecurityStampValidator).
+        user.SecurityStamp = Guid.NewGuid();
         await _db.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(userId, cancellationToken);
@@ -119,6 +124,8 @@ public class UserService : IUserService
 
         user.PasswordHash = _passwordHasher.Hash(PasswordDefaults.DefaultPassword);
         user.MustChangePassword = true;
+        // Invalida cualquier JWT ya emitido para este usuario (ver SecurityStampValidator).
+        user.SecurityStamp = Guid.NewGuid();
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(

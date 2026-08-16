@@ -28,6 +28,7 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.Role, user.Role.Name),
             new("must_change_password", user.MustChangePassword.ToString()),
+            new("security_stamp", user.SecurityStamp.ToString()),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

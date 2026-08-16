@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Toner.Application.Auth;
 using Toner.Application.Auth.Dtos;
 using Toner.Application.Common.Exceptions;
@@ -116,6 +117,34 @@ public class AuthServiceTests
 
         var updated = await service.GetCurrentUserAsync(user.Id);
         Assert.False(updated.MustChangePassword);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_Success_RegeneratesSecurityStamp()
+    {
+        // Ver SECURITY_AUDIT.md hallazgo #6: sin esto, un JWT ya emitido seguía siendo válido después
+        // de que el propio usuario cambiara su contraseña.
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Coordinador);
+        var user = TestEntities.User(role);
+        user.PasswordHash = Hasher.Hash(PasswordDefaults.DefaultPassword);
+        arrangeDb.AddRange(role, user);
+        await arrangeDb.SaveChangesAsync();
+        var stampBefore = user.SecurityStamp;
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        await service.ChangePasswordAsync(user.Id, new ChangePasswordRequest
+        {
+            CurrentPassword = PasswordDefaults.DefaultPassword,
+            NewPassword = "NuevaContraseñaSegura1!"
+        });
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var updated = await assertDb.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.NotEqual(stampBefore, updated.SecurityStamp);
     }
 
     [Fact]

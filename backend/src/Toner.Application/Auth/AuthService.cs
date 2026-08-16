@@ -140,6 +140,8 @@ public class AuthService : IAuthService
 
         user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
         user.MustChangePassword = false;
+        // Invalida cualquier JWT ya emitido para este usuario (ver SecurityStampValidator).
+        user.SecurityStamp = Guid.NewGuid();
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(

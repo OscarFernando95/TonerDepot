@@ -94,4 +94,50 @@ public class UserServiceTests
         Assert.True(new BCryptPasswordHasher().Verify(PasswordDefaults.DefaultPassword, updated.PasswordHash));
         Assert.True(updated.MustChangePassword);
     }
+
+    [Fact]
+    public async Task ResetPasswordAsync_RegeneratesSecurityStamp()
+    {
+        // Ver SECURITY_AUDIT.md hallazgo #6: sin esto, un JWT ya emitido seguía siendo válido después
+        // de que un admin reseteara la contraseña de un usuario.
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Coordinador);
+        var user = TestEntities.User(role);
+        arrangeDb.AddRange(role, user);
+        await arrangeDb.SaveChangesAsync();
+        var stampBefore = user.SecurityStamp;
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        await service.ResetPasswordAsync(user.Id);
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var updated = await assertDb.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.NotEqual(stampBefore, updated.SecurityStamp);
+    }
+
+    [Fact]
+    public async Task SetActiveStatusAsync_RegeneratesSecurityStamp()
+    {
+        // Ver SECURITY_AUDIT.md hallazgo #6: sin esto, un JWT ya emitido seguía siendo válido después
+        // de desactivar (o reactivar) la cuenta de un usuario.
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Coordinador);
+        var user = TestEntities.User(role);
+        arrangeDb.AddRange(role, user);
+        await arrangeDb.SaveChangesAsync();
+        var stampBefore = user.SecurityStamp;
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        await service.SetActiveStatusAsync(user.Id, isActive: false);
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var updated = await assertDb.Users.SingleAsync(u => u.Id == user.Id);
+        Assert.NotEqual(stampBefore, updated.SecurityStamp);
+    }
 }

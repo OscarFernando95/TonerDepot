@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Toner.Api.Auth;
 using Toner.Api.Middleware;
 using Toner.Api.Serialization;
 using Toner.Application.Assets;
@@ -139,6 +140,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SigningKey)),
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
+        };
+
+        // Sin esto, un JWT ya emitido sigue siendo válido hasta su expiración natural aunque el
+        // usuario cambie/reseteen su contraseña o se desactive su cuenta (ver SECURITY_AUDIT.md
+        // hallazgo #6). Hace una consulta a BD por request autenticado a propósito: se evaluó
+        // cachear el SecurityStamp en memoria, pero se descartó por ahora — es un SELECT indexado
+        // por PK (marginal frente al resto del trabajo por request) y evita cualquier ventana de
+        // staleness, incluida la que introduciría un caché por proceso si la API llegara a correr
+        // en más de una instancia.
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = SecurityStampValidator.ValidateAsync
         };
     });
 

@@ -32,6 +32,13 @@ public class User : BaseEntity
     // desbloqueo manual — expira sola cuando pasa la fecha.
     public DateTime? LockedOutUntil { get; set; }
 
+    // Se embebe como claim en el JWT y se valida en cada request (ver Toner.Api.Auth.
+    // SecurityStampValidator). Regenerarlo invalida todos los tokens ya emitidos de golpe — sin esto,
+    // desactivar un usuario o resetear su contraseña no tenía ningún efecto sobre sesiones ya abiertas
+    // (SECURITY_AUDIT.md hallazgo #6). Se regenera en ChangePasswordAsync, ResetPasswordAsync y
+    // SetActiveStatusAsync.
+    public Guid SecurityStamp { get; set; } = Guid.NewGuid();
+
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = null!;
 
