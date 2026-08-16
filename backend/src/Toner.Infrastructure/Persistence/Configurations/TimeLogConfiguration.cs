@@ -11,7 +11,9 @@ public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
         builder.ConfigureBaseEntity();
         builder.ToTable("TimeLogs", t => t.HasCheckConstraint(
             "CK_TimeLogs_ExactlyOneTarget",
-            "(\"ServiceTicketId\" IS NOT NULL) <> (\"MaintenanceOrderId\" IS NOT NULL)"));
+            "(CASE WHEN \"ServiceTicketId\" IS NOT NULL THEN 1 ELSE 0 END + " +
+            "CASE WHEN \"MaintenanceOrderId\" IS NOT NULL THEN 1 ELSE 0 END + " +
+            "CASE WHEN \"AssetId\" IS NOT NULL THEN 1 ELSE 0 END) = 1"));
 
         builder.Property(l => l.Notes).HasMaxLength(1000);
 
@@ -23,6 +25,11 @@ public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
         builder.HasOne(l => l.MaintenanceOrder)
             .WithMany(o => o.TimeLogs)
             .HasForeignKey(l => l.MaintenanceOrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(l => l.Asset)
+            .WithMany(a => a.TimeLogs)
+            .HasForeignKey(l => l.AssetId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(l => l.Technician)

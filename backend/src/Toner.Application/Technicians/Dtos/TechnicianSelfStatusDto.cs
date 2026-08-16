@@ -6,5 +6,6 @@ public class TechnicianSelfStatusDto
     public string Status { get; set; } = string.Empty;
     public Guid? ActiveServiceTicketId { get; set; }
     public Guid? ActiveMaintenanceOrderId { get; set; }
+    public Guid? ActiveAssetInstallationId { get; set; }
     public DateTime? CheckedInAt { get; set; }
 }

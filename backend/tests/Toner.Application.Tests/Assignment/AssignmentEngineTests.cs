@@ -119,12 +119,15 @@ public class AssignmentEngineTests
     {
         var dbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
         var brand = TestEntities.AssetBrand();
-        var asset = TestEntities.Asset(brand, AssetLifecycleStatus.EnBodega); // sin sede actual
-        var schedule = TestEntities.MaintenanceSchedule(asset, MaintenanceFrequencyType.PorTiempo, timeIntervalDays: 90);
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.EnBodega); // sin sede actual
+        var schedule = TestEntities.MaintenanceSchedule(asset, contract);
         var order = TestEntities.MaintenanceOrder(schedule, asset);
 
-        arrangeDb.AddRange(brand, asset, schedule, order);
+        arrangeDb.AddRange(client, contract, brand, model, asset, schedule, order);
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
@@ -147,9 +150,11 @@ public class AssignmentEngineTests
         var city = TestEntities.City();
         var client = TestEntities.Client();
         var location = TestEntities.ClientLocation(client, city);
+        var contract = TestEntities.Contract(client);
         var brand = TestEntities.AssetBrand();
-        var asset = TestEntities.Asset(brand, AssetLifecycleStatus.Instalado, location.Id);
-        var schedule = TestEntities.MaintenanceSchedule(asset, MaintenanceFrequencyType.PorTiempo, timeIntervalDays: 90);
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        var schedule = TestEntities.MaintenanceSchedule(asset, contract);
         var order = TestEntities.MaintenanceOrder(schedule, asset);
 
         var techRole = TestEntities.Role(RoleNames.Tecnico);
@@ -157,7 +162,7 @@ public class AssignmentEngineTests
         var technician = TestEntities.Technician(techUser, isActive: true, status: TechnicianStatus.Disponible);
         var coverage = TestEntities.Coverage(technician, city);
 
-        arrangeDb.AddRange(city, client, location, brand, asset, schedule, order, techRole, techUser, technician, coverage);
+        arrangeDb.AddRange(city, client, location, contract, brand, model, asset, schedule, order, techRole, techUser, technician, coverage);
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);

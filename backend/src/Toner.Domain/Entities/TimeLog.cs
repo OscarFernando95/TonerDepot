@@ -2,7 +2,7 @@ using Toner.Domain.Common;
 
 namespace Toner.Domain.Entities;
 
-// Tiempo de atención del técnico. Exactamente uno de ServiceTicketId / MaintenanceOrderId debe estar presente.
+// Tiempo de atención del técnico. Exactamente uno de ServiceTicketId / MaintenanceOrderId / AssetId debe estar presente.
 public class TimeLog : BaseEntity
 {
     public Guid? ServiceTicketId { get; set; }
@@ -10,6 +10,10 @@ public class TimeLog : BaseEntity
 
     public Guid? MaintenanceOrderId { get; set; }
     public MaintenanceOrder? MaintenanceOrder { get; set; }
+
+    // Presente cuando el check-in es para confirmar la instalación de un activo (AssetLifecycleStatus.PendienteInstalacion).
+    public Guid? AssetId { get; set; }
+    public Asset? Asset { get; set; }
 
     public Guid TechnicianId { get; set; }
     public Technician Technician { get; set; } = null!;

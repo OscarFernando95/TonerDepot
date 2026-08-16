@@ -13,7 +13,7 @@ public class Technician : BaseEntity
 
     // Estado actual, denormalizado para que el motor de asignación filtre sin recorrer el historial.
     // Solo lo mueven check-in/check-out y transiciones automáticas del sistema, nunca selección manual del técnico.
-    public TechnicianStatus Status { get; set; } = TechnicianStatus.Inactivo;
+    public TechnicianStatus Status { get; set; } = TechnicianStatus.Disponible;
 
     public ICollection<TechnicianCoverage> Coverages { get; set; } = new List<TechnicianCoverage>();
     public ICollection<TechnicianAvailability> AvailabilityHistory { get; set; } = new List<TechnicianAvailability>();
