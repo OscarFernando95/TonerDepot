@@ -1,0 +1,170 @@
+/*
+ * Direction: Split-flap concourse board (seed key 78214626, round 2 winner
+ * over the assigned synoptic-board candidate on both axes). Restrained
+ * color strategy: near-black board neutrals plus one signal-blue accent;
+ * amber/red are reserved status lamps, never decorative.
+ */
+
+@import '@fontsource-variable/inter';
+
+:root {
+  --board-bg: #101317;
+  --board-panel: #1a2026;
+  --board-panel-raised: #21282f;
+  --board-seam-soft: #262e35;
+  --board-seam: #5b6672;
+  --flap-ink: #eef0ec;
+  --flap-ink-dim: #99a1ab;
+
+  --signal-blue: #2760d1;
+  --signal-blue-bright: #5b8dff;
+  --signal-blue-wash: rgba(47, 111, 237, 0.16);
+
+  --signal-amber: #d9a441;
+  --signal-amber-wash: rgba(217, 164, 65, 0.14);
+
+  --signal-red: #d64545;
+  --signal-red-wash: rgba(214, 69, 69, 0.14);
+
+  --scrim: rgba(6, 7, 9, 0.6);
+
+  /* One family for the whole system: weight, size, case, and tracking carry
+     the hierarchy instead of a second "theme" display face. */
+  --font-display: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Type ramp — every font-size in the board world resolves to one of
+     these; see DESIGN.md Typography for what each step is for. */
+  --text-2xs: 0.72rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8rem;
+  --text-md: 0.85rem;
+  --text-lg: 1.15rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.8rem;
+  --text-display: 2rem;
+  --text-display-lg: 2.25rem;
+}
+
+html.dark {
+  --el-color-primary: var(--signal-blue);
+  --el-color-primary-light-3: #1f4797;
+  --el-color-primary-light-5: #1a3770;
+  --el-color-primary-light-7: #142649;
+  --el-color-primary-light-8: #111e36;
+  --el-color-primary-light-9: #0f1522;
+  --el-color-primary-dark-2: #5280da;
+
+  --el-color-warning: var(--signal-amber);
+  --el-color-warning-light-3: #9b7732;
+  --el-color-warning-light-5: #735928;
+  --el-color-warning-light-7: #4a3a1e;
+  --el-color-warning-light-8: #352b19;
+  --el-color-warning-light-9: #211c14;
+  --el-color-warning-dark-2: #e1b667;
+
+  --el-color-danger: var(--signal-red);
+  --el-color-danger-light-3: #993435;
+  --el-color-danger-light-5: #71292a;
+  --el-color-danger-light-7: #491e1f;
+  --el-color-danger-light-8: #34181a;
+  --el-color-danger-light-9: #201314;
+  --el-color-danger-dark-2: #de6a6a;
+  --el-color-error: var(--el-color-danger);
+
+  --el-bg-color-page: var(--board-bg);
+  --el-bg-color: var(--board-panel);
+  --el-bg-color-overlay: var(--board-panel-raised);
+
+  --el-text-color-primary: var(--flap-ink);
+  --el-text-color-regular: var(--flap-ink);
+  --el-text-color-secondary: var(--flap-ink-dim);
+  --el-text-color-placeholder: #6d7580;
+  --el-text-color-disabled: #565d66;
+
+  --el-border-color: var(--board-seam);
+  --el-border-color-dark: var(--board-seam);
+  --el-border-color-darker: var(--board-seam);
+  --el-border-color-light: var(--board-seam-soft);
+  --el-border-color-lighter: var(--board-seam-soft);
+  --el-border-color-extra-light: var(--board-seam-soft);
+
+  --el-fill-color-blank: var(--board-panel);
+  --el-fill-color: var(--board-panel-raised);
+  --el-fill-color-light: var(--board-seam-soft);
+  --el-fill-color-lighter: var(--board-seam-soft);
+  --el-fill-color-extra-light: var(--board-panel);
+  --el-fill-color-dark: var(--board-panel-raised);
+  --el-fill-color-darker: var(--board-panel-raised);
+
+  --el-mask-color: rgba(6, 7, 9, 0.82);
+}
+
+html.dark body {
+  background-color: var(--board-bg);
+  color: var(--flap-ink);
+  font-family: var(--font-body);
+}
+
+/* Browser surfaces the layout doesn't draw directly still belong to the board. */
+html.dark ::selection {
+  background: var(--signal-blue);
+  color: #ffffff;
+}
+
+html.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: var(--board-bg);
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: var(--board-seam-soft);
+  border-radius: 0;
+  border: 2px solid var(--board-bg);
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--board-seam);
+}
+
+html.dark *:focus-visible {
+  outline: 2px solid var(--signal-blue-bright);
+  outline-offset: 2px;
+}
+
+html.dark .el-table,
+html.dark .el-table tr,
+html.dark .el-table th.el-table__cell {
+  background-color: transparent;
+}
+
+html.dark .el-table__inner-wrapper::before {
+  background-color: var(--board-seam-soft);
+}
+
+/* Tabular numerals everywhere a count, hour, or percentage appears. */
+html.dark .el-table,
+html.dark .el-statistic__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.dark * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

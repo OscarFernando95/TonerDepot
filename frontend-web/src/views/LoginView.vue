@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+import FlapText from '../components/board/FlapText.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -10,14 +11,17 @@ const route = useRoute()
 
 const form = reactive({ cedula: '', password: '' })
 const loading = ref(false)
+const loginError = ref('')
 
 async function handleSubmit() {
   loading.value = true
+  loginError.value = ''
   try {
     await auth.login(form.cedula, form.password)
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
   } catch {
+    loginError.value = 'Cédula o contraseña incorrectos.'
     ElMessage.error('Cédula o contraseña incorrectos.')
   } finally {
     loading.value = false
@@ -26,53 +30,97 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="login-page">
-    <el-card class="login-card">
-      <h1 class="login-title">Toner</h1>
-      <p class="login-subtitle">Gestión de alquiler y servicio técnico de impresoras</p>
+  <div class="gate-scene">
+    <div class="gate-card">
+      <div class="gate-wordmark">
+        <FlapText value="TONER" />
+      </div>
+      <p class="gate-subtitle">Gestión de alquiler y servicio técnico de impresoras</p>
 
-      <el-form :model="form" label-position="top" @submit.prevent="handleSubmit">
+      <el-form :model="form" label-position="top" class="gate-form" @submit.prevent="handleSubmit">
         <el-form-item label="Cédula">
           <el-input v-model="form.cedula" placeholder="Número de cédula" autofocus />
         </el-form-item>
         <el-form-item label="Contraseña">
           <el-input v-model="form.password" type="password" show-password @keyup.enter="handleSubmit" />
         </el-form-item>
-        <el-button type="primary" class="login-button" :loading="loading" @click="handleSubmit">
+
+        <p v-if="loginError" class="gate-error">
+          <span class="gate-error-lamp" aria-hidden="true"></span>
+          {{ loginError }}
+        </p>
+
+        <el-button type="primary" class="gate-submit" :loading="loading" @click="handleSubmit">
           Ingresar
         </el-button>
       </el-form>
-    </el-card>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.login-page {
+.gate-scene {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1f2937, #374151);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--board-seam-soft) 0,
+      var(--board-seam-soft) 1px,
+      transparent 1px,
+      transparent 96px
+    ),
+    var(--board-bg);
 }
 
-.login-card {
-  width: 360px;
+.gate-card {
+  width: 380px;
+  padding: 2rem 2rem 2.25rem;
+  background: var(--board-panel);
+  border: 1px solid var(--board-seam-soft);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
 }
 
-.login-title {
-  margin: 0;
-  font-size: 1.6rem;
+.gate-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-display-lg);
+  letter-spacing: 0.08em;
+  color: var(--flap-ink);
   text-align: center;
 }
 
-.login-subtitle {
-  margin: 0.25rem 0 1.5rem;
+.gate-subtitle {
+  margin: 0.35rem 0 1.75rem;
   text-align: center;
-  color: #6b7280;
-  font-size: 0.85rem;
+  color: var(--flap-ink-dim);
+  font-size: var(--text-md);
 }
 
-.login-button {
+.gate-error {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: -0.25rem 0 1rem;
+  font-size: var(--text-sm);
+  color: var(--signal-red);
+}
+
+.gate-error-lamp {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--signal-red);
+  flex: none;
+}
+
+.gate-submit {
   width: 100%;
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 </style>

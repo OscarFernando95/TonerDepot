@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-16T00:00:00Z",
+  "title": "Design System: Toner",
+  "extensions": {
+    "colorMeta": {
+      "signal-blue": { "role": "primary", "displayName": "Signal Blue", "canonical": "#2760d1" },
+      "signal-blue-bright": { "role": "primary", "displayName": "Signal Blue Bright", "canonical": "#5b8dff" },
+      "board-bg": { "role": "neutral", "displayName": "Board Ground", "canonical": "#101317" },
+      "board-panel": { "role": "neutral", "displayName": "Board Panel", "canonical": "#1a2026" },
+      "board-panel-raised": { "role": "neutral", "displayName": "Board Panel Raised", "canonical": "#21282f" },
+      "board-seam": { "role": "neutral", "displayName": "Board Seam", "canonical": "#5b6672" },
+      "board-seam-soft": { "role": "neutral", "displayName": "Board Seam Soft", "canonical": "#262e35" },
+      "flap-ink": { "role": "neutral", "displayName": "Flap Ink", "canonical": "#eef0ec" },
+      "flap-ink-dim": { "role": "neutral", "displayName": "Flap Ink Dim", "canonical": "#99a1ab" },
+      "signal-amber": { "role": "status", "displayName": "Signal Amber (at risk)", "canonical": "#d9a441" },
+      "signal-red": { "role": "status", "displayName": "Signal Red (critical)", "canonical": "#d64545" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Board Display", "purpose": "Nav, labels, numerals, KPI values, page titles, login wordmark. Same family as body — Inter — differentiated by weight/case/tracking only." },
+      "body": { "displayName": "Body", "purpose": "Table content, form fields, user-authored text." },
+      "label": { "displayName": "Label", "purpose": "Uppercase small labels: status lamps, table headers." }
+    },
+    "textScale": [
+      { "name": "2xs", "value": "0.72rem", "purpose": "Table headers, status-lamp labels, KPI-lane captions" },
+      { "name": "xs", "value": "0.75rem", "purpose": "Header status strip, welcome eyebrow" },
+      { "name": "sm", "value": "0.8rem", "purpose": "Empty states, KPI sub-captions, inline errors" },
+      { "name": "md", "value": "0.85rem", "purpose": "Panel titles, login subtitle, nav lane item labels" },
+      { "name": "lg", "value": "1.15rem", "purpose": "Sidebar brand mark" },
+      { "name": "xl", "value": "1.4rem", "purpose": "Page/section titles" },
+      { "name": "2xl", "value": "1.8rem", "purpose": "Non-staff welcome title" },
+      { "name": "display", "value": "2rem", "purpose": "Dashboard KPI values" },
+      { "name": "display-lg", "value": "2.25rem", "purpose": "Login wordmark" }
+    ],
+    "shadows": [
+      { "name": "overlay-card", "value": "0 24px 48px rgba(0,0,0,0.45)", "purpose": "Login gate card — the one lifted, non-board-plane surface." },
+      { "name": "overlay-drawer", "value": "0 0 32px rgba(0,0,0,0.5)", "purpose": "Mobile nav drawer while open." },
+      { "name": "scrim", "value": "rgba(6, 7, 9, 0.6)", "purpose": "Backdrop behind anything floating above the board (mobile drawer today)." }
+    ],
+    "motion": [
+      { "name": "flap-clatter", "value": "3-5 staggered 55-115ms steps, 45ms per-character delay", "purpose": "FlapText's one authored moment: login wordmark and dashboard KPI values only. Disabled under prefers-reduced-motion." },
+      { "name": "drawer-slide", "value": "transform 0.2s ease-out", "purpose": "Mobile nav drawer open/close, transform-based to avoid layout-thrash." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "768px" },
+      { "name": "grid-collapse", "value": "960px" },
+      { "name": "kpi-stack", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call to action (e.g. login submit).",
+      "html": "<button class=\"ds-btn-primary\">INGRESAR</button>",
+      "css": ".ds-btn-primary { background: #2760d1; color: #fff; padding: 0.65rem 1rem; font-family: 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; border: none; border-radius: 0; width: 100%; } .ds-btn-primary:hover { background: #2354bd; } .ds-btn-primary:focus-visible { outline: 2px solid #5b8dff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Nav Lane",
+      "kind": "nav",
+      "refersTo": "nav-lane-active",
+      "description": "Sidebar navigation row: icon, label; no sequence number. Active state is a background wash, never a colored border.",
+      "html": "<a class=\"ds-lane ds-lane-active\"><svg class=\"ds-lane-icon\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z\"/></svg><span class=\"ds-lane-label\">Inicio</span></a>",
+      "css": ".ds-lane { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 1rem; color: #99a1ab; text-decoration: none; font-family: 'Inter', sans-serif; font-size: 0.86rem; } .ds-lane-active { background: rgba(47,111,237,0.16); color: #eef0ec; } .ds-lane-active .ds-lane-icon { color: #5b8dff; }"
+    },
+    {
+      "name": "Status Lamp",
+      "kind": "custom",
+      "refersTo": "lane-status",
+      "description": "Domain status indicator: lamp shape + color + text label, never color alone. Three states shown: on-time, warning, critical.",
+      "html": "<span class=\"ds-lamp ds-lamp-ontime\"><span class=\"ds-lamp-dot\"></span>A tiempo</span> <span class=\"ds-lamp ds-lamp-warning\"><span class=\"ds-lamp-dot\"></span>En riesgo</span> <span class=\"ds-lamp ds-lamp-critical\"><span class=\"ds-lamp-dot\"></span>Vencido</span>",
+      "css": ".ds-lamp { display: inline-flex; align-items: center; gap: 0.4rem; font-family: 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; font-weight: 600; margin-right: 1rem; } .ds-lamp-dot { width: 0.55rem; height: 0.55rem; } .ds-lamp-ontime { color: #5b8dff; } .ds-lamp-ontime .ds-lamp-dot { background: #5b8dff; border-radius: 50%; } .ds-lamp-warning { color: #d9a441; } .ds-lamp-warning .ds-lamp-dot { background: #d9a441; transform: rotate(45deg); } .ds-lamp-critical { color: #d64545; } .ds-lamp-critical .ds-lamp-dot { border: 2px solid #d64545; border-radius: 50%; width: 0.4rem; height: 0.4rem; }"
+    },
+    {
+      "name": "Board Panel",
+      "kind": "card",
+      "refersTo": "board-panel",
+      "description": "The system's card equivalent: square corners, hairline seam border, no shadow at rest.",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-panel-title\">Cumplimiento de SLA</h2><div class=\"ds-panel-body\">…</div></section>",
+      "css": ".ds-panel { background: #1a2026; border: 1px solid #262e35; border-radius: 0; } .ds-panel-title { font-family: 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.85rem; font-weight: 600; color: #99a1ab; margin: 0; padding: 0.9rem 1.1rem; border-bottom: 1px solid #262e35; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Split-Flap Concourse Board",
+    "overview": "Toner's operations shell reads as a departures board, not a SaaS admin template. Every list is a live board where a row's state — on time, at risk, cancelled — is the thing the page exists to show. The system won this world in Impeccable's own direction roll against an assigned synoptic-weather-board candidate, on the strength of a real pending product need (real-time status) the board's clatter-and-flip grammar answers directly. The palette is Restrained: near-black ground and warm-white ink carry the surface, with one signal-blue accent for interactive/on-time state; amber and red are reserved status lamps, never decoration. One typeface (Inter) carries the whole system — an earlier pass with a second condensed display face and numbered nav/form/KPI lanes read as an AI-generated costume rather than considered design, and both were cut after user review.",
+    "keyCharacteristics": [
+      "Near-black board ground, zero corner radius anywhere",
+      "One signal-blue accent; amber/red are reserved status lamps",
+      "One typeface (Inter) throughout; weight/case/tracking carry hierarchy",
+      "No sequence numbers on nav, forms, or KPIs — icon + label carries identity",
+      "Status is always lamp-shape + color + text label together",
+      "Hairline seams do the work cards and shadows usually do"
+    ],
+    "rules": [
+      { "name": "Never-Color-Alone", "body": "Every status pairs its color with a distinct lamp shape and a text label.", "section": "colors" },
+      { "name": "One-Voice", "body": "Inter is the only typeface; hierarchy comes from weight, case/tracking, and the type scale, never a second face.", "section": "typography" },
+      { "name": "No-Numbering", "body": "Nav items, KPI lanes, and form fields are identified by icon + label, never a sequential 01/02/03 badge.", "section": "typography" },
+      { "name": "Seam-Not-Shadow", "body": "A panel at rest is separated by a 1px seam, never a shadow; shadow is reserved for genuine overlays.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do pair every status color with a distinct lamp shape and a text label.",
+      "Do use Signal Blue as the only interactive/brand accent.",
+      "Do set every weight of hierarchy in Inter — weight, case/tracking, and the type scale, never a second face.",
+      "Do separate panels with a hairline seam, not a shadow.",
+      "Do keep every corner square.",
+      "Do give any container that might host a wide table min-width: 0.",
+      "Do animate drawers via transform, never width/height/padding/margin."
+    ],
+    "donts": [
+      "Don't reintroduce the icon + big-number + label card grid for KPIs.",
+      "Don't use a colored border-left/right to mark an active row.",
+      "Don't add a second brand accent color.",
+      "Don't add a second display typeface — it reads as a metaphor costume, not typography.",
+      "Don't prefix nav items, form fields, or KPI labels with a sequence number.",
+      "Don't apply the FlapText clatter motion outside the login wordmark and dashboard KPI values.",
+      "Don't leave the mobile drawer focusable while visually closed."
+    ]
+  }
+}
