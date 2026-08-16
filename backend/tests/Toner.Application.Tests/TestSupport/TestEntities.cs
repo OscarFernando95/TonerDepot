@@ -12,6 +12,24 @@ public static class TestEntities
 
     public static AssetBrand AssetBrand(string name = "Ricoh") => new() { Name = name };
 
+    public static AssetModel AssetModel(
+        AssetBrand brand,
+        string name = "MP 2555",
+        int generalPrintThreshold = 30000,
+        int generalMonthsInterval = 6,
+        int unitsPrintThreshold = 30000,
+        int unitsMonthsInterval = 6,
+        int consumablesPrintThreshold = 60000) => new()
+    {
+        AssetBrandId = brand.Id,
+        Name = name,
+        GeneralPrintThreshold = generalPrintThreshold,
+        GeneralMonthsInterval = generalMonthsInterval,
+        UnitsPrintThreshold = unitsPrintThreshold,
+        UnitsMonthsInterval = unitsMonthsInterval,
+        ConsumablesPrintThreshold = consumablesPrintThreshold
+    };
+
     public static Client Client(string name = "Cliente Test") => new() { Name = name };
 
     public static ClientLocation ClientLocation(Client client, City city, string name = "Sede Principal") => new()
@@ -27,6 +45,14 @@ public static class TestEntities
         ClientId = client.Id,
         StartDate = DateTime.UtcNow,
         Status = status
+    };
+
+    public static ContractAsset ContractAsset(Contract contract, Asset asset, DateTime? startDate = null, DateTime? endDate = null) => new()
+    {
+        ContractId = contract.Id,
+        AssetId = asset.Id,
+        StartDate = startDate ?? DateTime.UtcNow,
+        EndDate = endDate
     };
 
     public static Role Role(string name) => new() { Name = name };
@@ -54,10 +80,9 @@ public static class TestEntities
         CityId = city.Id
     };
 
-    public static Asset Asset(AssetBrand brand, AssetLifecycleStatus status = AssetLifecycleStatus.EnBodega, Guid? locationId = null) => new()
+    public static Asset Asset(AssetModel model, AssetLifecycleStatus status = AssetLifecycleStatus.EnBodega, Guid? locationId = null) => new()
     {
-        AssetBrandId = brand.Id,
-        Model = "MP 2555",
+        AssetModelId = model.Id,
         SerialNumber = Guid.NewGuid().ToString("N")[..10],
         Type = AssetType.Impresora,
         LifecycleStatus = status,
@@ -81,14 +106,34 @@ public static class TestEntities
 
     public static MaintenanceSchedule MaintenanceSchedule(
         Asset asset,
-        MaintenanceFrequencyType frequencyType,
-        int? printThreshold = null,
-        int? timeIntervalDays = null) => new()
+        Contract contract,
+        DateTime? nextGeneralDueAt = null,
+        long nextGeneralDueCounter = 1_000_000,
+        DateTime? nextUnitsDueAt = null,
+        long nextUnitsDueCounter = 1_000_000,
+        long nextConsumablesDueCounter = 1_000_000,
+        DateTime? lastGeneralMaintenanceAt = null,
+        long? lastGeneralMaintenanceCounter = null,
+        DateTime? lastUnitsMaintenanceAt = null,
+        long? lastUnitsMaintenanceCounter = null,
+        DateTime? lastConsumablesChangeAt = null,
+        long? lastConsumablesChangeCounter = null,
+        bool isActive = true) => new()
     {
         AssetId = asset.Id,
-        FrequencyType = frequencyType,
-        PrintThreshold = printThreshold,
-        TimeIntervalDays = timeIntervalDays
+        ContractId = contract.Id,
+        IsActive = isActive,
+        LastGeneralMaintenanceAt = lastGeneralMaintenanceAt,
+        LastGeneralMaintenanceCounter = lastGeneralMaintenanceCounter,
+        NextGeneralDueAt = nextGeneralDueAt ?? DateTime.UtcNow.AddMonths(6),
+        NextGeneralDueCounter = nextGeneralDueCounter,
+        LastUnitsMaintenanceAt = lastUnitsMaintenanceAt,
+        LastUnitsMaintenanceCounter = lastUnitsMaintenanceCounter,
+        NextUnitsDueAt = nextUnitsDueAt ?? DateTime.UtcNow.AddMonths(6),
+        NextUnitsDueCounter = nextUnitsDueCounter,
+        LastConsumablesChangeAt = lastConsumablesChangeAt,
+        LastConsumablesChangeCounter = lastConsumablesChangeCounter,
+        NextConsumablesDueCounter = nextConsumablesDueCounter
     };
 
     public static MaintenanceOrder MaintenanceOrder(
@@ -96,12 +141,18 @@ public static class TestEntities
         Asset asset,
         MaintenanceOrderStatus status = MaintenanceOrderStatus.Pendiente,
         Guid? technicianId = null,
-        DateTime? scheduledDate = null) => new()
+        DateTime? scheduledDate = null,
+        bool includesGeneral = true,
+        bool includesUnits = false,
+        bool includesConsumables = false) => new()
     {
         MaintenanceScheduleId = schedule.Id,
         AssetId = asset.Id,
         Status = status,
         TechnicianId = technicianId,
-        ScheduledDate = scheduledDate ?? DateTime.UtcNow
+        ScheduledDate = scheduledDate ?? DateTime.UtcNow,
+        IncludesGeneral = includesGeneral,
+        IncludesUnits = includesUnits,
+        IncludesConsumables = includesConsumables
     };
 }

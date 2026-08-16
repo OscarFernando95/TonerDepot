@@ -97,9 +97,12 @@ public class DashboardServiceTests
     {
         var dbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
         var brand = TestEntities.AssetBrand();
-        var asset = TestEntities.Asset(brand);
-        var schedule = TestEntities.MaintenanceSchedule(asset, MaintenanceFrequencyType.PorTiempo, timeIntervalDays: 90);
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model);
+        var schedule = TestEntities.MaintenanceSchedule(asset, contract);
 
         var now = DateTime.UtcNow;
         var onTimeOrder = TestEntities.MaintenanceOrder(schedule, asset, MaintenanceOrderStatus.Completada, scheduledDate: now.AddDays(-5));
@@ -108,7 +111,7 @@ public class DashboardServiceTests
         var lateOrder = TestEntities.MaintenanceOrder(schedule, asset, MaintenanceOrderStatus.Completada, scheduledDate: now.AddDays(-10));
         lateOrder.CompletedAt = now.AddDays(-1); // 9 días tarde, fuera de la ventana de 3 días
 
-        arrangeDb.AddRange(brand, asset, schedule, onTimeOrder, lateOrder);
+        arrangeDb.AddRange(client, contract, brand, model, asset, schedule, onTimeOrder, lateOrder);
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
