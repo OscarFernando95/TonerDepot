@@ -17,6 +17,12 @@ public class AuthService : IAuthService
     // (ver SECURITY_AUDIT.md hallazgo #7).
     private const string DecoyPasswordHash = "$2a$12$IU/4mDLs28Px7KGoaSZ/JO.n7wIaeVFmdkqOZyfAeUgoJRL8vwaty";
 
+    // Bloqueo de cuenta por intentos fallidos consecutivos (ver SECURITY_AUDIT.md hallazgo #9).
+    // Control adicional por CUENTA, complementario al rate limiting por IP del hallazgo #2 — protege
+    // contra un atacante que rota de IP pero insiste sobre la misma cédula.
+    private const int MaxFailedLoginAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
     private readonly IApplicationDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
@@ -43,29 +49,60 @@ public class AuthService : IAuthService
             .Include(u => u.Technician)
             .FirstOrDefaultAsync(u => u.Cedula == cedula, cancellationToken);
 
-        var userExistsAndActive = user is not null && user.IsActive;
+        var now = DateTime.UtcNow;
+        var isLockedOut = user is not null && user.LockedOutUntil.HasValue && user.LockedOutUntil.Value > now;
+        var userExistsAndActive = user is not null && user.IsActive && !isLockedOut;
 
-        // Se llama a Verify() en ambas ramas (contra el hash real o contra el señuelo) para que el
-        // costo de CPU sea el mismo exista o no el usuario — nunca se hace un short-circuit que se
-        // salte el hashing.
+        // Se llama a Verify() en todas las ramas (contra el hash real o contra el señuelo) para que
+        // el costo de CPU sea el mismo exista, esté activo, o esté bloqueado el usuario — nunca se
+        // hace un short-circuit que se salte el hashing. Una cuenta bloqueada NUNCA se compara contra
+        // su PasswordHash real: entra directo al mismo camino que "usuario no existe".
         var passwordMatches = _passwordHasher.Verify(request.Password, userExistsAndActive ? user!.PasswordHash : DecoyPasswordHash);
 
         if (!userExistsAndActive || !passwordMatches)
         {
-            // El mismo LogWarning se ejecuta en las tres causas de fallo (usuario inexistente,
-            // inactivo, o contraseña incorrecta) — solo cambia el texto de Reason, no el costo de la
-            // llamada, así que esto no reintroduce el canal lateral de tiempos que cierra el hallazgo #7.
             var reason = user is null
                 ? "UsuarioNoExiste"
                 : !user.IsActive
                     ? "UsuarioInactivo"
-                    : "ContraseñaIncorrecta";
+                    : isLockedOut
+                        ? "CuentaBloqueada"
+                        : "ContraseñaIncorrecta";
+
+            // El contador solo avanza cuando la causa real es contraseña incorrecta sobre una cuenta
+            // activa y no bloqueada — nunca por cuenta inexistente, inactiva, o ya bloqueada (si no,
+            // seguir insistiendo durante el bloqueo lo extendería indefinidamente). Este es el único
+            // branch con un SaveChangesAsync real (UPDATE) — una asimetría de unos pocos ms frente a
+            // UsuarioNoExiste/CuentaBloqueada, mucho menor que los ~295ms que cerró el fix #7, y sobre
+            // una rama que ya era la "cara" por diseño desde ese mismo fix. No se iguala a propósito.
+            if (reason == "ContraseñaIncorrecta")
+            {
+                user!.FailedLoginAttempts++;
+
+                if (user.FailedLoginAttempts >= MaxFailedLoginAttempts)
+                {
+                    user.LockedOutUntil = now.Add(LockoutDuration);
+
+                    _logger.LogWarning(
+                        "Cuenta bloqueada por {Minutes} minutos tras {Attempts} intentos fallidos consecutivos: usuario {UserId} (cédula {Cedula})",
+                        LockoutDuration.TotalMinutes, user.FailedLoginAttempts, user.Id, cedula);
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
 
             _logger.LogWarning(
                 "Login fallido para cédula {Cedula} desde IP {IpAddress}. Motivo: {Reason}",
                 cedula, ipAddress ?? "desconocida", reason);
 
             return LoginResult.Failure();
+        }
+
+        if (user!.FailedLoginAttempts != 0 || user.LockedOutUntil.HasValue)
+        {
+            user.FailedLoginAttempts = 0;
+            user.LockedOutUntil = null;
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         _logger.LogInformation(

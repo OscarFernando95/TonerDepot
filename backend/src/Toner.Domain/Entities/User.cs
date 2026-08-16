@@ -24,6 +24,14 @@ public class User : BaseEntity
     // cambiarla antes de poder usar el resto de la app (ver MustChangePasswordMiddleware).
     public bool MustChangePassword { get; set; } = true;
 
+    // Bloqueo de cuenta tras intentos fallidos de login consecutivos (ver SECURITY_AUDIT.md
+    // hallazgo #9). Solo AuthService.LoginAsync los toca.
+    public int FailedLoginAttempts { get; set; }
+
+    // Null mientras la cuenta no está bloqueada. Se limpia en el próximo login exitoso; no hay
+    // desbloqueo manual — expira sola cuando pasa la fecha.
+    public DateTime? LockedOutUntil { get; set; }
+
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = null!;
 

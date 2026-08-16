@@ -22,6 +22,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Phone).HasMaxLength(30);
         builder.Property(u => u.Address).HasMaxLength(300);
         builder.Property(u => u.MustChangePassword).IsRequired().HasDefaultValue(false);
+        builder.Property(u => u.FailedLoginAttempts).IsRequired().HasDefaultValue(0);
 
         builder.HasOne(u => u.Role)
             .WithMany(r => r.Users)
