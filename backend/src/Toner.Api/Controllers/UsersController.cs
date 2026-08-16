@@ -14,11 +14,16 @@ public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly IValidator<CreateUserRequest> _createValidator;
+    private readonly IValidator<UpdateUserRequest> _updateValidator;
 
-    public UsersController(IUserService userService, IValidator<CreateUserRequest> createValidator)
+    public UsersController(
+        IUserService userService,
+        IValidator<CreateUserRequest> createValidator,
+        IValidator<UpdateUserRequest> updateValidator)
     {
         _userService = userService;
         _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     [HttpGet]
@@ -34,6 +39,15 @@ public class UsersController : ControllerBase
 
         var user = await _userService.CreateAsync(request, cancellationToken);
         return CreatedAtAction(nameof(List), new { }, user);
+    }
+
+    [HttpPatch("{id:guid}")]
+    public async Task<ActionResult<UserDto>> Update(Guid id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        await _updateValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var user = await _userService.UpdateAsync(id, request, cancellationToken);
+        return Ok(user);
     }
 
     [HttpPatch("{id:guid}/status")]

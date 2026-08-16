@@ -56,7 +56,10 @@ public class UserService : IUserService
             _db.Technicians.Add(new Technician
             {
                 UserId = user.Id,
-                Status = TechnicianStatus.Inactivo,
+                // Disponible desde que se crea: Status solo refleja si está en una visita (Ocupado) o no,
+                // no si la cuenta está habilitada (eso es IsActive) — "Inactivo" confundía al leerse como
+                // cuenta deshabilitada.
+                Status = TechnicianStatus.Disponible,
                 IsActive = true
             });
         }
@@ -69,6 +72,30 @@ public class UserService : IUserService
     public async Task<IReadOnlyList<UserDto>> ListAsync(CancellationToken cancellationToken = default)
     {
         return await Projected(_db).OrderBy(u => u.FullName).ToListAsync(cancellationToken);
+    }
+
+    public async Task<UserDto> UpdateAsync(Guid userId, UpdateUserRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new NotFoundException(nameof(User), userId);
+
+        var cedula = request.Cedula.Trim();
+        var cedulaTakenByAnotherUser = await _db.Users.AnyAsync(u => u.Cedula == cedula && u.Id != userId, cancellationToken);
+        if (cedulaTakenByAnotherUser)
+        {
+            throw new ConflictException($"Ya existe un usuario con la cédula '{cedula}'.");
+        }
+
+        user.Cedula = cedula;
+        user.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+        user.FullName = request.FullName.Trim();
+        user.Phone = request.Phone.Trim();
+        user.Address = request.Address.Trim();
+        user.CityId = request.CityId;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(userId, cancellationToken);
     }
 
     public async Task<UserDto> SetActiveStatusAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default)
