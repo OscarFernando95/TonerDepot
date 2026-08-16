@@ -2,6 +2,7 @@ using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Toner.Application.Auth;
 using Toner.Application.Auth.Dtos;
 
@@ -26,6 +27,7 @@ public class AuthController : ControllerBase
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [HttpPost("login")]
     public async Task<ActionResult<LoginResult>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
@@ -47,6 +49,7 @@ public class AuthController : ControllerBase
         return Ok(user);
     }
 
+    [EnableRateLimiting("auth")]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken cancellationToken)
     {

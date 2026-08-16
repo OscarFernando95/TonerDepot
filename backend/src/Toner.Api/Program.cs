@@ -1,8 +1,10 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -148,6 +150,58 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
+        }
+
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new
+            {
+                title = "Demasiadas solicitudes. Intenta de nuevo más tarde.",
+                status = StatusCodes.Status429TooManyRequests
+            },
+            options: null,
+            contentType: "application/problem+json",
+            cancellationToken: cancellationToken);
+    };
+
+    // Partición por IP de conexión. Nota: no hay UseForwardedHeaders configurado — si en el futuro
+    // se pone un reverse proxy delante, RemoteIpAddress vería la IP del proxy y esto degradaría a un
+    // límite compartido por todos los clientes en vez de uno por IP real.
+    static string PartitionKey(HttpContext context) =>
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    // Política estricta para login y cambio de contraseña: 5 intentos por minuto por IP, sin cola
+    // (el exceso se rechaza de inmediato con 429 en vez de esperar turno).
+    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        PartitionKey(context),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+
+    // Límite global (aplica a toda la API, incluidos los endpoints anónimos) de 100 requests por
+    // minuto por IP, como tope general contra floods que no sean específicamente de auth.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -174,6 +228,8 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 
 app.UseCors("Frontend");
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
