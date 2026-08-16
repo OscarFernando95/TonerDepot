@@ -76,10 +76,7 @@ Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren s
 
 ## Autenticación
 
-Al arrancar, la API siembra automáticamente los 5 roles fijos (`Administrador`, `Coordinador`, `Tecnico`, `Cliente`, `Ventas`) y, si aún no existe ningún Administrador, crea uno de arranque a partir de `Jwt`/`AdminBootstrap` en `appsettings`. En una base de datos nueva:
-
-- Email: `admin@toner.local`
-- Password: `REDACTED`
+Al arrancar, la API siembra automáticamente los 5 roles fijos (`Administrador`, `Coordinador`, `Tecnico`, `Cliente`, `Ventas`) y, si aún no existe ningún Administrador, crea uno de arranque a partir de `AdminBootstrap:Cedula`/`Email`/`Password` en `appsettings.Development.json` (ver `appsettings.Development.json.example` para los nombres de las claves — cada quien define sus propios valores locales, no hay credenciales fijas documentadas aquí). Ese usuario nace con `MustChangePassword = true`, así que el primer login exige cambiarla.
 
 > El volumen de Postgres del `docker-compose.yml` es persistente entre reinicios de contenedor (`docker compose down` sin `-v` no borra los datos). Si ya probaste el login y cambiaste la contraseña del admin de arranque, esa será la vigente hasta que reinicies con una base nueva (`docker compose down -v`).
 
