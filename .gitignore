@@ -22,5 +22,9 @@ mobile/build/
 .env
 backend/src/Toner.Api/appsettings.Development.json
 
+# Certificado autofirmado de Postgres local (generado por docker/postgres/generate-certs.sh)
+docker/postgres/server.crt
+docker/postgres/server.key
+
 # OS
 .DS_Store

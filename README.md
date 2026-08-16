@@ -60,7 +60,9 @@ Toner/
 
 ## Connection string de desarrollo
 
-Definida en `backend/src/Toner.Api/appsettings.Development.json`, apunta al Postgres del `docker-compose.yml` (usuario/base `toner`, contraseña `toner_dev_password` — solo para desarrollo local, no usar en producción).
+Definida en `backend/src/Toner.Api/appsettings.Development.json`, apunta al Postgres del `docker-compose.yml` (usuario/base `toner`, contraseña `toner_dev_password` — solo para desarrollo local, no usar en producción). Incluye `Ssl Mode=Require`; el Postgres de `docker-compose.yml` corre con SSL habilitado (certificado autofirmado — ver `docker/postgres/generate-certs.sh`, hay que correrlo antes de `docker compose up` la primera vez).
+
+> En producción, la cadena de conexión a Postgres debe incluir `Ssl Mode=Require` como mínimo (o `VerifyFull` si el proveedor gestionado lo soporta con un certificado verificable por una CA de confianza). `Require` cifra el canal pero no valida la identidad del servidor — no hace falta `Trust Server Certificate=true` para usarlo, esa bandera solo aplica si se quisiera `VerifyCA`/`VerifyFull` contra un certificado no verificable.
 
 ## Servicios locales (docker-compose)
 

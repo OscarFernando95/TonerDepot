@@ -1,12 +1,20 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: ./docker/postgres
     container_name: toner-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-toner}
       POSTGRES_USER: ${POSTGRES_USER:-toner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-toner_dev_password}
+    # SSL habilitado (ver docker/postgres/Dockerfile) para que la app pueda conectarse con
+    # "Ssl Mode=Require" — requiere haber corrido docker/postgres/generate-certs.sh antes del build.
+    command: >
+      postgres
+      -c ssl=on
+      -c ssl_cert_file=/var/lib/postgresql/certs/server.crt
+      -c ssl_key_file=/var/lib/postgresql/certs/server.key
     ports:
       - "5433:5432" # 5432 puede estar ocupado por un Postgres nativo del sistema
     volumes:
