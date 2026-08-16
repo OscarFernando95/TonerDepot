@@ -16,5 +16,6 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
         builder.Property(c => c.ContactName).HasMaxLength(200);
         builder.Property(c => c.ContactEmail).HasMaxLength(256);
         builder.Property(c => c.ContactPhone).HasMaxLength(50);
+        builder.Property(c => c.IsContractClient).HasDefaultValue(true);
     }
 }

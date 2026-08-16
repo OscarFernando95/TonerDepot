@@ -14,6 +14,8 @@ public class ServiceTicketConfiguration : IEntityTypeConfiguration<ServiceTicket
         builder.Property(t => t.Description).IsRequired().HasMaxLength(2000);
         builder.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(t => t.Priority).HasConversion<string>().HasMaxLength(20);
+        builder.Property(t => t.ExternalAssetBrand).HasMaxLength(100);
+        builder.Property(t => t.ExternalAssetModel).HasMaxLength(150);
 
         builder.HasOne(t => t.ClientLocation)
             .WithMany(l => l.ServiceTickets)

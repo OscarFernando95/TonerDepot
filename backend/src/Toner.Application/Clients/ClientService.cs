@@ -32,7 +32,8 @@ public class ClientService : IClientService
             ContactName = request.ContactName?.Trim(),
             ContactEmail = request.ContactEmail?.Trim().ToLowerInvariant(),
             ContactPhone = request.ContactPhone?.Trim(),
-            IsActive = true
+            IsActive = true,
+            IsContractClient = request.IsContractClient
         };
         _db.Clients.Add(client);
 
@@ -53,45 +54,20 @@ public class ClientService : IClientService
         // Un solo SaveChangesAsync: Client + todas sus ClientLocation se confirman juntos, atómicamente.
         await _db.SaveChangesAsync(cancellationToken);
 
-        return ToDto(client, locationCount: request.Locations.Count);
+        return await GetByIdAsync(client.Id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ClientDto>> ListAsync(CancellationToken cancellationToken = default)
     {
-        return await _db.Clients
+        return await Projected(_db)
             .OrderBy(c => c.Name)
-            .Select(c => new ClientDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                TaxId = c.TaxId,
-                ContactName = c.ContactName,
-                ContactEmail = c.ContactEmail,
-                ContactPhone = c.ContactPhone,
-                IsActive = c.IsActive,
-                LocationCount = c.Locations.Count,
-                CreatedAt = c.CreatedAt
-            })
             .ToListAsync(cancellationToken);
     }
 
     public async Task<ClientDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _db.Clients
-            .Where(c => c.Id == id)
-            .Select(c => new ClientDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                TaxId = c.TaxId,
-                ContactName = c.ContactName,
-                ContactEmail = c.ContactEmail,
-                ContactPhone = c.ContactPhone,
-                IsActive = c.IsActive,
-                LocationCount = c.Locations.Count,
-                CreatedAt = c.CreatedAt
-            })
-            .FirstOrDefaultAsync(cancellationToken)
+        return await Projected(_db)
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Client), id);
     }
 
@@ -105,6 +81,7 @@ public class ClientService : IClientService
         client.ContactName = request.ContactName?.Trim();
         client.ContactEmail = request.ContactEmail?.Trim().ToLowerInvariant();
         client.ContactPhone = request.ContactPhone?.Trim();
+        client.IsContractClient = request.IsContractClient;
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -122,16 +99,19 @@ public class ClientService : IClientService
         return await GetByIdAsync(id, cancellationToken);
     }
 
-    private static ClientDto ToDto(Client client, int locationCount) => new()
-    {
-        Id = client.Id,
-        Name = client.Name,
-        TaxId = client.TaxId,
-        ContactName = client.ContactName,
-        ContactEmail = client.ContactEmail,
-        ContactPhone = client.ContactPhone,
-        IsActive = client.IsActive,
-        LocationCount = locationCount,
-        CreatedAt = client.CreatedAt
-    };
+    private static IQueryable<ClientDto> Projected(IApplicationDbContext db) =>
+        db.Clients.Select(c => new ClientDto
+        {
+            Id = c.Id,
+            Name = c.Name,
+            TaxId = c.TaxId,
+            ContactName = c.ContactName,
+            ContactEmail = c.ContactEmail,
+            ContactPhone = c.ContactPhone,
+            IsActive = c.IsActive,
+            IsContractClient = c.IsContractClient,
+            LocationCount = c.Locations.Count,
+            CityNames = c.Locations.Select(l => l.City.Name).Distinct().OrderBy(n => n).ToList(),
+            CreatedAt = c.CreatedAt
+        });
 }

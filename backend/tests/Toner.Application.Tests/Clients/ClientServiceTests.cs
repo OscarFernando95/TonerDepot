@@ -84,4 +84,68 @@ public class ClientServiceTests
 
         Assert.Equal(0, await db.Clients.CountAsync());
     }
+
+    [Fact]
+    public async Task CreateAsync_ExternalClient_PersistsIsContractClientFalse()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var city = TestEntities.City();
+        arrangeDb.Add(city);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new ClientService(actDb);
+
+        var result = await service.CreateAsync(new CreateClientRequest
+        {
+            Name = "Cliente Externo",
+            IsContractClient = false,
+            Locations = new List<CreateClientLocationRequest>
+            {
+                new() { CityId = city.Id, Name = "Sede Principal", Address = "Calle 1" }
+            }
+        });
+
+        Assert.False(result.IsContractClient);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ChangesIsContractClient()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        arrangeDb.Add(client);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new ClientService(actDb);
+
+        var result = await service.UpdateAsync(client.Id, new UpdateClientRequest { Name = client.Name, IsContractClient = false });
+
+        Assert.False(result.IsContractClient);
+    }
+
+    [Fact]
+    public async Task ListAsync_ClientWithLocationsInMultipleCities_ReturnsDistinctSortedCityNames()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var cityA = TestEntities.City("Medellín", "Antioquia");
+        var cityB = TestEntities.City("Bogotá", "Cundinamarca");
+        var client = TestEntities.Client();
+        var locationA1 = TestEntities.ClientLocation(client, cityA, "Sede Medellín 1");
+        var locationA2 = TestEntities.ClientLocation(client, cityA, "Sede Medellín 2");
+        var locationB = TestEntities.ClientLocation(client, cityB, "Sede Bogotá");
+        arrangeDb.AddRange(cityA, cityB, client, locationA1, locationA2, locationB);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new ClientService(actDb);
+
+        var result = await service.GetByIdAsync(client.Id);
+
+        Assert.Equal(new[] { "Bogotá", "Medellín" }, result.CityNames);
+    }
 }

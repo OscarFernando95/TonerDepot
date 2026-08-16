@@ -8,6 +8,9 @@ public class CreateClientRequest
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
 
+    // true (default): cliente con contrato de alquiler. false: cliente externo — ver Client.IsContractClient.
+    public bool IsContractClient { get; set; } = true;
+
     // Al menos una sede es obligatoria: garantiza que todo cliente nace con dónde prestarle servicio,
     // en vez de depender de que alguien se acuerde de agregarla después.
     public List<CreateClientLocationRequest> Locations { get; set; } = new();

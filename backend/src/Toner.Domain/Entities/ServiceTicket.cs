@@ -11,6 +11,12 @@ public class ServiceTicket : BaseEntity
     public Guid? AssetId { get; set; }
     public Asset? Asset { get; set; }
 
+    // Solo aplican cuando AssetId es nulo — cliente externo cuyo equipo no está catalogado como Asset.
+    // El técnico los llena de forma opcional al cerrar el ticket (ver TechnicianCheckInService.CheckOutAsync).
+    public string? ExternalAssetBrand { get; set; }
+    public string? ExternalAssetModel { get; set; }
+    public long? ExternalAssetCounter { get; set; }
+
     public Guid ReportedByUserId { get; set; }
     public User ReportedByUser { get; set; } = null!;
 

@@ -71,10 +71,14 @@ public class ContractAssetService : IContractAssetService
 
     public async Task<IReadOnlyList<ContractAssetDto>> ListByContractAsync(Guid contractId, CancellationToken cancellationToken = default)
     {
-        return await Projected(_db)
+        var items = await Projected(_db)
             .Where(ca => ca.ContractId == contractId)
             .OrderByDescending(ca => ca.StartDate)
             .ToListAsync(cancellationToken);
+
+        await AttachAssetMetricsAsync(items, cancellationToken);
+
+        return items;
     }
 
     public async Task<ContractAssetDto> EndAsync(Guid contractId, Guid id, CancellationToken cancellationToken = default)
@@ -89,8 +93,67 @@ public class ContractAssetService : IContractAssetService
         return await ToDtoAsync(id, cancellationToken);
     }
 
-    private async Task<ContractAssetDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>
-        await Projected(_db).FirstAsync(ca => ca.Id == id, cancellationToken);
+    private async Task<ContractAssetDto> ToDtoAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var dto = await Projected(_db).FirstAsync(ca => ca.Id == id, cancellationToken);
+        await AttachAssetMetricsAsync(new[] { dto }, cancellationToken);
+        return dto;
+    }
+
+    // Mismo patrón de dos pasos que AssetService.AttachLastMeterReadingsAsync (evita subconsultas
+    // correlacionadas para que InMemory/Npgsql se comporten igual en tests). El promedio de impresiones
+    // por mes no tiene un criterio previo en el sistema: se define acá como (última lectura - primera
+    // lectura) / meses transcurridos entre esas dos fechas — solo si hay 2+ lecturas que no sean del
+    // mismo instante; si no, se deja null y el frontend simplemente no muestra la celda.
+    private async Task AttachAssetMetricsAsync(IReadOnlyList<ContractAssetDto> items, CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var assetIds = items.Select(i => i.AssetId).Distinct().ToList();
+
+        var areasByAsset = await _db.Assets
+            .Where(a => assetIds.Contains(a.Id))
+            .Select(a => new { a.Id, a.Area })
+            .ToDictionaryAsync(a => a.Id, a => a.Area, cancellationToken);
+
+        var readings = await _db.MeterReadings
+            .Where(m => assetIds.Contains(m.AssetId))
+            .Select(m => new { m.AssetId, m.ReadingDate, m.CounterValue })
+            .ToListAsync(cancellationToken);
+
+        var readingsByAsset = readings.GroupBy(r => r.AssetId).ToDictionary(g => g.Key, g => g.OrderBy(r => r.ReadingDate).ToList());
+
+        foreach (var item in items)
+        {
+            item.Area = areasByAsset.GetValueOrDefault(item.AssetId);
+
+            if (!readingsByAsset.TryGetValue(item.AssetId, out var assetReadings) || assetReadings.Count == 0)
+            {
+                continue;
+            }
+
+            item.LastMeterReading = assetReadings[^1].CounterValue;
+
+            if (assetReadings.Count < 2)
+            {
+                continue;
+            }
+
+            var first = assetReadings[0];
+            var last = assetReadings[^1];
+            var elapsedDays = (last.ReadingDate - first.ReadingDate).TotalDays;
+            if (elapsedDays <= 0)
+            {
+                continue;
+            }
+
+            var monthsElapsed = elapsedDays / 30.44;
+            item.AverageMonthlyPrints = Math.Round((last.CounterValue - first.CounterValue) / monthsElapsed, 1);
+        }
+    }
 
     private static IQueryable<ContractAssetDto> Projected(IApplicationDbContext db) =>
         db.ContractAssets.Select(ca => new ContractAssetDto
@@ -98,8 +161,8 @@ public class ContractAssetService : IContractAssetService
             Id = ca.Id,
             ContractId = ca.ContractId,
             AssetId = ca.AssetId,
-            AssetBrandName = ca.Asset.AssetBrand.Name,
-            AssetModel = ca.Asset.Model,
+            AssetBrandName = ca.Asset.AssetModel.AssetBrand.Name,
+            AssetModel = ca.Asset.AssetModel.Name,
             AssetSerialNumber = ca.Asset.SerialNumber,
             StartDate = ca.StartDate,
             EndDate = ca.EndDate

@@ -104,6 +104,7 @@ public class ContractService : IContractService
             PricePerExtraPage = c.PricePerExtraPage,
             Notes = c.Notes,
             AssetCount = c.ContractAssets.Count(ca => ca.EndDate == null),
+            CityNames = c.Client.Locations.Select(l => l.City.Name).Distinct().OrderBy(n => n).ToList(),
             CreatedAt = c.CreatedAt
         });
 }

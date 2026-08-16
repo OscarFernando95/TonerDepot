@@ -7,4 +7,5 @@ public class UpdateClientRequest
     public string? ContactName { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
+    public bool IsContractClient { get; set; } = true;
 }

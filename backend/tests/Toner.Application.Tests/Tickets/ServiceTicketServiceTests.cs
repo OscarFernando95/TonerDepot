@@ -162,4 +162,96 @@ public class ServiceTicketServiceTests
             new AssignTicketRequest { TechnicianId = Guid.NewGuid() },
             Guid.NewGuid()));
     }
+
+    [Fact]
+    public async Task ClaimAsync_AssignedToOtherTechnicianButNotStarted_ReassignsAndCreatesHistory()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var user = TestEntities.User(role);
+        var techRole = TestEntities.Role(RoleNames.Tecnico);
+        var ownerUser = TestEntities.User(techRole);
+        var owner = TestEntities.Technician(ownerUser);
+        var claimingUser = TestEntities.User(techRole);
+        var claimingTechnician = TestEntities.Technician(claimingUser);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var ticket = TestEntities.ServiceTicket(location, user, ServiceTicketStatus.Asignado, technicianId: owner.Id);
+        arrangeDb.AddRange(role, user, techRole, ownerUser, owner, claimingUser, claimingTechnician, city, client, location, ticket);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        var result = await service.ClaimAsync(ticket.Id, claimingTechnician.Id);
+
+        Assert.Equal(nameof(ServiceTicketStatus.Asignado), result.Status);
+        Assert.Equal(claimingTechnician.Id, result.TechnicianId);
+
+        var history = await service.GetAssignmentHistoryAsync(ticket.Id);
+        var entry = Assert.Single(history);
+        Assert.Equal(nameof(AssignmentType.Reclamada), entry.AssignmentType);
+    }
+
+    [Fact]
+    public async Task ClaimAsync_AlreadyEnProceso_Throws()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var user = TestEntities.User(role);
+        var techRole = TestEntities.Role(RoleNames.Tecnico);
+        var ownerUser = TestEntities.User(techRole);
+        var owner = TestEntities.Technician(ownerUser);
+        var claimingUser = TestEntities.User(techRole);
+        var claimingTechnician = TestEntities.Technician(claimingUser);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var ticket = TestEntities.ServiceTicket(location, user, ServiceTicketStatus.EnProceso, technicianId: owner.Id);
+        arrangeDb.AddRange(role, user, techRole, ownerUser, owner, claimingUser, claimingTechnician, city, client, location, ticket);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.ClaimAsync(ticket.Id, claimingTechnician.Id));
+    }
+
+    [Fact]
+    public async Task ListInCoverageAsync_ExcludesOwnTicketsAndOtherCities()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var user = TestEntities.User(role);
+        var techRole = TestEntities.Role(RoleNames.Tecnico);
+        var techUser = TestEntities.User(techRole);
+        var technician = TestEntities.Technician(techUser);
+        var coveredCity = TestEntities.City("Medellín", "Antioquia");
+        var otherCity = TestEntities.City("Cali", "Valle del Cauca");
+        var coverage = TestEntities.Coverage(technician, coveredCity);
+        var client = TestEntities.Client();
+        var coveredLocation = TestEntities.ClientLocation(client, coveredCity);
+        var otherLocation = TestEntities.ClientLocation(client, otherCity);
+
+        var ticketInCoverage = TestEntities.ServiceTicket(coveredLocation, user, ServiceTicketStatus.Abierto);
+        var ownTicketInCoverage = TestEntities.ServiceTicket(coveredLocation, user, ServiceTicketStatus.Asignado, technicianId: technician.Id);
+        var ticketInOtherCity = TestEntities.ServiceTicket(otherLocation, user, ServiceTicketStatus.Abierto);
+
+        arrangeDb.AddRange(
+            role, user, techRole, techUser, technician, coveredCity, otherCity, coverage,
+            client, coveredLocation, otherLocation, ticketInCoverage, ownTicketInCoverage, ticketInOtherCity);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        var result = await service.ListInCoverageAsync(technician.Id);
+
+        var item = Assert.Single(result);
+        Assert.Equal(ticketInCoverage.Id, item.Id);
+    }
 }

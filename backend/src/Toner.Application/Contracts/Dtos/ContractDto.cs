@@ -12,5 +12,6 @@ public class ContractDto
     public decimal? PricePerExtraPage { get; set; }
     public string? Notes { get; set; }
     public int AssetCount { get; set; }
+    public List<string> CityNames { get; set; } = new();
     public DateTime CreatedAt { get; set; }
 }

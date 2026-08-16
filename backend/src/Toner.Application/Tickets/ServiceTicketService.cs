@@ -94,6 +94,31 @@ public class ServiceTicketService : IServiceTicketService
         return await query.OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ServiceTicketDto>> ListInCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    {
+        var coveredCityIds = await _db.TechnicianCoverages
+            .Where(c => c.TechnicianId == technicianId)
+            .Select(c => c.CityId)
+            .ToListAsync(cancellationToken);
+
+        if (coveredCityIds.Count == 0)
+        {
+            return Array.Empty<ServiceTicketDto>();
+        }
+
+        var activeStatuses = new[]
+        {
+            ServiceTicketStatus.Abierto, ServiceTicketStatus.SinAsignar, ServiceTicketStatus.Asignado, ServiceTicketStatus.EnProceso
+        };
+
+        var query = _db.ServiceTickets.Where(t =>
+            activeStatuses.Contains(t.Status) &&
+            t.TechnicianId != technicianId &&
+            coveredCityIds.Contains(t.ClientLocation.CityId));
+
+        return await ProjectedFrom(query).OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
+    }
+
     public async Task<ServiceTicketDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
     {
         var ticket = await Projected(_db).FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
@@ -132,6 +157,42 @@ public class ServiceTicketService : IServiceTicketService
             AssignedByUserId = assignedByUserId,
             AssignmentType = AssignmentType.Manual,
             Reason = request.Reason?.Trim()
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    public async Task<ServiceTicketDto> ClaimAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default)
+    {
+        var ticket = await _db.ServiceTickets.FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceTicket), id);
+
+        if (!AssignableStatuses.Contains(ticket.Status))
+        {
+            throw new ConflictException($"No se puede tomar un ticket en estado '{ticket.Status}'.");
+        }
+
+        if (ticket.TechnicianId == technicianId)
+        {
+            throw new ConflictException("Este ticket ya está asignado a ti.");
+        }
+
+        var claimingUserId = await _db.Technicians
+            .Where(t => t.Id == technicianId)
+            .Select(t => t.UserId)
+            .FirstAsync(cancellationToken);
+
+        ticket.TechnicianId = technicianId;
+        ticket.Status = ServiceTicketStatus.Asignado;
+
+        _db.AssignmentHistories.Add(new AssignmentHistory
+        {
+            ServiceTicketId = ticket.Id,
+            TechnicianId = technicianId,
+            AssignedByUserId = claimingUserId,
+            AssignmentType = AssignmentType.Reclamada
         });
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -189,18 +250,24 @@ public class ServiceTicketService : IServiceTicketService
     private async Task<ServiceTicketDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>
         await Projected(_db).FirstAsync(t => t.Id == id, cancellationToken);
 
-    private static IQueryable<ServiceTicketDto> Projected(IApplicationDbContext db) =>
-        db.ServiceTickets.Select(t => new ServiceTicketDto
+    private static IQueryable<ServiceTicketDto> Projected(IApplicationDbContext db) => ProjectedFrom(db.ServiceTickets);
+
+    private static IQueryable<ServiceTicketDto> ProjectedFrom(IQueryable<ServiceTicket> query) =>
+        query.Select(t => new ServiceTicketDto
         {
             Id = t.Id,
             ClientLocationId = t.ClientLocationId,
             ClientLocationName = t.ClientLocation.Name,
             ClientId = t.ClientLocation.ClientId,
             ClientName = t.ClientLocation.Client.Name,
+            CityName = t.ClientLocation.City.Name,
             AssetId = t.AssetId,
-            AssetBrandName = t.Asset != null ? t.Asset.AssetBrand.Name : null,
-            AssetModel = t.Asset != null ? t.Asset.Model : null,
+            AssetBrandName = t.Asset != null ? t.Asset.AssetModel.AssetBrand.Name : null,
+            AssetModel = t.Asset != null ? t.Asset.AssetModel.Name : null,
             AssetSerialNumber = t.Asset != null ? t.Asset.SerialNumber : null,
+            ExternalAssetBrand = t.ExternalAssetBrand,
+            ExternalAssetModel = t.ExternalAssetModel,
+            ExternalAssetCounter = t.ExternalAssetCounter,
             ReportedByUserId = t.ReportedByUserId,
             ReportedByUserName = t.ReportedByUser.FullName,
             Description = t.Description,

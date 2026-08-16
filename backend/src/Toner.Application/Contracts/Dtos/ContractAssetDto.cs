@@ -10,4 +10,7 @@ public class ContractAssetDto
     public string AssetSerialNumber { get; set; } = string.Empty;
     public DateTime StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public string? Area { get; set; }
+    public long? LastMeterReading { get; set; }
+    public double? AverageMonthlyPrints { get; set; }
 }

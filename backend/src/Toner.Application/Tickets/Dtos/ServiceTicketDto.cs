@@ -7,10 +7,14 @@ public class ServiceTicketDto
     public string ClientLocationName { get; set; } = string.Empty;
     public Guid ClientId { get; set; }
     public string ClientName { get; set; } = string.Empty;
+    public string? CityName { get; set; }
     public Guid? AssetId { get; set; }
     public string? AssetBrandName { get; set; }
     public string? AssetModel { get; set; }
     public string? AssetSerialNumber { get; set; }
+    public string? ExternalAssetBrand { get; set; }
+    public string? ExternalAssetModel { get; set; }
+    public long? ExternalAssetCounter { get; set; }
     public Guid ReportedByUserId { get; set; }
     public string ReportedByUserName { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
