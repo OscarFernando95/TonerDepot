@@ -16,6 +16,13 @@ public class MaintenanceOrder : BaseEntity
     public DateTime ScheduledDate { get; set; }
     public DateTime? CompletedAt { get; set; }
 
+    // Fijados por MaintenanceScheduleEngine al generar la orden. Combinaciones válidas: General+Unidades,
+    // General+Insumos, Unidades sola, Insumos sola — nunca Unidades+Insumos juntas, nunca General sola
+    // (si General está por vencer, siempre se combina con la regla más próxima entre unidades e insumos).
+    public bool IncludesGeneral { get; set; }
+    public bool IncludesUnits { get; set; }
+    public bool IncludesConsumables { get; set; }
+
     public Guid? TechnicianId { get; set; }
     public Technician? Technician { get; set; }
 

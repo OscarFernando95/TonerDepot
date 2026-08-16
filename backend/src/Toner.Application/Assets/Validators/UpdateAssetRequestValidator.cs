@@ -10,7 +10,6 @@ public class UpdateAssetRequestValidator : AbstractValidator<UpdateAssetRequest>
 {
     public UpdateAssetRequestValidator(IApplicationDbContext db)
     {
-        RuleFor(x => x.Model).NotEmpty().MaximumLength(150);
         RuleFor(x => x.SerialNumber).NotEmpty().MaximumLength(100);
 
         RuleFor(x => x.Type)
@@ -18,8 +17,8 @@ public class UpdateAssetRequestValidator : AbstractValidator<UpdateAssetRequest>
             .Must(t => Enum.TryParse<AssetType>(t, out _))
             .WithMessage($"Type debe ser uno de: {string.Join(", ", Enum.GetNames<AssetType>())}.");
 
-        RuleFor(x => x.AssetBrandId)
-            .MustAsync(async (id, ct) => await db.AssetBrands.AnyAsync(b => b.Id == id, ct))
-            .WithMessage("El AssetBrandId especificado no existe.");
+        RuleFor(x => x.AssetModelId)
+            .MustAsync(async (id, ct) => await db.AssetModels.AnyAsync(m => m.Id == id, ct))
+            .WithMessage("El AssetModelId especificado no existe.");
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Toner.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Toner.Infrastructure.Persistence;
 namespace Toner.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TonerDbContext))]
-    partial class TonerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260816034238_RedesignMaintenanceSchedules")]
+    partial class RedesignMaintenanceSchedules
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -31,7 +34,7 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
-                    b.Property<Guid>("AssetModelId")
+                    b.Property<Guid>("AssetBrandId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -44,6 +47,11 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.Property<string>("SerialNumber")
                         .IsRequired()
@@ -60,7 +68,7 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssetModelId");
+                    b.HasIndex("AssetBrandId");
 
                     b.HasIndex("CurrentClientLocationId");
 
@@ -92,48 +100,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("AssetBrands", (string)null);
-                });
-
-            modelBuilder.Entity("Toner.Domain.Entities.AssetModel", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AssetBrandId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ConsumablesPrintThreshold")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("GeneralMonthsInterval")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("GeneralPrintThreshold")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("UnitsMonthsInterval")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UnitsPrintThreshold")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AssetBrandId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("AssetModels", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.AssetStatusLog", b =>
@@ -177,6 +143,39 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.HasIndex("ChangedByUserId");
 
                     b.ToTable("AssetStatusLogs", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.AssetTypeMaintenancePolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssetType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("ConsumablesPrintThreshold")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("GeneralMonthsInterval")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GeneralPrintThreshold")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssetType")
+                        .IsUnique();
+
+                    b.ToTable("AssetTypeMaintenancePolicies", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.AssignmentHistory", b =>
@@ -281,11 +280,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
-
-                    b.Property<bool>("IsContractClient")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -547,13 +541,7 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IncludesConsumables")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IncludesGeneral")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IncludesUnits")
+                    b.Property<bool>("IncludesConsumablesChange")
                         .HasColumnType("boolean");
 
                     b.Property<Guid>("MaintenanceScheduleId")
@@ -613,12 +601,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<long?>("LastGeneralMaintenanceCounter")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTime?>("LastUnitsMaintenanceAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("LastUnitsMaintenanceCounter")
-                        .HasColumnType("bigint");
-
                     b.Property<long>("NextConsumablesDueCounter")
                         .HasColumnType("bigint");
 
@@ -626,12 +608,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("NextGeneralDueCounter")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime>("NextUnitsDueAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("NextUnitsDueCounter")
                         .HasColumnType("bigint");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -724,17 +700,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ExternalAssetBrand")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<long?>("ExternalAssetCounter")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ExternalAssetModel")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
 
                     b.Property<string>("Priority")
                         .IsRequired()
@@ -984,9 +949,9 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Toner.Domain.Entities.Asset", b =>
                 {
-                    b.HasOne("Toner.Domain.Entities.AssetModel", "AssetModel")
+                    b.HasOne("Toner.Domain.Entities.AssetBrand", "AssetBrand")
                         .WithMany("Assets")
-                        .HasForeignKey("AssetModelId")
+                        .HasForeignKey("AssetBrandId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -995,20 +960,9 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CurrentClientLocationId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("AssetModel");
+                    b.Navigation("AssetBrand");
 
                     b.Navigation("CurrentClientLocation");
-                });
-
-            modelBuilder.Entity("Toner.Domain.Entities.AssetModel", b =>
-                {
-                    b.HasOne("Toner.Domain.Entities.AssetBrand", "AssetBrand")
-                        .WithMany("Models")
-                        .HasForeignKey("AssetBrandId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("AssetBrand");
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.AssetStatusLog", b =>
@@ -1344,11 +1298,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.AssetBrand", b =>
-                {
-                    b.Navigation("Models");
-                });
-
-            modelBuilder.Entity("Toner.Domain.Entities.AssetModel", b =>
                 {
                     b.Navigation("Assets");
                 });

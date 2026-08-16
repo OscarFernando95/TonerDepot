@@ -3,7 +3,7 @@ namespace Toner.Application.Assets.Dtos;
 public class AssetDto
 {
     public Guid Id { get; set; }
-    public Guid AssetBrandId { get; set; }
+    public Guid AssetModelId { get; set; }
     public string AssetBrandName { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
     public string SerialNumber { get; set; } = string.Empty;
@@ -16,5 +16,6 @@ public class AssetDto
     public string? CurrentClientName { get; set; }
     public string? CityName { get; set; }
     public long? LastMeterReading { get; set; }
+    public Guid? ActiveContractId { get; set; }
     public DateTime CreatedAt { get; set; }
 }

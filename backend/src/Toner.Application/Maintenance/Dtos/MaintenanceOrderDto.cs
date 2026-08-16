@@ -11,6 +11,11 @@ public class MaintenanceOrderDto
     public string Status { get; set; } = string.Empty;
     public Guid? TechnicianId { get; set; }
     public string? TechnicianName { get; set; }
+    public string? ClientLocationName { get; set; }
+    public string? CityName { get; set; }
+    public bool IncludesGeneral { get; set; }
+    public bool IncludesUnits { get; set; }
+    public bool IncludesConsumables { get; set; }
     public DateTime ScheduledDate { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime CreatedAt { get; set; }

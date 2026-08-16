@@ -18,11 +18,16 @@ public class MaintenanceOrdersController : ControllerBase
 {
     private readonly IMaintenanceOrderService _orderService;
     private readonly IValidator<AssignMaintenanceOrderRequest> _assignValidator;
+    private readonly IValidator<CompleteMaintenanceOrderRequest> _completeValidator;
 
-    public MaintenanceOrdersController(IMaintenanceOrderService orderService, IValidator<AssignMaintenanceOrderRequest> assignValidator)
+    public MaintenanceOrdersController(
+        IMaintenanceOrderService orderService,
+        IValidator<AssignMaintenanceOrderRequest> assignValidator,
+        IValidator<CompleteMaintenanceOrderRequest> completeValidator)
     {
         _orderService = orderService;
         _assignValidator = assignValidator;
+        _completeValidator = completeValidator;
     }
 
     [HttpGet]
@@ -50,9 +55,11 @@ public class MaintenanceOrdersController : ControllerBase
 
     [HttpPost("{id:guid}/complete")]
     [Authorize(Roles = RoleNames.StaffRoles)]
-    public async Task<ActionResult<MaintenanceOrderDto>> Complete(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<MaintenanceOrderDto>> Complete(Guid id, [FromBody] CompleteMaintenanceOrderRequest request, CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.CompleteAsync(id, cancellationToken));
+        await _completeValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        return Ok(await _orderService.CompleteAsync(id, request, CurrentUser.UserId, cancellationToken));
     }
 
     [HttpPost("{id:guid}/cancel")]

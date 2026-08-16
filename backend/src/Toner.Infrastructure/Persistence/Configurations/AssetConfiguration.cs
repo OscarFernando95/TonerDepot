@@ -11,7 +11,6 @@ public class AssetConfiguration : IEntityTypeConfiguration<Asset>
         builder.ConfigureBaseEntity();
         builder.ToTable("Assets");
 
-        builder.Property(a => a.Model).IsRequired().HasMaxLength(150);
         builder.Property(a => a.SerialNumber).IsRequired().HasMaxLength(100);
         builder.HasIndex(a => a.SerialNumber).IsUnique();
 
@@ -19,9 +18,9 @@ public class AssetConfiguration : IEntityTypeConfiguration<Asset>
         builder.Property(a => a.LifecycleStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(a => a.Area).HasMaxLength(150);
 
-        builder.HasOne(a => a.AssetBrand)
-            .WithMany(b => b.Assets)
-            .HasForeignKey(a => a.AssetBrandId)
+        builder.HasOne(a => a.AssetModel)
+            .WithMany(m => m.Assets)
+            .HasForeignKey(a => a.AssetModelId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(a => a.CurrentClientLocation)

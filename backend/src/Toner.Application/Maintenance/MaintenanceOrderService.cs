@@ -18,10 +18,12 @@ public class MaintenanceOrderService : IMaintenanceOrderService
     };
 
     private readonly IApplicationDbContext _db;
+    private readonly IMaintenanceScheduleEngine _engine;
 
-    public MaintenanceOrderService(IApplicationDbContext db)
+    public MaintenanceOrderService(IApplicationDbContext db, IMaintenanceScheduleEngine engine)
     {
         _db = db;
+        _engine = engine;
     }
 
     public async Task<IReadOnlyList<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default)
@@ -42,6 +44,32 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             .Where(o => o.MaintenanceScheduleId == scheduleId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MaintenanceOrderDto>> ListInCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    {
+        var coveredCityIds = await _db.TechnicianCoverages
+            .Where(c => c.TechnicianId == technicianId)
+            .Select(c => c.CityId)
+            .ToListAsync(cancellationToken);
+
+        if (coveredCityIds.Count == 0)
+        {
+            return Array.Empty<MaintenanceOrderDto>();
+        }
+
+        var activeStatuses = new[]
+        {
+            MaintenanceOrderStatus.Pendiente, MaintenanceOrderStatus.Asignada, MaintenanceOrderStatus.EnProceso
+        };
+
+        var query = _db.MaintenanceOrders.Where(o =>
+            activeStatuses.Contains(o.Status) &&
+            o.TechnicianId != technicianId &&
+            o.Asset.CurrentClientLocation != null &&
+            coveredCityIds.Contains(o.Asset.CurrentClientLocation.CityId));
+
+        return await ProjectedFrom(query).OrderByDescending(o => o.CreatedAt).ToListAsync(cancellationToken);
     }
 
     public async Task<MaintenanceOrderDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
@@ -84,7 +112,47 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         return await ToDtoAsync(id, cancellationToken);
     }
 
-    public async Task<MaintenanceOrderDto> CompleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<MaintenanceOrderDto> ClaimAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default)
+    {
+        var order = await _db.MaintenanceOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(MaintenanceOrder), id);
+
+        if (!AssignableStatuses.Contains(order.Status))
+        {
+            throw new ConflictException($"No se puede tomar una orden en estado '{order.Status}'.");
+        }
+
+        if (order.TechnicianId == technicianId)
+        {
+            throw new ConflictException("Esta orden ya está asignada a ti.");
+        }
+
+        var claimingUserId = await _db.Technicians
+            .Where(t => t.Id == technicianId)
+            .Select(t => t.UserId)
+            .FirstAsync(cancellationToken);
+
+        order.TechnicianId = technicianId;
+        order.Status = MaintenanceOrderStatus.Asignada;
+
+        _db.AssignmentHistories.Add(new AssignmentHistory
+        {
+            MaintenanceOrderId = order.Id,
+            TechnicianId = technicianId,
+            AssignedByUserId = claimingUserId,
+            AssignmentType = AssignmentType.Reclamada
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    public async Task<MaintenanceOrderDto> CompleteAsync(
+        Guid id,
+        CompleteMaintenanceOrderRequest request,
+        Guid completedByUserId,
+        CancellationToken cancellationToken = default)
     {
         var order = await _db.MaintenanceOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(MaintenanceOrder), id);
@@ -94,28 +162,33 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             throw new ConflictException($"La orden ya está en estado '{order.Status}' y no se puede completar.");
         }
 
-        var schedule = await _db.MaintenanceSchedules.FirstAsync(s => s.Id == order.MaintenanceScheduleId, cancellationToken);
+        var lastReading = await _db.MeterReadings
+            .Where(m => m.AssetId == order.AssetId)
+            .OrderByDescending(m => m.ReadingDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (lastReading is not null && request.CounterValue < lastReading.CounterValue)
+        {
+            throw new ConflictException(
+                $"La lectura ({request.CounterValue}) no puede ser menor a la última registrada ({lastReading.CounterValue}).");
+        }
 
         var now = DateTime.UtcNow;
+        var readingDate = request.ReadingDate ?? now;
+
         order.Status = MaintenanceOrderStatus.Completada;
         order.CompletedAt = now;
 
-        schedule.LastExecutedAt = now;
-
-        if (schedule.FrequencyType == MaintenanceFrequencyType.PorContador)
+        _db.MeterReadings.Add(new MeterReading
         {
-            var lastReading = await _db.MeterReadings
-                .Where(m => m.AssetId == schedule.AssetId)
-                .OrderByDescending(m => m.ReadingDate)
-                .FirstOrDefaultAsync(cancellationToken);
+            AssetId = order.AssetId,
+            ReadingDate = readingDate,
+            CounterValue = request.CounterValue,
+            RegisteredByUserId = completedByUserId
+        });
 
-            schedule.LastExecutedCounter = lastReading?.CounterValue;
-            schedule.NextDueCounter = (schedule.LastExecutedCounter ?? 0) + schedule.PrintThreshold!.Value;
-        }
-        else
-        {
-            schedule.NextDueAt = now.AddDays(schedule.TimeIntervalDays!.Value);
-        }
+        await _engine.RecalculateAfterMaintenanceAsync(
+            order.MaintenanceScheduleId, request.CounterValue, readingDate,
+            order.IncludesGeneral, order.IncludesUnits, order.IncludesConsumables, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -167,18 +240,25 @@ public class MaintenanceOrderService : IMaintenanceOrderService
     private async Task<MaintenanceOrderDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>
         await Projected(_db).FirstAsync(o => o.Id == id, cancellationToken);
 
-    private static IQueryable<MaintenanceOrderDto> Projected(IApplicationDbContext db) =>
-        db.MaintenanceOrders.Select(o => new MaintenanceOrderDto
+    private static IQueryable<MaintenanceOrderDto> Projected(IApplicationDbContext db) => ProjectedFrom(db.MaintenanceOrders);
+
+    private static IQueryable<MaintenanceOrderDto> ProjectedFrom(IQueryable<MaintenanceOrder> query) =>
+        query.Select(o => new MaintenanceOrderDto
         {
             Id = o.Id,
             MaintenanceScheduleId = o.MaintenanceScheduleId,
             AssetId = o.AssetId,
-            AssetBrandName = o.Asset.AssetBrand.Name,
-            AssetModel = o.Asset.Model,
+            AssetBrandName = o.Asset.AssetModel.AssetBrand.Name,
+            AssetModel = o.Asset.AssetModel.Name,
             AssetSerialNumber = o.Asset.SerialNumber,
             Status = o.Status.ToString(),
             TechnicianId = o.TechnicianId,
             TechnicianName = o.Technician != null ? o.Technician.User.FullName : null,
+            ClientLocationName = o.Asset.CurrentClientLocation != null ? o.Asset.CurrentClientLocation.Name : null,
+            CityName = o.Asset.CurrentClientLocation != null ? o.Asset.CurrentClientLocation.City.Name : null,
+            IncludesGeneral = o.IncludesGeneral,
+            IncludesUnits = o.IncludesUnits,
+            IncludesConsumables = o.IncludesConsumables,
             ScheduledDate = o.ScheduledDate,
             CompletedAt = o.CompletedAt,
             CreatedAt = o.CreatedAt

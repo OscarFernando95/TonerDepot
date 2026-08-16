@@ -90,7 +90,7 @@ public class AssetsController : ControllerBase
     {
         await _meterReadingValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var reading = await _assetService.AddMeterReadingAsync(id, request, CurrentUser.UserId, cancellationToken);
+        var reading = await _assetService.AddMeterReadingAsync(id, request, CurrentUser, cancellationToken);
         return CreatedAtAction(nameof(GetMeterReadings), new { id }, reading);
     }
 

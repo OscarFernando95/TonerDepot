@@ -6,5 +6,5 @@ public class AssetBrand : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
 
-    public ICollection<Asset> Assets { get; set; } = new List<Asset>();
+    public ICollection<AssetModel> Models { get; set; } = new List<AssetModel>();
 }

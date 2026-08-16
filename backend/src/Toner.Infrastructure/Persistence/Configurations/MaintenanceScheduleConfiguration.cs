@@ -11,7 +11,9 @@ public class MaintenanceScheduleConfiguration : IEntityTypeConfiguration<Mainten
         builder.ConfigureBaseEntity();
         builder.ToTable("MaintenanceSchedules");
 
-        builder.Property(s => s.FrequencyType).HasConversion<string>().HasMaxLength(20);
+        // Un cronograma por activo — reinstalar (bodega -> nuevo contrato) reinicia el mismo registro,
+        // ver MaintenanceScheduleEngine.UpsertForInstallationAsync.
+        builder.HasIndex(s => s.AssetId).IsUnique();
 
         builder.HasOne(s => s.Asset)
             .WithMany(a => a.MaintenanceSchedules)

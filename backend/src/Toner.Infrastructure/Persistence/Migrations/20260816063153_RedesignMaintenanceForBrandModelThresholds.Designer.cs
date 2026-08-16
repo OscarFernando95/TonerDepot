@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Toner.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Toner.Infrastructure.Persistence;
 namespace Toner.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TonerDbContext))]
-    partial class TonerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260816063153_RedesignMaintenanceForBrandModelThresholds")]
+    partial class RedesignMaintenanceForBrandModelThresholds
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -281,11 +284,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
-
-                    b.Property<bool>("IsContractClient")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -724,17 +722,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ExternalAssetBrand")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<long?>("ExternalAssetCounter")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ExternalAssetModel")
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
 
                     b.Property<string>("Priority")
                         .IsRequired()

@@ -5,10 +5,11 @@ namespace Toner.Domain.Entities;
 
 public class Asset : BaseEntity
 {
-    public Guid AssetBrandId { get; set; }
-    public AssetBrand AssetBrand { get; set; } = null!;
+    // La marca se alcanza vía AssetModel.AssetBrand — un activo solo elige de la lista de modelos
+    // de la marca seleccionada, nunca marca y modelo por separado.
+    public Guid AssetModelId { get; set; }
+    public AssetModel AssetModel { get; set; } = null!;
 
-    public string Model { get; set; } = string.Empty;
     public string SerialNumber { get; set; } = string.Empty;
     public AssetType Type { get; set; } = AssetType.Impresora;
     public AssetLifecycleStatus LifecycleStatus { get; set; } = AssetLifecycleStatus.EnBodega;
@@ -26,4 +27,5 @@ public class Asset : BaseEntity
     public ICollection<MeterReading> MeterReadings { get; set; } = new List<MeterReading>();
     public ICollection<MaintenanceSchedule> MaintenanceSchedules { get; set; } = new List<MaintenanceSchedule>();
     public ICollection<ServiceTicket> ServiceTickets { get; set; } = new List<ServiceTicket>();
+    public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
 }

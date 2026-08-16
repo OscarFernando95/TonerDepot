@@ -2,29 +2,32 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Toner.Application.Assignment;
 using Toner.Application.Common.Interfaces;
-using Toner.Domain.Entities;
-using Toner.Domain.Enums;
+using Toner.Application.Maintenance;
 
 namespace Toner.Infrastructure.Jobs;
 
-// Job recurrente (Hangfire): evalúa cada MaintenanceSchedule activo contra su umbral (contador o tiempo)
-// y genera una MaintenanceOrder cuando corresponde. No reprograma NextDueAt/NextDueCounter — eso ocurre
-// al completar la orden (ver MaintenanceOrderService.CompleteAsync), para no adelantar la próxima fecha
-// mientras la orden generada sigue pendiente.
+// Job recurrente (Hangfire): red de seguridad diaria para el disparador puramente por tiempo del
+// mantenimiento general (que no depende de que llegue una lectura de contador nueva). El disparador por
+// contador ya se evalúa en tiempo real cada vez que se registra una lectura (ver
+// MaintenanceScheduleEngine y sus llamadores: AssetService.AddMeterReadingAsync,
+// TechnicianCheckInService.CheckOutAsync, el módulo de Lectura de contadores).
 public class MaintenanceScheduleEvaluationJob
 {
     private readonly IApplicationDbContext _db;
+    private readonly IMaintenanceScheduleEngine _engine;
     private readonly IAssignmentEngine _assignmentEngine;
     private readonly IExceptionLogger _exceptionLogger;
     private readonly ILogger<MaintenanceScheduleEvaluationJob> _logger;
 
     public MaintenanceScheduleEvaluationJob(
         IApplicationDbContext db,
+        IMaintenanceScheduleEngine engine,
         IAssignmentEngine assignmentEngine,
         IExceptionLogger exceptionLogger,
         ILogger<MaintenanceScheduleEvaluationJob> logger)
     {
         _db = db;
+        _engine = engine;
         _assignmentEngine = assignmentEngine;
         _exceptionLogger = exceptionLogger;
         _logger = logger;
@@ -54,74 +57,40 @@ public class MaintenanceScheduleEvaluationJob
     private async Task<int> EvaluateSchedulesAsync(CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        var schedules = await _db.MaintenanceSchedules.Where(s => s.IsActive).ToListAsync(cancellationToken);
+        var schedules = await _db.MaintenanceSchedules
+            .Where(s => s.IsActive)
+            .Select(s => s.AssetId)
+            .ToListAsync(cancellationToken);
 
-        var createdOrders = new List<MaintenanceOrder>();
+        var createdOrderIds = new List<Guid>();
 
-        foreach (var schedule in schedules)
+        foreach (var assetId in schedules)
         {
-            var hasOpenOrder = await _db.MaintenanceOrders.AnyAsync(
-                o => o.MaintenanceScheduleId == schedule.Id
-                     && o.Status != MaintenanceOrderStatus.Completada
-                     && o.Status != MaintenanceOrderStatus.Cancelada,
-                cancellationToken);
+            var lastReading = await _db.MeterReadings
+                .Where(m => m.AssetId == assetId)
+                .OrderByDescending(m => m.ReadingDate)
+                .Select(m => (long?)m.CounterValue)
+                .FirstOrDefaultAsync(cancellationToken);
 
-            if (hasOpenOrder)
+            var order = await _engine.EvaluateAsync(assetId, lastReading ?? 0, now, cancellationToken);
+            if (order is not null)
             {
-                continue;
+                await _db.SaveChangesAsync(cancellationToken);
+                createdOrderIds.Add(order.Id);
             }
-
-            var isDue = schedule.FrequencyType == MaintenanceFrequencyType.PorTiempo
-                ? schedule.NextDueAt.HasValue && schedule.NextDueAt <= now
-                : await IsCounterDueAsync(schedule, cancellationToken);
-
-            if (!isDue)
-            {
-                continue;
-            }
-
-            var order = new MaintenanceOrder
-            {
-                MaintenanceScheduleId = schedule.Id,
-                AssetId = schedule.AssetId,
-                Status = MaintenanceOrderStatus.Pendiente,
-                ScheduledDate = now
-            };
-            _db.MaintenanceOrders.Add(order);
-            createdOrders.Add(order);
         }
 
-        if (createdOrders.Count > 0)
+        // Mismo motor de asignación que ServiceTicket: por cobertura de ciudad + menor carga de trabajo.
+        foreach (var orderId in createdOrderIds)
         {
-            await _db.SaveChangesAsync(cancellationToken);
-
-            // Mismo motor de asignación que ServiceTicket: por cobertura de ciudad + menor carga de trabajo.
-            foreach (var order in createdOrders)
-            {
-                await _assignmentEngine.AssignMaintenanceOrderAsync(order.Id, cancellationToken);
-            }
+            await _assignmentEngine.AssignMaintenanceOrderAsync(orderId, cancellationToken);
         }
 
         _logger.LogInformation(
             "Evaluación de cronogramas de mantenimiento: {ScheduleCount} activos revisados, {OrderCount} órdenes generadas.",
             schedules.Count,
-            createdOrders.Count);
+            createdOrderIds.Count);
 
-        return createdOrders.Count;
-    }
-
-    private async Task<bool> IsCounterDueAsync(MaintenanceSchedule schedule, CancellationToken cancellationToken)
-    {
-        if (!schedule.NextDueCounter.HasValue)
-        {
-            return false;
-        }
-
-        var lastReading = await _db.MeterReadings
-            .Where(m => m.AssetId == schedule.AssetId)
-            .OrderByDescending(m => m.ReadingDate)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return lastReading is not null && lastReading.CounterValue >= schedule.NextDueCounter.Value;
+        return createdOrderIds.Count;
     }
 }

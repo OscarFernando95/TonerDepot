@@ -15,6 +15,7 @@ public interface IApplicationDbContext
     DbSet<Technician> Technicians { get; }
     DbSet<TechnicianCoverage> TechnicianCoverages { get; }
     DbSet<AssetBrand> AssetBrands { get; }
+    DbSet<AssetModel> AssetModels { get; }
     DbSet<Asset> Assets { get; }
     DbSet<AssetStatusLog> AssetStatusLogs { get; }
     DbSet<Contract> Contracts { get; }
