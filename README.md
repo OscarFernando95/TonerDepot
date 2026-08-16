@@ -29,13 +29,19 @@ Toner/
 
 ## Levantar el entorno local
 
-1. Levanta la infraestructura (Postgres, Azurite, smtp4dev):
+1. Copia la configuración de desarrollo (no está versionada; el `.example` trae valores dummy que ya calzan con el `docker-compose.yml` de este repo):
+
+   ```bash
+   cp backend/src/Toner.Api/appsettings.Development.json.example backend/src/Toner.Api/appsettings.Development.json
+   ```
+
+2. Levanta la infraestructura (Postgres, Azurite, smtp4dev):
 
    ```bash
    docker compose up -d
    ```
 
-2. Aplica las migraciones:
+3. Aplica las migraciones:
 
    ```bash
    cd backend
@@ -44,7 +50,7 @@ Toner/
      --startup-project src/Toner.Api
    ```
 
-3. Corre la API:
+4. Corre la API:
 
    ```bash
    dotnet run --project src/Toner.Api

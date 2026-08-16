@@ -12,10 +12,15 @@ mobile/build/
 .vs/
 .vscode/
 .idea/
-.claude/settings.local.json
+
+# AI assistant config/skills (local tooling, not project source)
+.claude/
+.impeccable/*
+!.impeccable/design.json
 
 # Environment
 .env
+backend/src/Toner.Api/appsettings.Development.json
 
 # OS
 .DS_Store

@@ -1,0 +1,25 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5433;Database=toner;Username=toner;Password=toner_dev_password"
+  },
+  "Jwt": {
+    "Issuer": "Toner.Api.Dev",
+    "Audience": "Toner.Clients.Dev",
+    "SigningKey": "REDACTED",
+    "ExpiryMinutes": 480
+  },
+  "AdminBootstrap": {
+    "Email": "admin@toner.local",
+    "Password": "REDACTED",
+    "FullName": "Administrador Toner"
+  },
+  "Cors": {
+    "AllowedOrigins": ["http://localhost:5173"]
+  }
+}
