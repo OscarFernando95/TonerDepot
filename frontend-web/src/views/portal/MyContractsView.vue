@@ -67,7 +67,7 @@ onMounted(loadContracts)
 
 <style scoped>
 .hint {
-  color: #6b7280;
+  color: var(--el-text-color-secondary);
   font-size: 0.85rem;
   margin: 0 0 1rem;
 }

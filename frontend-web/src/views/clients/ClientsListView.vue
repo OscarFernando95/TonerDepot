@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as clientsApi from '../../api/clients'
@@ -11,6 +11,20 @@ const router = useRouter()
 const clients = ref<ClientDto[]>([])
 const loading = ref(false)
 const createClientDialogRef = ref<InstanceType<typeof CreateClientDialog> | null>(null)
+
+const filters = reactive({ cityName: '' })
+
+const cityOptions = computed(() =>
+  [...new Set(clients.value.flatMap((c) => c.cityNames))].sort()
+)
+
+const filteredClients = computed(() =>
+  clients.value.filter((c) => !filters.cityName || c.cityNames.includes(filters.cityName))
+)
+
+const emptyClientsText = computed(() =>
+  filters.cityName ? 'No hay clientes en esa ciudad.' : 'No hay clientes registrados.'
+)
 
 async function loadClients() {
   loading.value = true
@@ -48,15 +62,35 @@ onMounted(loadClients)
       <el-button type="primary" @click="createClientDialogRef?.open()">Nuevo cliente</el-button>
     </div>
 
-    <el-table :data="clients" v-loading="loading" stripe @row-click="goToDetail" class="clickable-rows">
-      <el-table-column prop="name" label="Nombre" />
-      <el-table-column prop="taxId" label="NIT" width="150" />
-      <el-table-column prop="contactName" label="Contacto" />
-      <el-table-column prop="contactPhone" label="Teléfono" width="140" />
-      <el-table-column label="Sedes" width="90">
+    <div class="filters-bar">
+      <el-select v-model="filters.cityName" clearable filterable placeholder="Filtrar por ciudad" style="width: 220px">
+        <el-option v-for="c in cityOptions" :key="c" :label="c" :value="c" />
+      </el-select>
+    </div>
+
+    <el-table
+      :data="filteredClients"
+      v-loading="loading"
+      stripe
+      @row-click="goToDetail"
+      class="clickable-rows"
+      :empty-text="emptyClientsText"
+    >
+      <el-table-column prop="name" label="Nombre" sortable />
+      <el-table-column prop="isContractClient" label="Tipo" width="110" sortable>
+        <template #default="{ row }">
+          <el-tag :type="row.isContractClient ? 'primary' : 'warning'" size="small" effect="plain">
+            {{ row.isContractClient ? 'Contrato' : 'Externo' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="taxId" label="NIT" width="150" sortable />
+      <el-table-column prop="contactName" label="Contacto" sortable />
+      <el-table-column prop="contactPhone" label="Teléfono" width="140" sortable />
+      <el-table-column prop="locationCount" label="Sedes" width="90" sortable>
         <template #default="{ row }">{{ row.locationCount }}</template>
       </el-table-column>
-      <el-table-column label="Estado" width="120">
+      <el-table-column prop="isActive" label="Estado" width="120" sortable>
         <template #default="{ row }">
           <el-tag :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? 'Activo' : 'Inactivo' }}</el-tag>
         </template>
@@ -79,6 +113,14 @@ onMounted(loadClients)
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.filters-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 

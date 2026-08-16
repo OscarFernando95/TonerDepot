@@ -92,9 +92,9 @@ onMounted(loadData)
       (Disponible/Ocupado) lo mueve automáticamente el check-in/check-out del técnico, no se edita aquí.
     </p>
 
-    <el-table :data="technicians" v-loading="loading" stripe>
-      <el-table-column prop="fullName" label="Nombre" />
-      <el-table-column label="Estado" width="130">
+    <el-table :data="technicians" v-loading="loading" stripe empty-text="No hay técnicos registrados.">
+      <el-table-column prop="fullName" label="Nombre" sortable />
+      <el-table-column prop="status" label="Estado" width="130" sortable>
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
@@ -142,7 +142,7 @@ onMounted(loadData)
 
 <style scoped>
 .hint {
-  color: #6b7280;
+  color: var(--el-text-color-secondary);
   font-size: 0.85rem;
   margin: 0 0 1rem;
 }

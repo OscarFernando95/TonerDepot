@@ -1,5 +1,5 @@
 import { http } from './http'
-import type { AssignmentHistoryDto, MaintenanceOrderDto } from './types'
+import type { AssignmentHistoryDto, CompleteMaintenanceOrderRequest, MaintenanceOrderDto } from './types'
 
 export function listMaintenanceOrders() {
   return http.get<MaintenanceOrderDto[]>('/maintenance-orders')
@@ -13,8 +13,8 @@ export function assignMaintenanceOrder(id: string, technicianId: string, reason?
   return http.post<MaintenanceOrderDto>(`/maintenance-orders/${id}/assign`, { technicianId, reason })
 }
 
-export function completeMaintenanceOrder(id: string) {
-  return http.post<MaintenanceOrderDto>(`/maintenance-orders/${id}/complete`)
+export function completeMaintenanceOrder(id: string, request: CompleteMaintenanceOrderRequest) {
+  return http.post<MaintenanceOrderDto>(`/maintenance-orders/${id}/complete`, request)
 }
 
 export function cancelMaintenanceOrder(id: string) {

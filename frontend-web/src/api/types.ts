@@ -54,6 +54,16 @@ export interface CreateUserRequest {
   clientId?: string | null
 }
 
+// Rol y cliente no son editables acá — ver comentario en UpdateUserRequest.cs del backend.
+export interface UpdateUserRequest {
+  cedula: string
+  email?: string | null
+  fullName: string
+  phone: string
+  address: string
+  cityId: string
+}
+
 export interface CityDto {
   id: string
   name: string
@@ -68,7 +78,11 @@ export interface ClientDto {
   contactEmail: string | null
   contactPhone: string | null
   isActive: boolean
+  // true: cliente con contrato de alquiler (sus tickets se ligan a un Asset real). false: cliente
+  // externo que pide servicio sobre equipos propios, a veces ni catalogados.
+  isContractClient: boolean
   locationCount: number
+  cityNames: string[]
   createdAt: string
 }
 
@@ -78,6 +92,7 @@ export interface CreateClientRequest {
   contactName?: string | null
   contactEmail?: string | null
   contactPhone?: string | null
+  isContractClient: boolean
   // Al menos una sede es obligatoria — garantiza que todo cliente nace con dónde prestarle servicio.
   locations: CreateClientLocationRequest[]
 }
@@ -90,6 +105,7 @@ export interface UpdateClientRequest {
   contactName?: string | null
   contactEmail?: string | null
   contactPhone?: string | null
+  isContractClient: boolean
 }
 
 export interface ClientLocationDto {
@@ -162,9 +178,33 @@ export interface CreateAssetBrandRequest {
   name: string
 }
 
-export interface AssetDto {
+// Umbrales de mantenimiento del modelo: constantes por marca+modelo, editables a demanda. Reemplazan
+// la antigua política por AssetType.
+export interface AssetModelDto {
   id: string
   assetBrandId: string
+  name: string
+  generalPrintThreshold: number
+  generalMonthsInterval: number
+  unitsPrintThreshold: number
+  unitsMonthsInterval: number
+  consumablesPrintThreshold: number
+}
+
+export interface CreateAssetModelRequest {
+  name: string
+  generalPrintThreshold: number
+  generalMonthsInterval: number
+  unitsPrintThreshold: number
+  unitsMonthsInterval: number
+  consumablesPrintThreshold: number
+}
+
+export type UpdateAssetModelRequest = CreateAssetModelRequest
+
+export interface AssetDto {
+  id: string
+  assetModelId: string
   assetBrandName: string
   model: string
   serialNumber: string
@@ -177,12 +217,12 @@ export interface AssetDto {
   currentClientName: string | null
   cityName: string | null
   lastMeterReading: number | null
+  activeContractId: string | null
   createdAt: string
 }
 
 export interface CreateAssetRequest {
-  assetBrandId: string
-  model: string
+  assetModelId: string
   serialNumber: string
   type: AssetTypeName
 }
@@ -237,6 +277,7 @@ export interface ContractDto {
   pricePerExtraPage: number | null
   notes: string | null
   assetCount: number
+  cityNames: string[]
   createdAt: string
 }
 
@@ -266,6 +307,9 @@ export interface ContractAssetDto {
   assetSerialNumber: string
   startDate: string
   endDate: string | null
+  area: string | null
+  lastMeterReading: number | null
+  averageMonthlyPrints: number | null
 }
 
 export interface AddContractAssetRequest {
@@ -273,13 +317,6 @@ export interface AddContractAssetRequest {
   clientLocationId: string
   startDate?: string | null
 }
-
-export const MaintenanceFrequencyTypes = {
-  PorContador: 'PorContador',
-  PorTiempo: 'PorTiempo'
-} as const
-
-export type MaintenanceFrequencyTypeName = (typeof MaintenanceFrequencyTypes)[keyof typeof MaintenanceFrequencyTypes]
 
 export const MaintenanceOrderStatusLabels: Record<string, string> = {
   Pendiente: 'Pendiente',
@@ -289,35 +326,58 @@ export const MaintenanceOrderStatusLabels: Record<string, string> = {
   Cancelada: 'Cancelada'
 }
 
+// Un cronograma por activo, con tres sub-reglas independientes: mantenimiento general y mantenimiento
+// de unidades (ambas híbridas contador/tiempo) y cambio de insumos (puro contador), evaluadas contra los
+// umbrales de AssetModel (marca+modelo del activo). Se crea automáticamente al instalar un activo bajo
+// un contrato — ver TechnicianSelfServiceController check-out de instalación.
 export interface MaintenanceScheduleDto {
   id: string
   assetId: string
   assetBrandName: string
   assetModel: string
   assetSerialNumber: string
-  contractId: string | null
-  frequencyType: MaintenanceFrequencyTypeName
-  printThreshold: number | null
-  timeIntervalDays: number | null
-  lastExecutedAt: string | null
-  lastExecutedCounter: number | null
-  nextDueAt: string | null
-  nextDueCounter: number | null
+
+  contractId: string
+  clientId: string
+  clientName: string
+  clientLocationName: string | null
+  cityName: string | null
+  area: string | null
+
   isActive: boolean
+  lastKnownCounter: number | null
+
+  // Resumen del mantenimiento más reciente (fecha + glosas MG/MU/CI de lo que se hizo en esa fecha).
+  lastMaintenanceAt: string | null
+  lastMaintenanceCodes: string[]
+
+  // Predicción de "qué sigue" — fecha estimada (null si la regla líder es solo insumos, que es puro
+  // contador), contador estimado, y glosas de qué incluiría.
+  nextMaintenanceAt: string | null
+  nextMaintenanceCounter: number
+  nextMaintenanceCodes: string[]
+
+  // Campos granulares por sub-regla — ya no se muestran como columnas, solo alimentan el tooltip.
+  lastGeneralMaintenanceAt: string | null
+  lastGeneralMaintenanceCounter: number | null
+  nextGeneralDueAt: string
+  nextGeneralDueCounter: number
+
+  lastUnitsMaintenanceAt: string | null
+  lastUnitsMaintenanceCounter: number | null
+  nextUnitsDueAt: string
+  nextUnitsDueCounter: number
+
+  lastConsumablesChangeAt: string | null
+  lastConsumablesChangeCounter: number | null
+  nextConsumablesDueCounter: number
+
   createdAt: string
 }
 
-export interface CreateMaintenanceScheduleRequest {
-  assetId: string
-  contractId?: string | null
-  frequencyType: MaintenanceFrequencyTypeName
-  printThreshold?: number | null
-  timeIntervalDays?: number | null
-}
-
-export interface UpdateMaintenanceScheduleRequest {
-  printThreshold?: number | null
-  timeIntervalDays?: number | null
+export interface CompleteMaintenanceOrderRequest {
+  counterValue: number
+  readingDate?: string | null
 }
 
 export interface MaintenanceOrderDto {
@@ -330,9 +390,27 @@ export interface MaintenanceOrderDto {
   status: string
   technicianId: string | null
   technicianName: string | null
+  clientLocationName: string | null
+  cityName: string | null
+  includesGeneral: boolean
+  includesUnits: boolean
+  includesConsumables: boolean
   scheduledDate: string
   completedAt: string | null
   createdAt: string
+}
+
+export interface MeterReadingAssetDto {
+  assetId: string
+  assetBrandName: string
+  model: string
+  serialNumber: string
+  clientId: string | null
+  clientName: string | null
+  clientLocationName: string | null
+  area: string | null
+  cityName: string | null
+  lastMeterReading: number | null
 }
 
 export const ServiceTicketStatuses = {
@@ -383,10 +461,16 @@ export interface ServiceTicketDto {
   clientLocationName: string
   clientId: string
   clientName: string
+  cityName: string | null
   assetId: string | null
   assetBrandName: string | null
   assetModel: string | null
   assetSerialNumber: string | null
+  // Solo aplican cuando assetId es null (cliente externo, equipo sin catalogar) — las llena el técnico
+  // de forma opcional al cerrar el ticket.
+  externalAssetBrand: string | null
+  externalAssetModel: string | null
+  externalAssetCounter: number | null
   reportedByUserId: string
   reportedByUserName: string
   description: string

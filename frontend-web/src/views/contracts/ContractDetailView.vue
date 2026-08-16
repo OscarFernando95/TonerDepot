@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import * as contractsApi from '../../api/contracts'
 import * as contractAssetsApi from '../../api/contractAssets'
 import * as assetsApi from '../../api/assets'
@@ -153,6 +154,11 @@ async function endLink(contractAsset: ContractAssetDto) {
   contract.value = contractData
 }
 
+function sortByAssetLabel(a: ContractAssetDto, b: ContractAssetDto) {
+  const labelOf = (ca: ContractAssetDto) => `${ca.assetBrandName} ${ca.assetModel} ${ca.assetSerialNumber}`
+  return labelOf(a).localeCompare(labelOf(b))
+}
+
 function goToClient() {
   if (contract.value) {
     router.push({ name: 'client-detail', params: { id: contract.value.clientId } })
@@ -166,6 +172,7 @@ onMounted(loadAll)
   <div v-loading="loading">
     <template v-if="contract">
       <div class="page-header">
+        <el-button :icon="ArrowLeft" circle title="Volver a Contratos" @click="router.push({ name: 'contracts' })" />
         <h1>
           Contrato —
           <el-link type="primary" @click="goToClient">{{ contract.clientName }}</el-link>
@@ -215,13 +222,24 @@ onMounted(loadAll)
         </template>
 
         <el-table :data="contractAssets" stripe>
-          <el-table-column label="Activo">
+          <el-table-column label="Activo" sortable :sort-method="sortByAssetLabel">
             <template #default="{ row }">{{ row.assetBrandName }} {{ row.assetModel }} — {{ row.assetSerialNumber }}</template>
           </el-table-column>
-          <el-table-column label="Desde" width="140">
+          <el-table-column label="Área" prop="area" width="120" sortable>
+            <template #default="{ row }">{{ row.area ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column label="Última lectura" prop="lastMeterReading" width="130" sortable>
+            <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column label="Promedio impresiones/mes" prop="averageMonthlyPrints" width="170" sortable>
+            <template #default="{ row }">
+              <span v-if="row.averageMonthlyPrints != null">{{ row.averageMonthlyPrints }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="Desde" prop="startDate" width="140" sortable>
             <template #default="{ row }">{{ new Date(row.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }}</template>
           </el-table-column>
-          <el-table-column label="Hasta" width="140">
+          <el-table-column label="Hasta" prop="endDate" width="140" sortable>
             <template #default="{ row }">
               <span v-if="row.endDate">{{ new Date(row.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }}</span>
               <el-tag v-else type="success" size="small">Activo</el-tag>
@@ -296,7 +314,7 @@ onMounted(loadAll)
 }
 
 .dialog-hint {
-  color: #6b7280;
+  color: var(--el-text-color-secondary);
   font-size: 0.8rem;
   margin: 0;
 }

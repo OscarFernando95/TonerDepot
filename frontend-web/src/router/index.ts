@@ -57,6 +57,12 @@ const router = createRouter({
           meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
         },
         {
+          path: 'asset-brands/:id',
+          name: 'asset-brand-detail',
+          component: () => import('../views/assets/AssetBrandDetailView.vue'),
+          meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
+        },
+        {
           path: 'contracts',
           name: 'contracts',
           component: () => import('../views/contracts/ContractsListView.vue'),
@@ -73,6 +79,12 @@ const router = createRouter({
           name: 'maintenance-schedules',
           component: () => import('../views/maintenance/MaintenanceSchedulesView.vue'),
           meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
+        },
+        {
+          path: 'meter-readings',
+          name: 'meter-readings',
+          component: () => import('../views/assets/MeterReadingsView.vue'),
+          meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador, RoleNames.Tecnico] }
         },
         {
           path: 'maintenance-orders',

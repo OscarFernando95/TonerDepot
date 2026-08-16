@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import * as clientsApi from '../../api/clients'
 import * as locationsApi from '../../api/clientLocations'
 import * as citiesApi from '../../api/cities'
 import type { CityDto, ClientDto, ClientLocationDto } from '../../api/types'
 
 const route = useRoute()
+const router = useRouter()
 const clientId = route.params.id as string
 
 const client = ref<ClientDto | null>(null)
@@ -20,7 +22,8 @@ const clientForm = reactive({
   taxId: '',
   contactName: '',
   contactEmail: '',
-  contactPhone: ''
+  contactPhone: '',
+  isContractClient: true
 })
 const savingClient = ref(false)
 
@@ -67,6 +70,7 @@ function syncClientForm() {
   clientForm.contactName = client.value.contactName ?? ''
   clientForm.contactEmail = client.value.contactEmail ?? ''
   clientForm.contactPhone = client.value.contactPhone ?? ''
+  clientForm.isContractClient = client.value.isContractClient
 }
 
 async function saveClient() {
@@ -77,7 +81,8 @@ async function saveClient() {
       taxId: clientForm.taxId || null,
       contactName: clientForm.contactName || null,
       contactEmail: clientForm.contactEmail || null,
-      contactPhone: clientForm.contactPhone || null
+      contactPhone: clientForm.contactPhone || null,
+      isContractClient: clientForm.isContractClient
     })
     client.value = data
     ElMessage.success('Cliente actualizado.')
@@ -173,6 +178,7 @@ onMounted(loadAll)
   <div v-loading="loading">
     <template v-if="client">
       <div class="page-header">
+        <el-button :icon="ArrowLeft" circle title="Volver a Clientes" @click="router.push({ name: 'clients' })" />
         <h1>{{ client.name }}</h1>
         <el-tag :type="client.isActive ? 'success' : 'info'">{{ client.isActive ? 'Activo' : 'Inactivo' }}</el-tag>
       </div>
@@ -197,6 +203,9 @@ onMounted(loadAll)
               <el-input v-model="clientForm.contactPhone" />
             </el-form-item>
           </div>
+          <el-form-item>
+            <el-checkbox v-model="clientForm.isContractClient">Cliente con contrato</el-checkbox>
+          </el-form-item>
         </el-form>
         <div class="section-actions">
           <el-button @click="toggleClientStatus">

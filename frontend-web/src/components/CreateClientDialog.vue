@@ -16,7 +16,8 @@ const clientForm = reactive({
   taxId: '',
   contactName: '',
   contactEmail: '',
-  contactPhone: ''
+  contactPhone: '',
+  isContractClient: true
 })
 
 const multipleLocations = ref(false)
@@ -74,9 +75,12 @@ function removeLocation(index: number) {
 }
 
 async function open() {
-  Object.assign(clientForm, { name: '', taxId: '', contactName: '', contactEmail: '', contactPhone: '' })
+  Object.assign(clientForm, { name: '', taxId: '', contactName: '', contactEmail: '', contactPhone: '', isContractClient: true })
   multipleLocations.value = false
   locationForms.value = [emptyLocation()]
+  // La sede principal se sobreentiende: no se le pregunta nombre ni contacto propio (el del cliente ya
+  // cubre eso arriba). Solo las sedes adicionales piden nombre y contacto, para poder distinguirlas.
+  locationForms.value[0].name = 'Sede Principal'
 
   if (cities.value.length === 0) {
     const { data } = await citiesApi.listCities()
@@ -97,6 +101,7 @@ async function handleSave() {
       contactName: clientForm.contactName || null,
       contactEmail: clientForm.contactEmail || null,
       contactPhone: clientForm.contactPhone || null,
+      isContractClient: clientForm.isContractClient,
       locations: locationForms.value.map((l) => ({
         cityId: l.cityId,
         name: l.name,
@@ -134,26 +139,61 @@ async function handleSave() {
       <el-form-item label="Teléfono de contacto">
         <el-input v-model="clientForm.contactPhone" />
       </el-form-item>
+      <el-form-item>
+        <el-checkbox v-model="clientForm.isContractClient">Cliente con contrato</el-checkbox>
+      </el-form-item>
+      <p class="contract-hint">
+        {{
+          clientForm.isContractClient
+            ? 'Sus activos quedan bajo contrato de alquiler: los tickets se ligan a un activo real, con su hoja de vida.'
+            : 'Cliente externo: pide servicio sobre equipos propios. El técnico puede registrar marca/modelo/contador del equipo de forma opcional al cerrar el ticket.'
+        }}
+      </p>
 
-      <el-checkbox v-model="multipleLocations">Cliente con más de una sede</el-checkbox>
+      <el-divider content-position="left">Ubicación</el-divider>
+
+      <el-form-item label="Departamento">
+        <el-select
+          v-model="locationForms[0].departmentName"
+          style="width: 100%"
+          filterable
+          placeholder="Selecciona un departamento"
+        >
+          <el-option v-for="d in departmentsFor()" :key="d" :label="d" :value="d" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Ciudad">
+        <el-select
+          v-model="locationForms[0].cityId"
+          style="width: 100%"
+          filterable
+          :disabled="!locationForms[0].departmentName"
+          placeholder="Selecciona una ciudad"
+        >
+          <el-option
+            v-for="c in citiesInDepartment(locationForms[0].departmentName)"
+            :key="c.id"
+            :label="c.name"
+            :value="c.id"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Dirección">
+        <el-input v-model="locationForms[0].address" />
+      </el-form-item>
+
+      <el-checkbox v-model="multipleLocations" class="more-locations">Cliente con más de una sede</el-checkbox>
 
       <el-card
-        v-for="(loc, idx) in locationForms"
-        :key="idx"
+        v-for="(loc, idx) in locationForms.slice(1)"
+        :key="idx + 1"
         class="location-card"
         shadow="never"
       >
         <template #header>
           <div class="location-card-header">
-            <span>Sede {{ idx + 1 }}</span>
-            <el-button
-              v-if="multipleLocations && locationForms.length > 1"
-              link
-              type="danger"
-              @click="removeLocation(idx)"
-            >
-              Quitar sede
-            </el-button>
+            <span>Sede {{ idx + 2 }}</span>
+            <el-button link type="danger" @click="removeLocation(idx + 1)">Quitar sede</el-button>
           </div>
         </template>
 
@@ -174,7 +214,7 @@ async function handleSave() {
           </el-select>
         </el-form-item>
         <el-form-item label="Nombre de la sede">
-          <el-input v-model="loc.name" placeholder="Ej: Sede Principal" />
+          <el-input v-model="loc.name" placeholder="Ej: Sede Norte" />
         </el-form-item>
         <el-form-item label="Dirección">
           <el-input v-model="loc.address" />
@@ -197,6 +237,17 @@ async function handleSave() {
 </template>
 
 <style scoped>
+.more-locations {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.contract-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 0.8rem;
+  margin: -0.5rem 0 1rem;
+}
+
 .location-card {
   margin: 1rem 0;
 }

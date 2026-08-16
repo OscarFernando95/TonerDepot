@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as assetBrandsApi from '../../api/assetBrands'
 import type { AssetBrandDto } from '../../api/types'
+
+const router = useRouter()
 
 const brands = ref<AssetBrandDto[]>([])
 const loading = ref(false)
@@ -40,6 +43,10 @@ async function handleSave() {
   }
 }
 
+function goToDetail(brand: AssetBrandDto) {
+  router.push({ name: 'asset-brand-detail', params: { id: brand.id } })
+}
+
 onMounted(loadBrands)
 </script>
 
@@ -49,8 +56,9 @@ onMounted(loadBrands)
       <h1>Marcas</h1>
       <el-button type="primary" @click="openCreateDialog">Nueva marca</el-button>
     </div>
+    <p class="hint">Entra a una marca para registrar sus modelos y los umbrales de mantenimiento.</p>
 
-    <el-table :data="brands" v-loading="loading" stripe>
+    <el-table :data="brands" v-loading="loading" stripe @row-click="goToDetail" class="clickable-rows">
       <el-table-column prop="name" label="Nombre" />
     </el-table>
 
@@ -74,5 +82,15 @@ onMounted(loadBrands)
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+.clickable-rows :deep(tbody tr) {
+  cursor: pointer;
 }
 </style>

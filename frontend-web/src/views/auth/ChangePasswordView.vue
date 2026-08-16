@@ -70,7 +70,7 @@ async function handleSubmit() {
 }
 
 .hint {
-  color: #6b7280;
+  color: var(--el-text-color-secondary);
   font-size: 0.85rem;
   margin: 0.25rem 0 1.5rem;
 }

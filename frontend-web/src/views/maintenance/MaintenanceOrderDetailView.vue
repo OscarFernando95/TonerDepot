@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import * as ordersApi from '../../api/maintenanceOrders'
 import * as techniciansApi from '../../api/technicians'
 import { MaintenanceOrderStatusLabels, type AssignmentHistoryDto, type MaintenanceOrderDto } from '../../api/types'
 
 const route = useRoute()
+const router = useRouter()
 const orderId = route.params.id as string
 
 const order = ref<MaintenanceOrderDto | null>(null)
@@ -17,6 +19,18 @@ const loading = ref(false)
 const assignDialogVisible = ref(false)
 const savingAssign = ref(false)
 const assignForm = reactive({ technicianId: '', reason: '' })
+
+const completeDialogVisible = ref(false)
+const completing = ref(false)
+const completeForm = reactive({ counterValue: undefined as number | undefined, readingDate: '' })
+
+function orderComboLabel(o: MaintenanceOrderDto) {
+  const parts: string[] = []
+  if (o.includesGeneral) parts.push('General')
+  if (o.includesUnits) parts.push('Unidades')
+  if (o.includesConsumables) parts.push('Insumos')
+  return parts.join(' + ')
+}
 
 async function loadAll() {
   loading.value = true
@@ -56,12 +70,28 @@ async function saveAssign() {
   }
 }
 
-async function complete() {
-  if (!order.value) return
-  await ElMessageBox.confirm('¿Marcar esta orden como completada?', 'Confirmar', { type: 'warning' })
-  const { data } = await ordersApi.completeMaintenanceOrder(orderId)
-  order.value = data
-  ElMessage.success('Orden completada. El cronograma recalculó su próximo vencimiento.')
+function openCompleteDialog() {
+  completeForm.counterValue = undefined
+  completeForm.readingDate = ''
+  completeDialogVisible.value = true
+}
+
+async function confirmComplete() {
+  if (!order.value || completeForm.counterValue === undefined) return
+  completing.value = true
+  try {
+    const { data } = await ordersApi.completeMaintenanceOrder(orderId, {
+      counterValue: completeForm.counterValue,
+      readingDate: completeForm.readingDate ? new Date(completeForm.readingDate).toISOString() : null
+    })
+    order.value = data
+    ElMessage.success('Orden completada. El cronograma recalculó su próximo vencimiento.')
+    completeDialogVisible.value = false
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo completar la orden.')
+  } finally {
+    completing.value = false
+  }
 }
 
 async function cancel() {
@@ -92,6 +122,7 @@ onMounted(loadAll)
   <div v-loading="loading">
     <template v-if="order">
       <div class="page-header">
+        <el-button :icon="ArrowLeft" circle title="Volver a Órdenes" @click="router.push({ name: 'maintenance-orders' })" />
         <h1>{{ order.assetBrandName }} {{ order.assetModel }} — {{ order.assetSerialNumber }}</h1>
         <el-tag :type="statusTagType(order.status)" size="large">
           {{ MaintenanceOrderStatusLabels[order.status] ?? order.status }}
@@ -101,6 +132,8 @@ onMounted(loadAll)
       <el-card class="section-card">
         <template #header>Detalle</template>
         <dl class="detail-grid">
+          <dt>Tipo</dt>
+          <dd>{{ orderComboLabel(order) }}</dd>
           <dt>Técnico asignado</dt>
           <dd>{{ order.technicianName ?? '—' }}</dd>
           <dt>Programada</dt>
@@ -118,7 +151,7 @@ onMounted(loadAll)
             v-if="order.status === 'Pendiente' || order.status === 'Asignada'"
             type="primary"
             plain
-            @click="complete"
+            @click="openCompleteDialog"
           >
             Completar
           </el-button>
@@ -173,6 +206,28 @@ onMounted(loadAll)
         <el-button type="primary" :loading="savingAssign" @click="saveAssign">Confirmar</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="completeDialogVisible" title="Completar orden" width="420px">
+      <el-form label-position="top">
+        <el-form-item label="Contador">
+          <el-input-number v-model="completeForm.counterValue" :min="0" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="Fecha de la lectura (opcional, hoy por defecto)">
+          <el-date-picker v-model="completeForm.readingDate" type="date" style="width: 100%" value-format="YYYY-MM-DD" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="completeDialogVisible = false">Cancelar</el-button>
+        <el-button
+          type="primary"
+          :loading="completing"
+          :disabled="completeForm.counterValue === undefined"
+          @click="confirmComplete"
+        >
+          Completar
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -197,7 +252,7 @@ onMounted(loadAll)
 }
 
 .detail-grid dt {
-  color: #6b7280;
+  color: var(--el-text-color-secondary);
   font-size: 0.85rem;
 }
 

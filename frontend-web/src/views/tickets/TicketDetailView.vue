@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { ArrowLeft } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
 import * as techniciansApi from '../../api/technicians'
 import { useAuthStore } from '../../stores/auth'
@@ -14,6 +15,7 @@ import {
 } from '../../api/types'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const isStaff = auth.hasRole(RoleNames.Administrador, RoleNames.Coordinador)
 const ticketId = route.params.id as string
@@ -101,6 +103,7 @@ onMounted(loadAll)
   <div v-loading="loading">
     <template v-if="ticket">
       <div class="page-header">
+        <el-button :icon="ArrowLeft" circle title="Volver a Tickets" @click="router.push({ name: 'tickets' })" />
         <h1>{{ ticket.clientName }} — {{ ticket.clientLocationName }}</h1>
         <el-tag size="large">{{ statusLabel(ticket.status) }}</el-tag>
       </div>
@@ -116,6 +119,11 @@ onMounted(loadAll)
           <dd>
             <span v-if="ticket.assetSerialNumber">
               {{ ticket.assetBrandName }} {{ ticket.assetModel }} — {{ ticket.assetSerialNumber }}
+            </span>
+            <span v-else-if="ticket.externalAssetBrand || ticket.externalAssetModel || ticket.externalAssetCounter != null">
+              {{ ticket.externalAssetBrand ?? '—' }} {{ ticket.externalAssetModel ?? '' }}
+              <span v-if="ticket.externalAssetCounter != null"> — Contador: {{ ticket.externalAssetCounter }}</span>
+              <span class="muted"> (equipo del cliente, sin catalogar)</span>
             </span>
             <span v-else>—</span>
           </dd>
@@ -213,12 +221,17 @@ onMounted(loadAll)
 }
 
 .detail-grid dt {
-  color: #6b7280;
+  color: var(--el-text-color-secondary);
   font-size: 0.85rem;
 }
 
 .detail-grid dd {
   margin: 0;
+}
+
+.muted {
+  color: #9ca3af;
+  font-size: 0.85rem;
 }
 
 .section-actions {

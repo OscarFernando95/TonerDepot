@@ -47,6 +47,11 @@ const assetsAtLocation = computed(() =>
   form.clientLocationId ? assets.value.filter((a) => a.currentClientLocationId === form.clientLocationId) : []
 )
 
+// El selector de Activo solo aparece cuando el cliente elegido tiene contrato (sus equipos están
+// catalogados como Asset con hoja de vida). Para un cliente externo no tiene sentido — nunca tendrá
+// activos propios que elegir; el técnico puede describir el equipo al cerrar el ticket.
+const selectedClientIsContract = ref(true)
+
 async function loadTickets() {
   loading.value = true
   try {
@@ -63,12 +68,14 @@ async function openCreateDialog() {
   form.description = ''
   form.priority = ServiceTicketPriorities.Media
   locations.value = []
+  selectedClientIsContract.value = true
 
   if (!isClient && clients.value.length === 0) {
     const { data } = await clientsApi.listClients()
     clients.value = data
   }
-  // El inventario de activos es solo-Staff; un Cliente reporta la falla sin elegir un activo puntual.
+  // El inventario de activos para Staff es global; para un Cliente con contrato se resuelve más abajo
+  // (assetsApi.listAssets ya se autofiltra a los activos de su propio cliente en el backend).
   if (!isClient && assets.value.length === 0) {
     const { data } = await assetsApi.listAssets()
     assets.value = data
@@ -77,12 +84,24 @@ async function openCreateDialog() {
   // Set last so the watcher below fires once now that clients/locations are ready to load.
   form.clientId = isClient ? (auth.user?.clientId ?? '') : ''
 
+  if (isClient && form.clientId) {
+    const { data } = await clientsApi.getClient(form.clientId)
+    selectedClientIsContract.value = data.isContractClient
+    if (selectedClientIsContract.value && assets.value.length === 0) {
+      const { data: assetsData } = await assetsApi.listAssets()
+      assets.value = assetsData
+    }
+  }
+
   dialogVisible.value = true
 }
 
 watch(
   () => form.clientId,
   async (clientId) => {
+    if (!isClient) {
+      selectedClientIsContract.value = clients.value.find((c) => c.id === clientId)?.isContractClient ?? true
+    }
     form.clientLocationId = ''
     if (!clientId) {
       locations.value = []
@@ -163,24 +182,38 @@ onMounted(loadTickets)
       <el-button type="primary" @click="openCreateDialog">Nuevo ticket</el-button>
     </div>
 
-    <el-table :data="tickets" v-loading="loading" stripe @row-click="goToDetail" class="clickable-rows">
-      <el-table-column label="Cliente / Sede">
+    <el-table
+      :data="tickets"
+      v-loading="loading"
+      stripe
+      @row-click="goToDetail"
+      class="clickable-rows"
+      empty-text="No hay tickets registrados."
+    >
+      <el-table-column
+        label="Cliente / Sede"
+        sortable
+        :sort-method="(a: ServiceTicketDto, b: ServiceTicketDto) => a.clientName.localeCompare(b.clientName)"
+      >
         <template #default="{ row }">{{ row.clientName }} — {{ row.clientLocationName }}</template>
       </el-table-column>
-      <el-table-column prop="description" label="Descripción" show-overflow-tooltip />
-      <el-table-column label="Prioridad" width="110">
+      <el-table-column prop="cityName" label="Ciudad" width="140" sortable>
+        <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
+      </el-table-column>
+      <el-table-column prop="description" label="Descripción" show-overflow-tooltip sortable />
+      <el-table-column prop="priority" label="Prioridad" width="110" sortable>
         <template #default="{ row }">
           <el-tag :type="priorityTagType(row.priority)" size="small">{{ row.priority }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Estado" width="130">
+      <el-table-column prop="status" label="Estado" width="130" sortable>
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)" size="small">
             {{ ServiceTicketStatusLabels[row.status] ?? row.status }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Técnico" width="150">
+      <el-table-column prop="technicianName" label="Técnico" width="150" sortable>
         <template #default="{ row }">{{ row.technicianName ?? '—' }}</template>
       </el-table-column>
     </el-table>
@@ -206,7 +239,7 @@ onMounted(loadTickets)
             <el-option v-for="l in locations" :key="l.id" :label="l.name" :value="l.id" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="!isClient" label="Activo (opcional)">
+        <el-form-item v-if="selectedClientIsContract" label="Activo (opcional)">
           <el-select
             v-model="form.assetId"
             style="width: 100%"
