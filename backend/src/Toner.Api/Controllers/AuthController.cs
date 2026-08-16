@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
     {
         await _loginValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var result = await _authService.LoginAsync(request, cancellationToken);
+        var result = await _authService.LoginAsync(request, ClientIpAddress, cancellationToken);
         if (!result.Succeeded)
         {
             return Unauthorized(new { title = "Cédula o contraseña incorrectos." });
@@ -55,10 +55,13 @@ public class AuthController : ControllerBase
     {
         await _changePasswordValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        await _authService.ChangePasswordAsync(CurrentUserId, request, cancellationToken);
+        await _authService.ChangePasswordAsync(CurrentUserId, request, ClientIpAddress, cancellationToken);
         return NoContent();
     }
 
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private string? ClientIpAddress =>
+        HttpContext.Connection.RemoteIpAddress?.ToString();
 }

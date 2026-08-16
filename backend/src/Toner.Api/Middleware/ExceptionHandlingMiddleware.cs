@@ -47,6 +47,21 @@ public class ExceptionHandlingMiddleware
                     userEmail: context.User.FindFirstValue(ClaimTypes.Email),
                     cancellationToken: CancellationToken.None);
             }
+            else if (ex is ForbiddenException)
+            {
+                // Señal de mayor valor forense en un sistema multi-cliente: alguien autenticado
+                // intentando acceder a datos fuera de su alcance. A diferencia de los 500, esto no se
+                // persiste en ExceptionLogs (ver hallazgo #14 de SECURITY_AUDIT.md, fuera de alcance
+                // aquí) — solo queda en el logger estructurado.
+                _logger.LogWarning(
+                    "Acceso denegado: usuario {UserId} (rol {UserRole}) intentó {Method} {Path} desde IP {IpAddress}. Motivo: {Reason}",
+                    TryGetUserId(context.User),
+                    context.User.FindFirstValue(ClaimTypes.Role),
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+                    ex.Message);
+            }
 
             context.Response.ContentType = "application/problem+json";
             context.Response.StatusCode = (int)statusCode;

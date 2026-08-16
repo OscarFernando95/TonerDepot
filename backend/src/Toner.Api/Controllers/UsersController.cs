@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -60,7 +61,10 @@ public class UsersController : ControllerBase
     [HttpPost("{id:guid}/reset-password")]
     public async Task<ActionResult<UserDto>> ResetPassword(Guid id, CancellationToken cancellationToken)
     {
-        var user = await _userService.ResetPasswordAsync(id, cancellationToken);
+        var user = await _userService.ResetPasswordAsync(id, CurrentUserId, cancellationToken);
         return Ok(user);
     }
+
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 }

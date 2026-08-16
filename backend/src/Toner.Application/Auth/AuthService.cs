@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Toner.Application.Auth.Dtos;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -19,15 +20,21 @@ public class AuthService : IAuthService
     private readonly IApplicationDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(IApplicationDbContext db, IPasswordHasher passwordHasher, IJwtTokenGenerator jwtTokenGenerator)
+    public AuthService(
+        IApplicationDbContext db,
+        IPasswordHasher passwordHasher,
+        IJwtTokenGenerator jwtTokenGenerator,
+        ILogger<AuthService> logger)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
+        _logger = logger;
     }
 
-    public async Task<LoginResult> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
+    public async Task<LoginResult> LoginAsync(LoginRequest request, string? ipAddress = null, CancellationToken cancellationToken = default)
     {
         var cedula = request.Cedula.Trim();
 
@@ -45,8 +52,25 @@ public class AuthService : IAuthService
 
         if (!userExistsAndActive || !passwordMatches)
         {
+            // El mismo LogWarning se ejecuta en las tres causas de fallo (usuario inexistente,
+            // inactivo, o contraseña incorrecta) — solo cambia el texto de Reason, no el costo de la
+            // llamada, así que esto no reintroduce el canal lateral de tiempos que cierra el hallazgo #7.
+            var reason = user is null
+                ? "UsuarioNoExiste"
+                : !user.IsActive
+                    ? "UsuarioInactivo"
+                    : "ContraseñaIncorrecta";
+
+            _logger.LogWarning(
+                "Login fallido para cédula {Cedula} desde IP {IpAddress}. Motivo: {Reason}",
+                cedula, ipAddress ?? "desconocida", reason);
+
             return LoginResult.Failure();
         }
+
+        _logger.LogInformation(
+            "Login exitoso para cédula {Cedula} (usuario {UserId}) desde IP {IpAddress}",
+            cedula, user!.Id, ipAddress ?? "desconocida");
 
         var (token, expiresAtUtc) = _jwtTokenGenerator.GenerateToken(user!);
         return LoginResult.Success(token, expiresAtUtc, ToCurrentUserDto(user!));
@@ -63,19 +87,27 @@ public class AuthService : IAuthService
         return ToCurrentUserDto(user);
     }
 
-    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, string? ipAddress = null, CancellationToken cancellationToken = default)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
             ?? throw new NotFoundException(nameof(User), userId);
 
         if (!_passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
         {
+            _logger.LogWarning(
+                "Cambio de contraseña fallido para usuario {UserId} desde IP {IpAddress}: contraseña actual incorrecta",
+                userId, ipAddress ?? "desconocida");
+
             throw new InvalidCredentialsException();
         }
 
         user.PasswordHash = _passwordHasher.Hash(request.NewPassword);
         user.MustChangePassword = false;
         await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Cambio de contraseña exitoso para usuario {UserId} desde IP {IpAddress}",
+            userId, ipAddress ?? "desconocida");
     }
 
     private static CurrentUserDto ToCurrentUserDto(User user) => new()

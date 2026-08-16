@@ -4,6 +4,7 @@ using Toner.Application.Common.Exceptions;
 using Toner.Application.Tests.TestSupport;
 using Toner.Domain.Common;
 using Toner.Infrastructure.Auth;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Toner.Application.Tests.Auth;
@@ -12,14 +13,14 @@ public class AuthServiceTests
 {
     private static readonly BCryptPasswordHasher Hasher = new();
 
-    private static AuthService BuildService(Infrastructure.Persistence.TonerDbContext db) =>
+    private static AuthService BuildService(Infrastructure.Persistence.TonerDbContext db, Microsoft.Extensions.Logging.ILogger<AuthService>? logger = null) =>
         new(db, Hasher, new JwtTokenGenerator(Options.Create(new JwtSettings
         {
             Issuer = "test-issuer",
             Audience = "test-audience",
             SigningKey = "test-signing-key-at-least-32-characters-long",
             ExpiryMinutes = 60
-        })));
+        })), logger ?? NullLogger<AuthService>.Instance);
 
     [Fact]
     public async Task LoginAsync_ValidCedulaAndPassword_Succeeds()

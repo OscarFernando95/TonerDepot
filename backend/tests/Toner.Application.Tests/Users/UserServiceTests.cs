@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Tests.TestSupport;
 using Toner.Application.Users;
@@ -11,7 +12,7 @@ namespace Toner.Application.Tests.Users;
 public class UserServiceTests
 {
     private static UserService BuildService(Infrastructure.Persistence.TonerDbContext db) =>
-        new(db, new BCryptPasswordHasher());
+        new(db, new BCryptPasswordHasher(), NullLogger<UserService>.Instance);
 
     [Fact]
     public async Task CreateAsync_AlwaysUsesDefaultPassword_AndRequiresPasswordChange()

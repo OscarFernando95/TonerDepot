@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Users.Dtos;
@@ -12,11 +13,13 @@ public class UserService : IUserService
 {
     private readonly IApplicationDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly ILogger<UserService> _logger;
 
-    public UserService(IApplicationDbContext db, IPasswordHasher passwordHasher)
+    public UserService(IApplicationDbContext db, IPasswordHasher passwordHasher, ILogger<UserService> logger)
     {
         _db = db;
         _passwordHasher = passwordHasher;
+        _logger = logger;
     }
 
     public async Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
@@ -109,7 +112,7 @@ public class UserService : IUserService
         return await ToDtoAsync(userId, cancellationToken);
     }
 
-    public async Task<UserDto> ResetPasswordAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task<UserDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
             ?? throw new NotFoundException(nameof(User), userId);
@@ -117,6 +120,10 @@ public class UserService : IUserService
         user.PasswordHash = _passwordHasher.Hash(PasswordDefaults.DefaultPassword);
         user.MustChangePassword = true;
         await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Contraseña reseteada a la genérica para usuario {TargetUserId} por administrador {PerformedByUserId}",
+            userId, performedByUserId?.ToString() ?? "desconocido");
 
         return await ToDtoAsync(userId, cancellationToken);
     }

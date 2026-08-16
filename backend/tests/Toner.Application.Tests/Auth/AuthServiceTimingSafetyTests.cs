@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Toner.Application.Auth;
 using Toner.Application.Auth.Dtos;
@@ -23,7 +24,7 @@ public class AuthServiceTimingSafetyTests
             Audience = "test-audience",
             SigningKey = "test-signing-key-at-least-32-characters-long",
             ExpiryMinutes = 60
-        })));
+        })), NullLogger<AuthService>.Instance);
 
     [Fact]
     public async Task LoginAsync_CedulaInexistente_IgualLlamaAVerifyUnaVez()

@@ -14,5 +14,5 @@ public interface IUserService
 
     // Restablece la contraseña a la genérica (PasswordDefaults.DefaultPassword) y vuelve a exigir
     // cambio en el próximo login. Solo Administrador (ver UsersController).
-    Task<UserDto> ResetPasswordAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default);
 }
