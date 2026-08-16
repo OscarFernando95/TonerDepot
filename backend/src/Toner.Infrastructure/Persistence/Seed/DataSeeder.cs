@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Common;
 using Toner.Domain.Entities;
@@ -14,12 +15,14 @@ public class DataSeeder
     private readonly TonerDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IHostEnvironment _environment;
 
-    public DataSeeder(TonerDbContext db, IConfiguration configuration, IPasswordHasher passwordHasher)
+    public DataSeeder(TonerDbContext db, IConfiguration configuration, IPasswordHasher passwordHasher, IHostEnvironment environment)
     {
         _db = db;
         _configuration = configuration;
         _passwordHasher = passwordHasher;
+        _environment = environment;
     }
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
@@ -42,12 +45,25 @@ public class DataSeeder
             return;
         }
 
+        var adminCedula = _configuration["AdminBootstrap:Cedula"];
         var adminEmail = _configuration["AdminBootstrap:Email"];
         var adminPassword = _configuration["AdminBootstrap:Password"];
         var adminFullName = _configuration["AdminBootstrap:FullName"] ?? "Administrador";
 
-        if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
+        if (string.IsNullOrWhiteSpace(adminCedula) || string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
         {
+            // En producción arrancar sin poder crear el admin de arranque deja el sistema sin forma
+            // de entrar la primera vez — mejor un fallo explícito en el arranque que un despliegue
+            // silenciosamente inaccesible. Fuera de producción (Development, etc.) se mantiene el
+            // comportamiento de siempre: queda sin sembrar y listo, es un escenario válido de dev.
+            if (_environment.IsProduction())
+            {
+                throw new InvalidOperationException(
+                    "Faltan una o más claves de configuración 'AdminBootstrap:Cedula', 'AdminBootstrap:Email' o " +
+                    "'AdminBootstrap:Password'. Son obligatorias en producción para poder crear la cuenta de " +
+                    "Administrador de arranque.");
+            }
+
             return;
         }
 
@@ -55,13 +71,11 @@ public class DataSeeder
 
         _db.Users.Add(new User
         {
-            // Fijo a pedido: es la cuenta de arranque, no un usuario creado desde el módulo de Usuarios.
-            Cedula = "1234567890",
+            Cedula = adminCedula.Trim(),
             Email = adminEmail.Trim().ToLowerInvariant(),
             PasswordHash = _passwordHasher.Hash(adminPassword),
-            // Su contraseña viene de configuración explícita (AdminBootstrap:Password), no de la
-            // genérica — no aplica forzar cambio como a los usuarios creados desde la UI.
-            MustChangePassword = false,
+            // Igual que cualquier usuario nuevo: debe cambiar la contraseña de arranque en su primer login.
+            MustChangePassword = true,
             FullName = adminFullName,
             RoleId = adminRole.Id,
             IsActive = true

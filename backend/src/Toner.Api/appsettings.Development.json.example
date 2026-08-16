@@ -15,6 +15,7 @@
     "ExpiryMinutes": 480
   },
   "AdminBootstrap": {
+    "Cedula": "<CEDULA_DEL_ADMIN>",
     "Email": "<TU_EMAIL_ADMIN>",
     "Password": "<TU_PASSWORD_TEMPORAL>",
     "FullName": "Administrador Toner"
