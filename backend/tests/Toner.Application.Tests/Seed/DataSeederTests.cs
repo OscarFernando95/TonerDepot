@@ -19,8 +19,8 @@ public class DataSeederTests
         var defaults = new Dictionary<string, string?>
         {
             ["AdminBootstrap:Cedula"] = "9999999999",
-            ["AdminBootstrap:Email"] = "admin@toner.local",
-            ["AdminBootstrap:Password"] = "REDACTED",
+            ["AdminBootstrap:Email"] = "bootstrap-admin@example.test",
+            ["AdminBootstrap:Password"] = "S3ed-Only-Passw0rd!",
             ["AdminBootstrap:FullName"] = "Administrador Toner"
         };
 
