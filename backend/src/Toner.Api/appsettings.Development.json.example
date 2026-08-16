@@ -6,17 +6,17 @@
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5433;Database=toner;Username=toner;Password=toner_dev_password"
+    "DefaultConnection": "Host=localhost;Port=5433;Database=toner;Username=toner;Password=<TU_PASSWORD_LOCAL>"
   },
   "Jwt": {
     "Issuer": "Toner.Api.Dev",
     "Audience": "Toner.Clients.Dev",
-    "SigningKey": "REDACTED",
+    "SigningKey": "<GENERA_UNA_CLAVE_ALEATORIA_DE_AL_MENOS_32_CARACTERES>",
     "ExpiryMinutes": 480
   },
   "AdminBootstrap": {
-    "Email": "admin@toner.local",
-    "Password": "REDACTED",
+    "Email": "<TU_EMAIL_ADMIN>",
+    "Password": "<TU_PASSWORD_TEMPORAL>",
     "FullName": "Administrador Toner"
   },
   "Cors": {
