@@ -143,4 +143,30 @@ public class SecurityStampValidationTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Request_DeUsuarioDesactivadoConStampVigente_DevuelveUnauthorized()
+    {
+        // SECURITY_AUDIT_V2.md hallazgo N4: el stamp del token SIGUE SIENDO EL CORRECTO — solo cambia
+        // IsActive. Antes de este fix, este caso pasaba: la cuenta quedaba desactivada pero su sesión
+        // viva seguía funcionando hasta 8h, porque el validator solo comparaba el stamp. Que hoy
+        // funcione vía SetActiveStatusAsync depende de que ese método regenere el stamp; esto verifica
+        // que el corte no dependa de ese acoplamiento.
+        var (server, user, token) = await CreateServerWithUserAsync(Guid.NewGuid().ToString());
+
+        using (var scope = server.Services.CreateScope())
+        {
+            var scopedDb = scope.ServiceProvider.GetRequiredService<TonerDbContext>();
+            var storedUser = await scopedDb.Users.SingleAsync(u => u.Id == user.Id);
+            storedUser.IsActive = false; // el SecurityStamp queda intacto a propósito
+            await scopedDb.SaveChangesAsync();
+        }
+
+        using var client = server.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/protegido");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }

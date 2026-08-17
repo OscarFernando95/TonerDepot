@@ -24,12 +24,19 @@ public static class SecurityStampValidator
         }
 
         var db = context.HttpContext.RequestServices.GetRequiredService<IApplicationDbContext>();
-        var currentStamp = await db.Users
+
+        // Se trae también IsActive en vez de solo el stamp: que desactivar una cuenta corte las
+        // sesiones vivas no debe depender de que UserService.SetActiveStatusAsync se acuerde de
+        // regenerar el stamp. Cualquier otra vía que ponga IsActive = false (un script de ops, un
+        // UPDATE directo en BD, un endpoint futuro) dejaría los tokens existentes plenamente válidos
+        // hasta 8 horas. Es la misma fila indexada por PK, así que verificarlo no cuesta nada más
+        // (SECURITY_AUDIT_V2.md hallazgo N4).
+        var account = await db.Users
             .Where(u => u.Id == userId)
-            .Select(u => (Guid?)u.SecurityStamp)
+            .Select(u => new { u.SecurityStamp, u.IsActive })
             .FirstOrDefaultAsync();
 
-        if (currentStamp is null || currentStamp.Value != tokenStamp)
+        if (account is null || !account.IsActive || account.SecurityStamp != tokenStamp)
         {
             context.Fail("La sesión ya no es válida — la contraseña cambió, se reseteó, o la cuenta fue desactivada/reactivada.");
         }
