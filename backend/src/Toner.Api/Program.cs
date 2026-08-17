@@ -143,6 +143,7 @@ builder.Services.AddHangfireServer();
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
     ?? throw new InvalidOperationException("Falta la sección de configuración 'Jwt'.");
+JwtSettingsValidator.EnsureValid(jwtSettings);
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
