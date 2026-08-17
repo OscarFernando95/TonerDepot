@@ -95,7 +95,13 @@ builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
     options
         .UseNpgsql(
             builder.Configuration.GetConnectionString("DefaultConnection"),
-            npgsql => npgsql.MigrationsAssembly("Toner.Infrastructure"))
+            npgsql => npgsql
+                .MigrationsAssembly("Toner.Infrastructure")
+                // Tolera un blip de red o un reinicio breve de Postgres, no una caída prolongada
+                // (hallazgo #13) — sin transacciones explícitas en todo el código (verificado), así
+                // que no hay conflicto con el requisito de EF Core de envolverlas en un execution
+                // strategy.
+                .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
         .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>()));
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());

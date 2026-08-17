@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Common;
 using Toner.Domain.Entities;
@@ -17,19 +18,22 @@ public class DataSeeder
     private readonly IPasswordHasher _passwordHasher;
     private readonly IHostEnvironment _environment;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly ILogger<DataSeeder> _logger;
 
     public DataSeeder(
         TonerDbContext db,
         IConfiguration configuration,
         IPasswordHasher passwordHasher,
         IHostEnvironment environment,
-        ITenantContextAccessor tenantContextAccessor)
+        ITenantContextAccessor tenantContextAccessor,
+        ILogger<DataSeeder> logger)
     {
         _db = db;
         _configuration = configuration;
         _passwordHasher = passwordHasher;
         _environment = environment;
         _tenantContextAccessor = tenantContextAccessor;
+        _logger = logger;
     }
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
@@ -38,6 +42,34 @@ public class DataSeeder
         // que no hay TenantContextMiddleware que establezca el contexto (ver hallazgo #5).
         using var tenantScope = _tenantContextAccessor.Push(() => TenantContext.Staff);
 
+        try
+        {
+            await SeedCoreAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException && ex.GetType() != typeof(InvalidOperationException))
+        {
+            // Comparación de tipo exacto (no "is"): los InvalidOperationException que lanzamos
+            // nosotros mismos más abajo (config de AdminBootstrap faltante, recurso embebido no
+            // encontrado) ya son mensajes deliberados y específicos — se dejan propagar tal cual. Un
+            // "is not InvalidOperationException" además excluiría por accidente sus subclases, como
+            // ObjectDisposedException, que si son fallos reales que sí queremos envolver abajo.
+            // Trade-off del hallazgo #13: la app NO sigue arrancando sin seed. Hangfire usa la misma
+            // cadena de conexión, así que si Postgres no responde aquí, tampoco va a arrancar más
+            // abajo — "seguir arrancando" solo daría un proceso que reporta healthy pero no puede
+            // atender ninguna request real. Mejor fallar el arranque ahora, con un mensaje claro (no
+            // el stack trace crudo de Npgsql), que un despliegue silenciosamente roto.
+            _logger.LogCritical(ex,
+                "No se pudo completar el seed inicial (roles, ciudades, o el admin de arranque). " +
+                "La aplicación no va a arrancar.");
+
+            throw new InvalidOperationException(
+                "Falló el seed inicial de la base de datos al arrancar. Verifica que Postgres esté " +
+                "disponible y sea alcanzable con la configuración actual, y vuelve a intentar.", ex);
+        }
+    }
+
+    private async Task SeedCoreAsync(CancellationToken cancellationToken)
+    {
         var existingRoles = await _db.Roles.Select(r => r.Name).ToListAsync(cancellationToken);
         foreach (var roleName in RoleNames.All.Except(existingRoles))
         {
