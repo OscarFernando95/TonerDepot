@@ -17,6 +17,13 @@ mobile/build/
 .claude/
 .impeccable/*
 !.impeccable/design.json
+graphify-out/
+
+# Informes de auditoría de seguridad: se mantienen fuera del repo a propósito. Documentan
+# credenciales que estuvieron expuestas (ver el historial purgado) y este repo es público —
+# versionarlos volvería a publicar justamente lo que se purgó.
+SECURITY_AUDIT.md
+SECURITY_AUDIT_V2.md
 
 # Environment
 .env
