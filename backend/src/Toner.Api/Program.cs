@@ -1,9 +1,11 @@
+using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
 using FluentValidation;
 using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -62,6 +64,43 @@ builder.Services.AddSwaggerGen(options =>
             Array.Empty<string>()
         }
     });
+});
+
+// HSTS: se activa condicionalmente más abajo (fuera de Development a propósito — en dev, el
+// navegador cachearía la política HSTS contra localhost, complicando volver a probar por HTTP plano).
+builder.Services.AddHsts(options =>
+{
+    options.MaxAge = TimeSpan.FromDays(365);
+    options.IncludeSubDomains = true;
+});
+
+// Prerequisito real para que el rate limiting por IP (hallazgo #2) siga funcionando por-cliente-real
+// el día que haya un reverse proxy delante — sin esto, RemoteIpAddress vería la IP del proxy para
+// todos. KnownProxies/KnownNetworks se leen de "ReverseProxy" en configuración, vacíos por defecto:
+// sin configurarlos, ASP.NET Core mantiene su default (solo confía en el header si la conexión
+// INMEDIATA viene de loopback), así que hoy, sin proxy, el header simplemente se ignora — no hay
+// forma de spoofear la IP aceptando X-Forwarded-For de cualquier origen sin restricción.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1; // Un solo salto: no confiar en una cadena de proxies arbitraria.
+
+    foreach (var proxy in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? Array.Empty<string>())
+    {
+        if (IPAddress.TryParse(proxy, out var address))
+        {
+            options.KnownProxies.Add(address);
+        }
+    }
+
+    foreach (var network in builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? Array.Empty<string>())
+    {
+        var parts = network.Split('/');
+        if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var prefix) && int.TryParse(parts[1], out var prefixLength))
+        {
+            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
+        }
+    }
 });
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
@@ -236,6 +275,17 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+// AllowedHosts ya es configurable por entorno (variable de entorno "AllowedHosts", que sobreescribe
+// el "*" de appsettings.json por la precedencia estándar de configuración) — no hay nada hardcodeado
+// en código. Esta advertencia hace visible en el arranque si producción quedó con el default
+// permisivo, en vez de que pase inadvertido (hallazgo #16).
+if (app.Environment.IsProduction() && builder.Configuration["AllowedHosts"] == "*")
+{
+    app.Logger.LogWarning(
+        "AllowedHosts está en '*' en producción. Fija el dominio real vía la variable de entorno " +
+        "AllowedHosts para mitigar ataques de Host header.");
+}
+
 using (var scope = app.Services.CreateScope())
 {
     var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
@@ -256,6 +306,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+// Antes que casi todo lo demás a propósito: los middlewares siguientes (rate limiting por IP,
+// HttpsRedirection) necesitan ver la IP/esquema ya corregidos si hay un reverse proxy delante.
+app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
 
 app.UseHttpsRedirection();
 

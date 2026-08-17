@@ -107,6 +107,12 @@ Sin eso, el DML afecta **0 filas en silencio** (no lanza error). `SET LOCAL` fun
 
 > Nota: en el `docker-compose` de desarrollo el rol owner (`toner`) es además *superusuario*, y los superusuarios bypasean RLS incluso con `FORCE`. Es decir, este modo de fallo **no se reproduce en local** pero sí en un entorno donde el owner no sea superusuario. Escribe el `SET LOCAL` igual.
 
+## Hardening de red (headers, hosts)
+
+- **HSTS**: activo (`app.UseHsts()`) fuera de `Development` — en dev se omite a propósito, porque el navegador cachearía la política HSTS contra `localhost` y complicaría volver a probar por HTTP plano.
+- **`ForwardedHeaders`**: prerequisito para que el rate limiting por IP siga funcionando por-cliente-real el día que haya un reverse proxy delante (sin esto, todas las requests parecerían venir de la IP del proxy). Los proxies/redes confiables se configuran en `ReverseProxy:KnownProxies` (IPs) y `ReverseProxy:KnownNetworks` (CIDR, ej. `"10.0.0.0/8"`) — vacíos por defecto. **Sin configurarlos, ASP.NET Core solo confía en el header si la conexión llega desde loopback**, así que hoy (sin proxy real) cualquier `X-Forwarded-For` se ignora — no hay forma de spoofear la IP de origen. El día que se agregue un reverse proxy real, su IP (o la red del balanceador) va en esa configuración.
+- **`AllowedHosts`**: se fija por entorno vía la variable de entorno `AllowedHosts` (sobreescribe el `"*"` de `appsettings.json` por precedencia estándar de configuración) — nada hardcodeado en código. En producción, si queda en `"*"`, la app lo advierte en el log al arrancar (`LogWarning`), para que no pase inadvertido.
+
 ## Servicios locales (docker-compose)
 
 | Servicio   | Puerto  | Uso                                              |
