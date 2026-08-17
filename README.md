@@ -87,14 +87,14 @@ Ambas cadenas incluyen `Ssl Mode=Require`; el Postgres de `docker-compose.yml` c
 
 Postgres aplica aislamiento por cliente como **segunda capa**, además del filtrado por cliente/técnico que ya hace la capa de aplicación en C# (`RequestingUser` + los `Where` de cada servicio). El filtrado de C# sigue siendo la primera línea y no se eliminó: RLS existe para que un `Where` olvidado en un endpoint futuro no se convierta en una fuga entre clientes.
 
-- **Tablas con políticas:** `ClientLocations`, `Contracts`, `ServiceTickets` (todas con `FORCE ROW LEVEL SECURITY`).
+- **Tablas con políticas:** `ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` (todas con `FORCE ROW LEVEL SECURITY`). Son exactamente las cuatro que el rol `Cliente` puede alcanzar desde algún endpoint. En `Assets`, un `CurrentClientLocationId` nulo (activo en bodega) no pertenece a ningún cliente y la política lo deniega.
 - **Alcance:** solo el borde `Cliente`. `Administrador`, `Coordinador` y `Tecnico` son confiables a nivel de BD (`app.is_staff = 'on'`) porque ven datos de varios clientes por diseño; su filtrado fino vive en C#.
 - **`Users` queda deliberadamente fuera de RLS**, no por olvido: el login consulta esa tabla *antes* de que exista un usuario autenticado, así que una política fail-closed impediría iniciar sesión. Su protección sigue dependiendo de la capa de aplicación.
 - **Contexto:** `TenantContextMiddleware` establece el contexto por request y `TenantContextInterceptor` lo propaga a Postgres como variables de sesión (`app.is_staff`, `app.current_client_id`). Fuera de HTTP (`DataSeeder`, jobs de Hangfire, `TonerExceptionLogger`) se establece `TenantContext.Staff` de forma explícita. Si no hay contexto determinable, el interceptor **lanza** en vez de dejar la sesión sin setear — un `SELECT` sin contexto devolvería 0 filas, indistinguible de "no hay datos".
 
 ### ⚠️ RLS y migraciones
 
-`ClientLocations`, `Contracts` y `ServiceTickets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Cualquier migración futura con `UPDATE`/`DELETE`/`SELECT` sobre esas tablas debe abrir con:
+`ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Cualquier migración futura con `UPDATE`/`DELETE`/`SELECT` sobre esas tablas debe abrir con:
 
 ```csharp
 migrationBuilder.Sql(@"

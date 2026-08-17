@@ -57,6 +57,75 @@ public class RowLevelSecurityTests
     }
 
     [PostgresFact]
+    public async Task Cliente_SoloVeSusPropiosActivos_YNuncaLosDeBodega()
+    {
+        // SECURITY_AUDIT_V2.md hallazgo N1: Assets es alcanzable por el rol Cliente
+        // (GET /api/assets y /api/assets/{id}) y era la única de las cuatro tablas del portal sin
+        // política RLS. Este test va por debajo de C#: habla SQL directo como toner_app.
+        await _fixture.EnsureSeededAsync();
+
+        await using var asClientA = await OpenAsAsync(isStaff: false, RlsFixture.ClientA);
+        var visibleForA = await SelectAssetIdsAsync(asClientA);
+        Assert.Contains(RlsFixture.AssetOfClientA, visibleForA);
+        Assert.DoesNotContain(RlsFixture.AssetOfClientB, visibleForA);
+        // CurrentClientLocationId NULL: no pertenece a nadie, así que tampoco se ve.
+        Assert.DoesNotContain(RlsFixture.AssetWithoutLocation, visibleForA);
+
+        await using var asClientB = await OpenAsAsync(isStaff: false, RlsFixture.ClientB);
+        var visibleForB = await SelectAssetIdsAsync(asClientB);
+        Assert.Contains(RlsFixture.AssetOfClientB, visibleForB);
+        Assert.DoesNotContain(RlsFixture.AssetOfClientA, visibleForB);
+        Assert.DoesNotContain(RlsFixture.AssetWithoutLocation, visibleForB);
+    }
+
+    [PostgresFact]
+    public async Task Staff_VeLosActivosDeTodosLosClientesYLosDeBodega()
+    {
+        // Contraparte del anterior: la política no debe romper la operación del back-office, que
+        // necesita ver el inventario completo, incluido lo que está en bodega sin cliente asignado.
+        await _fixture.EnsureSeededAsync();
+
+        await using var asStaff = await OpenAsAsync(isStaff: true, clientId: null);
+        var visible = await SelectAssetIdsAsync(asStaff);
+
+        Assert.Contains(RlsFixture.AssetOfClientA, visible);
+        Assert.Contains(RlsFixture.AssetOfClientB, visible);
+        Assert.Contains(RlsFixture.AssetWithoutLocation, visible);
+    }
+
+    [PostgresFact]
+    public async Task Cliente_NoPuedeReasignarseUnActivoDeOtroClienteConUpdate()
+    {
+        await _fixture.EnsureSeededAsync();
+
+        await using var asClientB = await OpenAsAsync(isStaff: false, RlsFixture.ClientB);
+        await using var command = asClientB.CreateCommand();
+        // Intento de robarse el activo del cliente A moviéndolo a la sede propia.
+        command.CommandText = @"
+            UPDATE ""Assets"" SET ""CurrentClientLocationId"" = @myLocation WHERE ""Id"" = @assetOfA";
+        command.Parameters.AddWithValue("myLocation", Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002"));
+        command.Parameters.AddWithValue("assetOfA", RlsFixture.AssetOfClientA);
+
+        // La política USING ni siquiera deja ver la fila: el UPDATE afecta 0 filas.
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+    }
+
+    private static async Task<List<Guid>> SelectAssetIdsAsync(NpgsqlConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"SELECT ""Id"" FROM ""Assets""";
+
+        var ids = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            ids.Add(reader.GetGuid(0));
+        }
+
+        return ids;
+    }
+
+    [PostgresFact]
     public async Task Cliente_NoPuedeInsertarFilaAtribuidaAOtroCliente()
     {
         await _fixture.EnsureSeededAsync();
