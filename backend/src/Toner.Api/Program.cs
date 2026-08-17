@@ -243,9 +243,11 @@ builder.Services.AddRateLimiter(options =>
             cancellationToken: cancellationToken);
     };
 
-    // Partición por IP de conexión. Nota: no hay UseForwardedHeaders configurado — si en el futuro
-    // se pone un reverse proxy delante, RemoteIpAddress vería la IP del proxy y esto degradaría a un
-    // límite compartido por todos los clientes en vez de uno por IP real.
+    // Partición por IP de conexión. UseForwardedHeaders ya está configurado y corre ANTES que este
+    // middleware en el pipeline, así que RemoteIpAddress refleja la IP real del cliente incluso
+    // detrás de un reverse proxy — siempre que ese proxy esté declarado en ReverseProxy:KnownProxies
+    // (o :KnownNetworks). Si no se declara, ASP.NET Core ignora el X-Forwarded-For y esto degrada a
+    // un límite compartido por todos los clientes detrás del proxy, en vez de uno por IP real.
     static string PartitionKey(HttpContext context) =>
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
