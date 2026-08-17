@@ -15,11 +15,16 @@ public class TonerExceptionLogger : IExceptionLogger
 {
     private readonly IDbContextFactory<TonerDbContext> _dbContextFactory;
     private readonly ILogger<TonerExceptionLogger> _logger;
+    private readonly ITenantContextAccessor _tenantContextAccessor;
 
-    public TonerExceptionLogger(IDbContextFactory<TonerDbContext> dbContextFactory, ILogger<TonerExceptionLogger> logger)
+    public TonerExceptionLogger(
+        IDbContextFactory<TonerDbContext> dbContextFactory,
+        ILogger<TonerExceptionLogger> logger,
+        ITenantContextAccessor tenantContextAccessor)
     {
         _dbContextFactory = dbContextFactory;
         _logger = logger;
+        _tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task LogAsync(
@@ -34,6 +39,12 @@ public class TonerExceptionLogger : IExceptionLogger
     {
         try
         {
+            // Scope de staff explícito: este DbContext es propio (vía IDbContextFactory) y puede
+            // invocarse desde un job de Hangfire, donde no hay contexto de request. Sin esto, el
+            // TenantContextInterceptor lanzaría y enmascararía la excepción original que estamos
+            // intentando registrar. Ver SECURITY_AUDIT.md hallazgo #5.
+            using var tenantScope = _tenantContextAccessor.Push(() => TenantContext.Staff);
+
             await using var db = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
 
             db.ExceptionLogs.Add(new ExceptionLog

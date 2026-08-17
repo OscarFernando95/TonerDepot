@@ -6,7 +6,8 @@
     }
   },
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5433;Database=toner;Username=toner;Password=<TU_PASSWORD_LOCAL>;Ssl Mode=Require"
+    "DefaultConnection": "Host=localhost;Port=5433;Database=toner;Username=toner_app;Password=<TU_PASSWORD_APP_LOCAL>;Ssl Mode=Require",
+    "MigrationsConnection": "Host=localhost;Port=5433;Database=toner;Username=toner;Password=<TU_PASSWORD_OWNER_LOCAL>;Ssl Mode=Require"
   },
   "Jwt": {
     "Issuer": "Toner.Api.Dev",

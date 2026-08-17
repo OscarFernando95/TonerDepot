@@ -58,11 +58,54 @@ Toner/
 
    Swagger queda disponible en `https://localhost:<puerto>/swagger` en entorno de desarrollo.
 
-## Connection string de desarrollo
+## Connection strings
 
-Definida en `backend/src/Toner.Api/appsettings.Development.json`, apunta al Postgres del `docker-compose.yml` (usuario/base `toner`, contraseña `toner_dev_password` — solo para desarrollo local, no usar en producción). Incluye `Ssl Mode=Require`; el Postgres de `docker-compose.yml` corre con SSL habilitado (certificado autofirmado — ver `docker/postgres/generate-certs.sh`, hay que correrlo antes de `docker compose up` la primera vez).
+Definidas en `backend/src/Toner.Api/appsettings.Development.json`, apuntan al Postgres del `docker-compose.yml`. Son **dos**, con roles distintos:
+
+| Cadena | Rol Postgres | Usada por |
+|---|---|---|
+| `DefaultConnection` | `toner_app` — sin privilegios de owner, sujeto a RLS | La aplicación en runtime |
+| `MigrationsConnection` | `toner` — owner | `dotnet ef database update` (vía `TonerDbContextFactory`) |
+
+`toner_app` no puede hacer DDL sobre las tablas de negocio ni desactivar las políticas de Row Level Security; solo tiene `CREATE` dentro del esquema `hangfire`, para que Hangfire mantenga su propia cola de jobs. En producción, `MigrationsConnection` idealmente **no se despliega junto a la app** — se usa solo desde el pipeline de despliegue, para que un compromiso del proceso no pueda alterar el esquema.
+
+El rol `toner_app` se crea fuera de las migraciones (su contraseña no debe versionarse):
+
+```bash
+# Clon nuevo: se crea solo al inicializar el contenedor (docker/postgres/initdb.d/)
+docker compose up -d --build
+
+# Base ya existente: los scripts de initdb.d NO corren si el volumen ya tiene datos
+TONER_APP_PASSWORD='...' ./docker/postgres/create-app-role.sh
+```
+
+Ambas cadenas incluyen `Ssl Mode=Require`; el Postgres de `docker-compose.yml` corre con SSL habilitado (certificado autofirmado — ver `docker/postgres/generate-certs.sh`, hay que correrlo antes de `docker compose up` la primera vez).
 
 > En producción, la cadena de conexión a Postgres debe incluir `Ssl Mode=Require` como mínimo (o `VerifyFull` si el proveedor gestionado lo soporta con un certificado verificable por una CA de confianza). `Require` cifra el canal pero no valida la identidad del servidor — no hace falta `Trust Server Certificate=true` para usarlo, esa bandera solo aplica si se quisiera `VerifyCA`/`VerifyFull` contra un certificado no verificable.
+
+## Row Level Security (RLS)
+
+Postgres aplica aislamiento por cliente como **segunda capa**, además del filtrado por cliente/técnico que ya hace la capa de aplicación en C# (`RequestingUser` + los `Where` de cada servicio). El filtrado de C# sigue siendo la primera línea y no se eliminó: RLS existe para que un `Where` olvidado en un endpoint futuro no se convierta en una fuga entre clientes.
+
+- **Tablas con políticas:** `ClientLocations`, `Contracts`, `ServiceTickets` (todas con `FORCE ROW LEVEL SECURITY`).
+- **Alcance:** solo el borde `Cliente`. `Administrador`, `Coordinador` y `Tecnico` son confiables a nivel de BD (`app.is_staff = 'on'`) porque ven datos de varios clientes por diseño; su filtrado fino vive en C#.
+- **`Users` queda deliberadamente fuera de RLS**, no por olvido: el login consulta esa tabla *antes* de que exista un usuario autenticado, así que una política fail-closed impediría iniciar sesión. Su protección sigue dependiendo de la capa de aplicación.
+- **Contexto:** `TenantContextMiddleware` establece el contexto por request y `TenantContextInterceptor` lo propaga a Postgres como variables de sesión (`app.is_staff`, `app.current_client_id`). Fuera de HTTP (`DataSeeder`, jobs de Hangfire, `TonerExceptionLogger`) se establece `TenantContext.Staff` de forma explícita. Si no hay contexto determinable, el interceptor **lanza** en vez de dejar la sesión sin setear — un `SELECT` sin contexto devolvería 0 filas, indistinguible de "no hay datos".
+
+### ⚠️ RLS y migraciones
+
+`ClientLocations`, `Contracts` y `ServiceTickets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Cualquier migración futura con `UPDATE`/`DELETE`/`SELECT` sobre esas tablas debe abrir con:
+
+```csharp
+migrationBuilder.Sql(@"
+    SET LOCAL app.is_staff = 'on';
+    UPDATE ""Contracts"" SET ...;
+");
+```
+
+Sin eso, el DML afecta **0 filas en silencio** (no lanza error). `SET LOCAL` funciona ahí porque las migraciones de EF Core sí corren dentro de una transacción explícita.
+
+> Nota: en el `docker-compose` de desarrollo el rol owner (`toner`) es además *superusuario*, y los superusuarios bypasean RLS incluso con `FORCE`. Es decir, este modo de fallo **no se reproduce en local** pero sí en un entorno donde el owner no sea superusuario. Escribe el `SET LOCAL` igual.
 
 ## Servicios locales (docker-compose)
 

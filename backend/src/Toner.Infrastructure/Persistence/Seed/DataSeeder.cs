@@ -16,17 +16,28 @@ public class DataSeeder
     private readonly IConfiguration _configuration;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IHostEnvironment _environment;
+    private readonly ITenantContextAccessor _tenantContextAccessor;
 
-    public DataSeeder(TonerDbContext db, IConfiguration configuration, IPasswordHasher passwordHasher, IHostEnvironment environment)
+    public DataSeeder(
+        TonerDbContext db,
+        IConfiguration configuration,
+        IPasswordHasher passwordHasher,
+        IHostEnvironment environment,
+        ITenantContextAccessor tenantContextAccessor)
     {
         _db = db;
         _configuration = configuration;
         _passwordHasher = passwordHasher;
         _environment = environment;
+        _tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
+        // Scope de staff explícito: el seeder corre en el arranque, fuera de cualquier request, así
+        // que no hay TenantContextMiddleware que establezca el contexto (ver hallazgo #5).
+        using var tenantScope = _tenantContextAccessor.Push(() => TenantContext.Staff);
+
         var existingRoles = await _db.Roles.Select(r => r.Name).ToListAsync(cancellationToken);
         foreach (var roleName in RoleNames.All.Except(existingRoles))
         {

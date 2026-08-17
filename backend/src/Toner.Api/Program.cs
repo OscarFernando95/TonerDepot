@@ -11,6 +11,7 @@ using Microsoft.OpenApi.Models;
 using Toner.Api.Auth;
 using Toner.Api.Middleware;
 using Toner.Api.Serialization;
+using Toner.Application.Common;
 using Toner.Application.Assets;
 using Toner.Application.Assignment;
 using Toner.Application.Auth;
@@ -81,10 +82,21 @@ builder.Services.AddCors(options =>
 // pueden convivir para el mismo TContext (ambos compiten por DbContextOptions<TContext> con lifetimes
 // distintos), así que el TonerDbContext scoped de siempre se deriva de la factory en vez de registrarse
 // aparte.
-builder.Services.AddDbContextFactory<TonerDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        npgsql => npgsql.MigrationsAssembly("Toner.Infrastructure")));
+// El contexto de tenencia se propaga a Postgres como variables de sesión para las políticas RLS
+// (ver TenantContextInterceptor y la migración AddRowLevelSecurity — SECURITY_AUDIT.md hallazgo #5).
+// Singleton porque se apoya en AsyncLocal: tiene que seguir al flujo asíncrono hasta el interceptor,
+// que no tiene acceso al scope de la request.
+builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
+builder.Services.AddSingleton<TenantContextInterceptor>();
+
+// DefaultConnection usa el rol toner_app (sin privilegios de DDL y sujeto a RLS). Las migraciones
+// usan MigrationsConnection (owner) vía TonerDbContextFactory, no esta configuración.
+builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
+    options
+        .UseNpgsql(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            npgsql => npgsql.MigrationsAssembly("Toner.Infrastructure"))
+        .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>()));
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
@@ -243,6 +255,12 @@ app.UseHttpsRedirection();
 app.UseCors("Frontend");
 
 app.UseRateLimiter();
+
+// Antes de UseAuthentication a propósito: la validación del token (SecurityStampValidator) consulta
+// la tabla Users y abre una conexión, así que ya tiene que haber un TenantContext establecido o el
+// interceptor lanzaría. El contexto se evalúa de forma perezosa contra HttpContext.User, así que esa
+// consulta temprana ve Anonymous y el controller posterior ve el contexto autenticado real.
+app.UseMiddleware<TenantContextMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

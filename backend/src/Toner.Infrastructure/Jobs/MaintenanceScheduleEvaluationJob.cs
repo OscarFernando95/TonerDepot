@@ -18,23 +18,31 @@ public class MaintenanceScheduleEvaluationJob
     private readonly IAssignmentEngine _assignmentEngine;
     private readonly IExceptionLogger _exceptionLogger;
     private readonly ILogger<MaintenanceScheduleEvaluationJob> _logger;
+    private readonly ITenantContextAccessor _tenantContextAccessor;
 
     public MaintenanceScheduleEvaluationJob(
         IApplicationDbContext db,
         IMaintenanceScheduleEngine engine,
         IAssignmentEngine assignmentEngine,
         IExceptionLogger exceptionLogger,
-        ILogger<MaintenanceScheduleEvaluationJob> logger)
+        ILogger<MaintenanceScheduleEvaluationJob> logger,
+        ITenantContextAccessor tenantContextAccessor)
     {
         _db = db;
         _engine = engine;
         _assignmentEngine = assignmentEngine;
         _exceptionLogger = exceptionLogger;
         _logger = logger;
+        _tenantContextAccessor = tenantContextAccessor;
     }
 
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
     {
+        // Scope de staff explícito, nunca por omisión: el job recorre los cronogramas de TODOS los
+        // clientes, y corre fuera de una request HTTP, así que no hay TenantContextMiddleware que
+        // establezca el contexto. Sin esto el TenantContextInterceptor lanzaría (ver hallazgo #5).
+        using var tenantScope = _tenantContextAccessor.Push(() => TenantContext.Staff);
+
         try
         {
             return await EvaluateSchedulesAsync(cancellationToken);

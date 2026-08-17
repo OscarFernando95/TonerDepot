@@ -11,3 +11,9 @@ COPY server.key /var/lib/postgresql/certs/server.key
 RUN chown postgres:postgres /var/lib/postgresql/certs/server.crt /var/lib/postgresql/certs/server.key \
     && chmod 644 /var/lib/postgresql/certs/server.crt \
     && chmod 600 /var/lib/postgresql/certs/server.key
+
+# Crea el rol toner_app (sin privilegios de owner, ver SECURITY_AUDIT.md hallazgo #5) al inicializar
+# el clúster. Ojo: estos scripts solo corren si el directorio de datos está vacío — contra un volumen
+# que ya tiene datos hay que usar docker/postgres/create-app-role.sh a mano.
+COPY initdb.d/ /docker-entrypoint-initdb.d/
+RUN chmod +x /docker-entrypoint-initdb.d/*.sh

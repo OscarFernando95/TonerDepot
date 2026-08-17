@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Toner.Application.Common;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Tests.TestSupport;
 using Toner.Domain.Common;
@@ -39,7 +40,7 @@ public class DataSeederTests
         Infrastructure.Persistence.TonerDbContext db,
         IConfiguration configuration,
         string environmentName) =>
-        new(db, configuration, new FakePasswordHasher(), new FakeHostEnvironment(environmentName));
+        new(db, configuration, new FakePasswordHasher(), new FakeHostEnvironment(environmentName), new TenantContextAccessor());
 
     [Fact]
     public async Task SeedAsync_ConConfiguracionCompleta_UsaLaCedulaDeConfiguracionYFuerzaCambioDeContrasena()

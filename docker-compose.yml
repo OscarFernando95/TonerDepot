@@ -8,6 +8,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-toner}
       POSTGRES_USER: ${POSTGRES_USER:-toner}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-toner_dev_password}
+      # Rol de conexión de la app, sin privilegios de owner (SECURITY_AUDIT.md hallazgo #5).
+      # Lo consume docker/postgres/initdb.d/01-create-app-role.sh en la primera inicialización.
+      TONER_APP_PASSWORD: ${TONER_APP_PASSWORD:-toner_app_dev_password}
     # SSL habilitado (ver docker/postgres/Dockerfile) para que la app pueda conectarse con
     # "Ssl Mode=Require" — requiere haber corrido docker/postgres/generate-certs.sh antes del build.
     command: >
