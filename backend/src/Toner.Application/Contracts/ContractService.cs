@@ -42,7 +42,8 @@ public class ContractService : IContractService
 
         if (!requestingUser.IsStaff)
         {
-            query = query.Where(c => c.ClientId == requestingUser.ClientId);
+            var clientId = requestingUser.RequireClientId();
+            query = query.Where(c => c.ClientId == clientId);
         }
 
         return await query.OrderByDescending(c => c.CreatedAt).ToListAsync(cancellationToken);
@@ -53,7 +54,7 @@ public class ContractService : IContractService
         var contract = await Projected(_db).FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Contract), id);
 
-        if (!requestingUser.IsStaff && contract.ClientId != requestingUser.ClientId)
+        if (!requestingUser.IsStaff && contract.ClientId != requestingUser.RequireClientId())
         {
             throw new ForbiddenException("Este contrato no pertenece a tu cliente.");
         }

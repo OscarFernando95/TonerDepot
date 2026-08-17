@@ -500,4 +500,39 @@ public class AssetServiceTests
 
         Assert.Null(result.ActiveContractId);
     }
+
+    [Fact]
+    public async Task GetByIdAsync_ClienteConClientIdNulo_Deniega()
+    {
+        // SECURITY_AUDIT.md hallazgo #20: un ClientId nulo debe denegar explícitamente, no colar
+        // como si el activo no estuviera instalado en ninguna sede (que hoy da el mismo 403, pero
+        // por una razón implícita distinta).
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var client = TestEntities.Client();
+        var city = TestEntities.City();
+        var location = TestEntities.ClientLocation(client, city);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        arrangeDb.AddRange(brand, model, client, city, location, asset);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetByIdAsync(malformedClientUser, asset.Id));
+    }
+
+    [Fact]
+    public async Task ListAsync_ClienteConClientIdNulo_Deniega()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var db = TonerTestDb.CreateContext(dbName);
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), new AssignmentEngine(db));
+        var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
+    }
 }

@@ -1,4 +1,5 @@
 using Toner.Application.Assignment;
+using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Tests.TestSupport;
 using Toner.Application.Tickets;
@@ -253,5 +254,38 @@ public class ServiceTicketServiceTests
 
         var item = Assert.Single(result);
         Assert.Equal(ticketInCoverage.Id, item.Id);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ClienteConClientIdNulo_Deniega()
+    {
+        // SECURITY_AUDIT.md hallazgo #20: un ClientId nulo debe denegar explícitamente.
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var user = TestEntities.User(role);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var ticket = TestEntities.ServiceTicket(location, user, ServiceTicketStatus.Abierto);
+        arrangeDb.AddRange(role, user, city, client, location, ticket);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+        var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetByIdAsync(malformedClientUser, ticket.Id));
+    }
+
+    [Fact]
+    public async Task ListAsync_ClienteConClientIdNulo_Deniega()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var db = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(db);
+        var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
     }
 }

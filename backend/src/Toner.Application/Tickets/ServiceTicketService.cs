@@ -48,7 +48,7 @@ public class ServiceTicketService : IServiceTicketService
                 .Select(l => l.ClientId)
                 .FirstAsync(cancellationToken);
 
-            if (locationClientId != requestingUser.ClientId)
+            if (locationClientId != requestingUser.RequireClientId())
             {
                 throw new ForbiddenException("No puedes reportar tickets para una sede que no pertenece a tu cliente.");
             }
@@ -88,7 +88,8 @@ public class ServiceTicketService : IServiceTicketService
         }
         else if (!requestingUser.IsStaff)
         {
-            query = query.Where(t => t.ClientId == requestingUser.ClientId);
+            var clientId = requestingUser.RequireClientId();
+            query = query.Where(t => t.ClientId == clientId);
         }
 
         return await query.OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
@@ -129,7 +130,7 @@ public class ServiceTicketService : IServiceTicketService
             throw new ForbiddenException("Este ticket no está asignado a ti.");
         }
 
-        if (!requestingUser.IsStaff && !requestingUser.IsTechnician && ticket.ClientId != requestingUser.ClientId)
+        if (!requestingUser.IsStaff && !requestingUser.IsTechnician && ticket.ClientId != requestingUser.RequireClientId())
         {
             throw new ForbiddenException("No puedes ver un ticket que no pertenece a tu cliente.");
         }

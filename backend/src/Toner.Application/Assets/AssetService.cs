@@ -81,7 +81,8 @@ public class AssetService : IAssetService
         if (!requestingUser.IsStaff)
         {
             // Un Cliente solo ve activos instalados en alguna de sus sedes ahora mismo.
-            query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == requestingUser.ClientId);
+            var clientId = requestingUser.RequireClientId();
+            query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId);
         }
 
         var items = await ProjectedFrom(query).OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model).ToListAsync(cancellationToken);
@@ -130,8 +131,9 @@ public class AssetService : IAssetService
 
         if (!requestingUser.IsStaff)
         {
+            var clientId = requestingUser.RequireClientId();
             var belongsToClient = await _db.Assets
-                .AnyAsync(a => a.Id == id && a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == requestingUser.ClientId, cancellationToken);
+                .AnyAsync(a => a.Id == id && a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId, cancellationToken);
             if (!belongsToClient)
             {
                 throw new ForbiddenException("Este activo no está instalado en ninguna de tus sedes.");
