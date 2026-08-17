@@ -164,6 +164,71 @@ public class AccountLockoutTests
         Assert.Null(stored.LockedOutUntil);
     }
 
+    [Fact]
+    public async Task LoginAsync_AlExpirarElBloqueo_ElContadorVuelveACero()
+    {
+        // SECURITY_AUDIT_V2.md hallazgo N2: antes, FailedLoginAttempts quedaba en 5 después de que
+        // expiraba el bloqueo, así que UN solo intento fallido posterior re-bloqueaba la cuenta otros
+        // 15 minutos — alguien que conociera la cédula la mantenía bloqueada con 1 request/15 min.
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Coordinador);
+        var user = TestEntities.User(role, cedula: "1515151515");
+        user.PasswordHash = RealHasher.Hash("Password123!");
+        user.FailedLoginAttempts = 5;
+        user.LockedOutUntil = DateTime.UtcNow.AddMinutes(-1); // bloqueo ya vencido
+        arrangeDb.AddRange(role, user);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        // Un intento fallido tras expirar el bloqueo NO debe re-bloquear: el contador arranca de
+        // cero, así que queda en 1 y hacen falta 5 para volver a bloquear.
+        var result = await service.LoginAsync(new LoginRequest { Cedula = "1515151515", Password = "incorrecta" });
+
+        Assert.False(result.Succeeded);
+
+        using var checkDb = TonerTestDb.CreateContext(dbName);
+        var stored = await checkDb.Users.SingleAsync(u => u.Cedula == "1515151515");
+        Assert.Equal(1, stored.FailedLoginAttempts);
+        Assert.Null(stored.LockedOutUntil);
+    }
+
+    [Fact]
+    public async Task LoginAsync_AlExpirarElBloqueo_ExigeCincoFallosNuevosParaVolverABloquear()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Coordinador);
+        var user = TestEntities.User(role, cedula: "1616161616");
+        user.PasswordHash = RealHasher.Hash("Password123!");
+        user.FailedLoginAttempts = 5;
+        user.LockedOutUntil = DateTime.UtcNow.AddMinutes(-1);
+        arrangeDb.AddRange(role, user);
+        await arrangeDb.SaveChangesAsync();
+
+        // Cuatro fallos tras expirar el bloqueo: todavía NO debe estar bloqueada.
+        for (var i = 0; i < 4; i++)
+        {
+            using var db = TonerTestDb.CreateContext(dbName);
+            await BuildService(db).LoginAsync(new LoginRequest { Cedula = "1616161616", Password = "incorrecta" });
+        }
+
+        using (var midCheck = TonerTestDb.CreateContext(dbName))
+        {
+            var midUser = await midCheck.Users.SingleAsync(u => u.Cedula == "1616161616");
+            Assert.Equal(4, midUser.FailedLoginAttempts);
+            Assert.Null(midUser.LockedOutUntil);
+        }
+
+        // La contraseña correcta todavía funciona: la cuenta no quedó bloqueada por el estado viejo.
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var result = await BuildService(actDb).LoginAsync(new LoginRequest { Cedula = "1616161616", Password = "Password123!" });
+
+        Assert.True(result.Succeeded);
+    }
+
     private async Task<double> MeasureAverageMillisecondsAsync(string dbName, string cedula, string password, int iterations)
     {
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();

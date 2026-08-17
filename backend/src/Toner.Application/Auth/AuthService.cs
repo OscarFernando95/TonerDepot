@@ -51,6 +51,24 @@ public class AuthService : IAuthService
 
         var now = DateTime.UtcNow;
         var isLockedOut = user is not null && user.LockedOutUntil.HasValue && user.LockedOutUntil.Value > now;
+
+        // Al expirar el bloqueo, el contador vuelve a cero (SECURITY_AUDIT_V2.md hallazgo N2). Sin
+        // esto, FailedLoginAttempts quedaba en 5 después del bloqueo, así que UN solo intento fallido
+        // posterior re-bloqueaba la cuenta otros 15 minutos: alguien que conociera la cédula podía
+        // mantenerla bloqueada indefinidamente con 1 request cada 15 min, muy por debajo del rate
+        // limit y sin saber la contraseña. Con el reinicio, sostener el ataque cuesta 5 intentos por
+        // ventana en vez de 1 — tráfico continuo y visible en los logs de login fallido.
+        //
+        // El bloqueo por intentos fallidos es inherentemente abusable por quien conozca al usuario
+        // objetivo: es un intercambio entre frenar la fuerza bruta y permitir que un tercero deje a
+        // alguien fuera. Esto no lo elimina, solo sube el costo del abuso sin debilitar el control.
+        var lockoutJustExpired = user is not null && user.LockedOutUntil.HasValue && !isLockedOut;
+        if (lockoutJustExpired)
+        {
+            user!.FailedLoginAttempts = 0;
+            user.LockedOutUntil = null;
+        }
+
         var userExistsAndActive = user is not null && user.IsActive && !isLockedOut;
 
         // Se llama a Verify() en todas las ramas (contra el hash real o contra el señuelo) para que
@@ -98,9 +116,12 @@ public class AuthService : IAuthService
             return LoginResult.Failure();
         }
 
-        if (user!.FailedLoginAttempts != 0 || user.LockedOutUntil.HasValue)
+        // lockoutJustExpired entra en la condición a propósito: en ese caso los campos ya se pusieron
+        // en cero más arriba, pero SOLO en memoria — sin incluirlo acá, el SaveChanges se saltaría y
+        // la fila quedaría con los valores viejos en base de datos.
+        if (lockoutJustExpired || user!.FailedLoginAttempts != 0 || user.LockedOutUntil.HasValue)
         {
-            user.FailedLoginAttempts = 0;
+            user!.FailedLoginAttempts = 0;
             user.LockedOutUntil = null;
             await _db.SaveChangesAsync(cancellationToken);
         }
