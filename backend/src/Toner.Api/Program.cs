@@ -336,6 +336,11 @@ app.UseMiddleware<TenantContextMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Después de UseAuthentication a propósito — ver OpenDbConnectionMiddleware para el razonamiento
+// completo (CODE_QUALITY_AUDIT.md hallazgo #10).
+app.UseMiddleware<OpenDbConnectionMiddleware>();
+
 app.UseMiddleware<MustChangePasswordMiddleware>();
 
 app.MapControllers();
