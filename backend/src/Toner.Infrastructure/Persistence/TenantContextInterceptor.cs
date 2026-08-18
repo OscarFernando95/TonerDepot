@@ -13,14 +13,33 @@ namespace Toner.Infrastructure.Persistence;
 // resetea el estado de la sesión al devolver la conexión (ver NpgsqlSessionResetTests, que verifica
 // esa garantía contra un Postgres real: todo este diseño depende de ella).
 //
-// Por qué set_config() y no "SET app.x = '...'": SET no acepta parámetros vinculados, así que
-// construirlo requeriría concatenar la cadena — reintroduciendo un vector de inyección en el único
-// proyecto que hoy no tiene una sola línea de SQL crudo sin parametrizar (hallazgo #2 de la
-// auditoría, sección SQL Injection). set_config() sí acepta parámetros.
+// Por qué set_config() y no "SET app.x = '...'" / "SET ROLE x": SET no acepta parámetros vinculados,
+// así que construirlo requeriría concatenar la cadena — reintroduciendo un vector de inyección en el
+// único proyecto que hoy no tiene una sola línea de SQL crudo sin parametrizar (hallazgo #2 de la
+// auditoría, sección SQL Injection). set_config() sí acepta parámetros, y 'role' es un GUC como
+// cualquier otro: set_config('role', 'x', false) equivale a SET ROLE x, y 'none' equivale a RESET ROLE.
+//
+// Por qué el ROL y ya no app.is_staff (CODE_QUALITY_AUDIT.md #2): mientras el bypass de staff vivía
+// DENTRO del predicado ("app.is_staff = 'on' OR ClientId = ..."), Postgres no podía usar el índice de
+// ClientId — un OR contra una función STABLE no se pliega en tiempo de planificación, y toda consulta
+// de un Cliente degradaba a Seq Scan. Ahora el bypass vive en QUÉ ROL está activo: hay una política
+// por rol (TO toner_app / TO toner_app_staff) y Postgres descarta la que no aplica al planificar, así
+// que al Cliente le queda un predicado limpio y sargable. app.is_staff ya no lo lee ninguna política
+// y por eso se dejó de setear: una variable que parece gobernar seguridad pero no hace nada es peor
+// que no tenerla.
 public sealed class TenantContextInterceptor : DbConnectionInterceptor
 {
+    // Rol sin LOGIN al que se cambia para el trabajo de staff. No tiene BYPASSRLS: su acceso amplio
+    // viene de una política permisiva explícita por tabla (ver la migración SplitRlsPoliciesByRole).
+    private const string StaffRole = "toner_app_staff";
+
+    // 'none' es el valor que Postgres interpreta como RESET ROLE. Se emite explícitamente en vez de
+    // confiar solo en que el pool resetee la sesión: es una propiedad de seguridad y no debería
+    // depender de un único mecanismo.
+    private const string NoRole = "none";
+
     private const string ApplySql =
-        "SELECT set_config('app.is_staff', @is_staff, false), " +
+        "SELECT set_config('role', @role, false), " +
         "       set_config('app.current_client_id', @current_client_id, false)";
 
     private readonly ITenantContextAccessor _tenantContextAccessor;
@@ -62,16 +81,17 @@ public sealed class TenantContextInterceptor : DbConnectionInterceptor
         var command = connection.CreateCommand();
         command.CommandText = ApplySql;
 
-        var isStaff = command.CreateParameter();
-        isStaff.ParameterName = "is_staff";
-        isStaff.Value = context.IsStaff ? "on" : "off";
-        command.Parameters.Add(isStaff);
+        var role = command.CreateParameter();
+        role.ParameterName = "role";
+        role.Value = context.IsStaff ? StaffRole : NoRole;
+        command.Parameters.Add(role);
 
         var clientId = command.CreateParameter();
         clientId.ParameterName = "current_client_id";
-        // Cadena vacía (no NULL) cuando no hay cliente: '"ClientId"::text = ''' es false, así que
-        // las políticas deniegan. NULL haría que la comparación fuera NULL, que también deniega,
-        // pero la cadena vacía deja el estado explícito y legible al depurar con current_setting().
+        // Cadena vacía (no NULL) cuando no hay cliente: NULLIF(..., '') la convierte en NULL antes
+        // del cast a uuid, y '"ClientId" = NULL' da NULL — la fila no pasa el filtro. Un NULL directo
+        // denegaría igual, pero la cadena vacía deja el estado explícito y legible al depurar con
+        // current_setting().
         clientId.Value = context.ClientId?.ToString() ?? string.Empty;
         command.Parameters.Add(clientId);
 

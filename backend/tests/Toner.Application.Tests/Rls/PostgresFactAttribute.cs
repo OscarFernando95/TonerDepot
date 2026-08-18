@@ -18,16 +18,28 @@ public sealed class PostgresFactAttribute : FactAttribute
             using var connection = new NpgsqlConnection(ConnectionString);
             connection.Open();
 
+            using var roleCommand = connection.CreateCommand();
+            roleCommand.CommandText = "SELECT count(*) FROM pg_roles WHERE rolname = 'toner_app_staff'";
+            if (Convert.ToInt32(roleCommand.ExecuteScalar()) != 1)
+            {
+                return "Postgres responde pero falta el rol toner_app_staff, del que dependen las " +
+                       "políticas de staff. Corre docker/postgres/create-app-role.sh.";
+            }
+
             using var command = connection.CreateCommand();
+            // Las 4 de cliente (sargables, TO toner_app) + las 4 de staff (USING true, TO
+            // toner_app_staff) — ver la migración SplitRlsPoliciesByRole.
             command.CommandText =
                 "SELECT count(*) FROM pg_policies WHERE schemaname = 'public' " +
                 "AND policyname IN ('client_locations_client_isolation', 'contracts_client_isolation', " +
-                "'service_tickets_client_isolation')";
+                "'service_tickets_client_isolation', 'assets_client_isolation', " +
+                "'client_locations_staff_access', 'contracts_staff_access', " +
+                "'service_tickets_staff_access', 'assets_staff_access')";
 
             var policies = Convert.ToInt32(command.ExecuteScalar());
-            return policies == 3
+            return policies == 8
                 ? null
-                : $"Postgres responde pero faltan políticas RLS (encontradas {policies}/3). " +
+                : $"Postgres responde pero faltan políticas RLS (encontradas {policies}/8). " +
                   "Corre 'dotnet ef database update' con MigrationsConnection.";
         }
         catch (Exception ex)

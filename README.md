@@ -69,7 +69,9 @@ Definidas en `backend/src/Toner.Api/appsettings.Development.json`, apuntan al Po
 
 `toner_app` no puede hacer DDL sobre las tablas de negocio ni desactivar las políticas de Row Level Security; solo tiene `CREATE` dentro del esquema `hangfire`, para que Hangfire mantenga su propia cola de jobs. En producción, `MigrationsConnection` idealmente **no se despliega junto a la app** — se usa solo desde el pipeline de despliegue, para que un compromiso del proceso no pueda alterar el esquema.
 
-El rol `toner_app` se crea fuera de las migraciones (su contraseña no debe versionarse):
+Hay un **tercer rol, `toner_app_staff`**, que no aparece en la tabla porque **nadie se conecta como él**: es `NOLOGIN`. `toner_app` es miembro suyo y cambia a él con un `SET ROLE` cuando el contexto de la request es staff (ver *Row Level Security*). No tiene `BYPASSRLS`: su acceso amplio se expresa como una política permisiva explícita por tabla, auditable en `pg_policies`.
+
+Los roles se crean fuera de las migraciones (sus contraseñas no deben versionarse):
 
 ```bash
 # Clon nuevo: se crea solo al inicializar el contenedor (docker/postgres/initdb.d/)
@@ -88,24 +90,63 @@ Ambas cadenas incluyen `Ssl Mode=Require`; el Postgres de `docker-compose.yml` c
 Postgres aplica aislamiento por cliente como **segunda capa**, además del filtrado por cliente/técnico que ya hace la capa de aplicación en C# (`RequestingUser` + los `Where` de cada servicio). El filtrado de C# sigue siendo la primera línea y no se eliminó: RLS existe para que un `Where` olvidado en un endpoint futuro no se convierta en una fuga entre clientes.
 
 - **Tablas con políticas:** `ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` (todas con `FORCE ROW LEVEL SECURITY`). Son exactamente las cuatro que el rol `Cliente` puede alcanzar desde algún endpoint. En `Assets`, un `CurrentClientLocationId` nulo (activo en bodega) no pertenece a ningún cliente y la política lo deniega.
-- **Alcance:** solo el borde `Cliente`. `Administrador`, `Coordinador` y `Tecnico` son confiables a nivel de BD (`app.is_staff = 'on'`) porque ven datos de varios clientes por diseño; su filtrado fino vive en C#.
+- **Alcance:** solo el borde `Cliente`. `Administrador`, `Coordinador` y `Tecnico` son confiables a nivel de BD porque ven datos de varios clientes por diseño; su filtrado fino vive en C#.
 - **`Users` queda deliberadamente fuera de RLS**, no por olvido: el login consulta esa tabla *antes* de que exista un usuario autenticado, así que una política fail-closed impediría iniciar sesión. Su protección sigue dependiendo de la capa de aplicación.
-- **Contexto:** `TenantContextMiddleware` establece el contexto por request y `TenantContextInterceptor` lo propaga a Postgres como variables de sesión (`app.is_staff`, `app.current_client_id`). Fuera de HTTP (`DataSeeder`, jobs de Hangfire, `TonerExceptionLogger`) se establece `TenantContext.Staff` de forma explícita. Si no hay contexto determinable, el interceptor **lanza** en vez de dejar la sesión sin setear — un `SELECT` sin contexto devolvería 0 filas, indistinguible de "no hay datos".
+- **Contexto:** `TenantContextMiddleware` establece el contexto por request y `TenantContextInterceptor` lo propaga a Postgres. Fuera de HTTP (`DataSeeder`, jobs de Hangfire, `TonerExceptionLogger`) se establece `TenantContext.Staff` de forma explícita. Si no hay contexto determinable, el interceptor **lanza** en vez de dejar la sesión sin setear — un `SELECT` sin contexto devolvería 0 filas, indistinguible de "no hay datos".
+
+### Dos políticas por tabla, una por rol
+
+Cada tabla tiene **dos** políticas y Postgres aplica solo la del rol activo:
+
+| Rol activo | Política | Predicado |
+|---|---|---|
+| `toner_app` (cliente) | `<tabla>_client_isolation` | `"ClientId" = current_setting('app.current_client_id')` (o el `EXISTS` equivalente) |
+| `toner_app_staff` | `<tabla>_staff_access` | `USING (true)` |
+
+El interceptor cambia de rol con `set_config('role', …)` — equivalente a `SET ROLE`, pero parametrizable, así que no hay una sola línea de SQL concatenado. Para contexto de cliente emite `'none'` (equivalente a `RESET ROLE`), explícitamente, sin depender solo de que el pool resetee la sesión.
+
+**Por qué está partido así y no con un `OR` dentro de un único predicado** (que es como estaba): mientras el bypass vivía en el predicado (`app.is_staff = 'on' OR "ClientId" = …`), Postgres **no podía usar el índice de `ClientId`** — un `OR` contra una función `STABLE` no se pliega al planificar — y toda consulta de un Cliente hacía `Seq Scan`. Separando por rol, el planner descarta la política que no aplica y al Cliente le queda un predicado sargable: medido con `EXPLAIN ANALYZE`, `Seq Scan` (coste `0.00..352.06`, 8001 filas descartadas) → `Index Scan` (coste `0.29..8.31`).
+
+> `app.is_staff` **ya no existe**: ninguna política la lee y el interceptor dejó de setearla. Si alguien la reintrodujera en un predicado, revertiría la mejora de plan sin romper ningún test funcional — por eso hay un test dedicado (`AppIsStaff_YaNoOtorgaAcceso_ElBypassEsElRol`) que la fija como inerte.
+
+### Escalada aceptada: `toner_app` puede volverse staff
+
+`toner_app` es miembro de `toner_app_staff`, así que **cualquiera que logre ejecutar SQL arbitrario como la aplicación puede hacer `SET ROLE toner_app_staff` y ver todos los clientes.** Es una propiedad conocida y aceptada, no un descuido:
+
+- **No es peor que antes.** Con el diseño anterior, ese mismo atacante ejecutaba `SELECT set_config('app.is_staff','on',false)` y obtenía exactamente lo mismo. La vía cambió; la superficie no.
+- **`NOINHERIT` en `toner_app` hace que la escalada sea siempre un acto explícito**, nunca pasiva: sin `SET ROLE`, `toner_app` sigue viendo solo las filas de su cliente (verificado en los tests de RLS).
+- **Cerrarla de verdad** exigiría dos roles de *login* con contraseñas distintas y dos pools de conexión. Se evaluó y se descartó por ahora: con la conexión ya retenida por request, dos pools obligarían a partir el techo de concurrencia entre roles. Es el camino de refuerzo si algún día hace falta — las políticas no cambiarían, solo cómo se elige el rol.
 
 ### ⚠️ RLS y migraciones
 
-`ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Cualquier migración futura con `UPDATE`/`DELETE`/`SELECT` sobre esas tablas debe abrir con:
+`ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Y como ahora están **restringidas por rol** (`TO toner_app` / `TO toner_app_staff`), un owner que no sea miembro de `toner_app_staff` no coincide con **ninguna** política: su DML afectaría **0 filas en silencio**, sin lanzar error.
 
-```csharp
-migrationBuilder.Sql(@"
-    SET LOCAL app.is_staff = 'on';
-    UPDATE ""Contracts"" SET ...;
-");
+Eso lo resuelve `create-app-role.sh`, que concede la membresía al owner que corre el script:
+
+```sql
+DO $$ BEGIN EXECUTE format('GRANT toner_app_staff TO %I', current_user); END $$;
 ```
 
-Sin eso, el DML afecta **0 filas en silencio** (no lanza error). `SET LOCAL` funciona ahí porque las migraciones de EF Core sí corren dentro de una transacción explícita.
+Se concede sobre `current_user` y no sobre un nombre fijo para no versionar el nombre del rol owner, que cambia entre entornos. La membresía debe ser **heredada** (`INHERIT`, el default): es el criterio con el que Postgres empareja las políticas `TO <rol>`.
 
-> Nota: en el `docker-compose` de desarrollo el rol owner (`toner`) es además *superusuario*, y los superusuarios bypasean RLS incluso con `FORCE`. Es decir, este modo de fallo **no se reproduce en local** pero sí en un entorno donde el owner no sea superusuario. Escribe el `SET LOCAL` igual.
+**Consecuencia práctica: ya no hace falta el `SET LOCAL app.is_staff = 'on'`** que pedía la versión anterior de esta sección — esa variable no la lee ninguna política. Una migración con DML sobre esas tablas se escribe sin preámbulo:
+
+```csharp
+migrationBuilder.Sql(@"UPDATE ""Contracts"" SET ...;");
+```
+
+> ⚠️ **Esto no se puede detectar en desarrollo.** En el `docker-compose` el owner (`toner`) es *superusuario* y bypasea RLS siempre, así que un olvido de la membresía **pasa todos los tests en local y rompe en producción**, en silencio. Por eso la migración `SplitRlsPoliciesByRole` incluye una aserción que falla ruidosamente si el rol de migraciones no es superusuario ni hereda de `toner_app_staff` (`pg_has_role(current_user, 'toner_app_staff', 'usage')`). Verificado contra un owner no-superusuario simulado: sin membresía `UPDATE 0` / `DELETE 0`; con membresía `UPDATE 4000`.
+
+### Rollout de un cambio de políticas RLS con tráfico real
+
+El cambio de políticas de este proyecto se aplicó en **una sola ventana coordinada**, válido porque no hay usuarios reales todavía. Un cambio equivalente sobre una base con tráfico **no es compatible hacia atrás en ninguna de las dos direcciones**: código nuevo + políticas viejas deja a staff sin filas, y código viejo + políticas nuevas también. El patrón a seguir el día que esto se despliegue en producción es en cuatro pasos:
+
+1. **Crear el rol y sus `GRANT`** (`create-app-role.sh`), sin tocar políticas. La app en curso no se ve afectada.
+2. **Desplegar el código que hace `SET ROLE` pero que sigue seteando la variable vieja.** Funciona con las políticas antiguas, porque el `OR` todavía las satisface.
+3. **Aplicar la migración de políticas.** Staff ya pasa por su política de rol; los clientes, por la suya.
+4. **Quitar del interceptor el `set_config` de la variable vieja**, ya inerte.
+
+Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, que solo sirve si el código vuelve a setear `app.is_staff`. Los dos van juntos.
 
 ## Hardening de red (headers, hosts)
 

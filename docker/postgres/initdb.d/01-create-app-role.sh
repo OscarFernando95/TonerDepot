@@ -15,6 +15,21 @@ CREATE ROLE toner_app LOGIN
 
 ALTER ROLE toner_app WITH PASSWORD :'app_password';
 
+-- Rol de staff: sin login y sin BYPASSRLS; su acceso amplio viene de una política permisiva
+-- explícita por tabla, no de un atributo de rol. Ver create-app-role.sh para el detalle completo.
+CREATE ROLE toner_app_staff NOLOGIN
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
+
+-- toner_app es NOINHERIT: solo puede tomar estos privilegios con un SET ROLE explícito.
+GRANT toner_app_staff TO toner_app;
+
+-- El owner hereda (INHERIT) para poder pasar FORCE ROW LEVEL SECURITY en migraciones con DML.
+DO $$
+BEGIN
+  EXECUTE format('GRANT toner_app_staff TO %I', current_user);
+END
+$$;
+
 -- GRANT ... ON DATABASE no acepta CURRENT_CATALOG ni parámetros: hay que construirlo con format()
 -- sobre current_database() e identificador citado.
 DO $$
@@ -24,4 +39,4 @@ END
 $$;
 SQL
 
-echo "[initdb] Rol toner_app creado. Los GRANT y las políticas RLS los aplica la migración AddRowLevelSecurity."
+echo "[initdb] Roles toner_app y toner_app_staff creados. Los GRANT y las políticas RLS los aplica la migración AddRowLevelSecurity."

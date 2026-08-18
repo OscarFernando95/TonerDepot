@@ -16,6 +16,9 @@ public class RowLevelSecurityTests
 
     public RowLevelSecurityTests(RlsFixture fixture) => _fixture = fixture;
 
+    // Réplica exacta de lo que hace TenantContextInterceptor en producción: el bypass de staff ya no
+    // es una variable de sesión dentro del predicado, sino QUÉ ROL está activo (CODE_QUALITY_AUDIT.md
+    // #2). set_config('role', ...) equivale a SET ROLE, y 'none' a RESET ROLE.
     private static async Task<NpgsqlConnection> OpenAsAsync(bool isStaff, Guid? clientId)
     {
         var connection = new NpgsqlConnection(PostgresFactAttribute.ConnectionString);
@@ -23,9 +26,9 @@ public class RowLevelSecurityTests
 
         await using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT set_config('app.is_staff', @is_staff, false), " +
+            "SELECT set_config('role', @role, false), " +
             "       set_config('app.current_client_id', @client_id, false)";
-        command.Parameters.AddWithValue("is_staff", isStaff ? "on" : "off");
+        command.Parameters.AddWithValue("role", isStaff ? "toner_app_staff" : "none");
         command.Parameters.AddWithValue("client_id", clientId?.ToString() ?? string.Empty);
         await command.ExecuteNonQueryAsync();
 
@@ -215,5 +218,43 @@ public class RowLevelSecurityTests
             var ex = await Assert.ThrowsAsync<PostgresException>(() => readLogs.ExecuteScalarAsync());
             Assert.Equal("42501", ex.SqlState);
         }
+    }
+
+    // CODE_QUALITY_AUDIT.md #2: app.is_staff era la llave del bypass y dejó de serlo — ahora el
+    // bypass es el ROL activo. Este test fija esa propiedad: si alguien reintrodujera un
+    // "OR current_setting('app.is_staff') = 'on'" en cualquier política (revirtiendo la mejora de
+    // plan sin que ningún otro test lo note), esto se pone rojo.
+    [PostgresFact]
+    public async Task AppIsStaff_YaNoOtorgaAcceso_ElBypassEsElRol()
+    {
+        await _fixture.EnsureSeededAsync();
+
+        await using var connection = new NpgsqlConnection(PostgresFactAttribute.ConnectionString);
+        await connection.OpenAsync();
+
+        await using (var poison = connection.CreateCommand())
+        {
+            // Sin SET ROLE y sin cliente, pero con la variable vieja en 'on': antes esto daba acceso
+            // total a las cuatro tablas.
+            poison.CommandText =
+                "SELECT set_config('role', 'none', false), " +
+                "       set_config('app.is_staff', 'on', false), " +
+                "       set_config('app.current_client_id', '', false)";
+            await poison.ExecuteNonQueryAsync();
+        }
+
+        foreach (var table in new[] { "ClientLocations", "Contracts", "ServiceTickets", "Assets" })
+        {
+            Assert.Equal(0, await CountAsync(connection, table));
+        }
+
+        // Y el rol sí abre la puerta, para que el test no pueda pasar por un fallo genérico de acceso.
+        await using (var asStaff = connection.CreateCommand())
+        {
+            asStaff.CommandText = "SELECT set_config('role', 'toner_app_staff', false)";
+            await asStaff.ExecuteNonQueryAsync();
+        }
+
+        Assert.True(await CountAsync(connection, "ClientLocations") > 0);
     }
 }
