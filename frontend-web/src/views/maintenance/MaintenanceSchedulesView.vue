@@ -5,6 +5,7 @@ import * as schedulesApi from '../../api/maintenanceSchedules'
 import * as contractsApi from '../../api/contracts'
 import { useAuthStore } from '../../stores/auth'
 import { RoleNames, type ContractDto, type MaintenanceScheduleDto } from '../../api/types'
+import { formatDateLocal, formatDateUTC } from '../../utils/date'
 
 const auth = useAuthStore()
 const canEvaluateNow = auth.hasRole(RoleNames.Administrador)
@@ -40,8 +41,8 @@ const clientOptions = computed(() => {
 const contractLabelById = computed(() => {
   const map = new Map<string, string>()
   for (const c of contracts.value) {
-    const start = new Date(c.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
-    const end = c.endDate ? new Date(c.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : 'indefinida'
+    const start = formatDateUTC(c.startDate)
+    const end = c.endDate ? formatDateUTC(c.endDate) : 'indefinida'
     map.set(c.id, `${c.clientName} (${start} – ${end})`)
   }
   return map
@@ -75,10 +76,12 @@ interface ClientGroup {
   clientId: string
   clientName: string
   contractGroups: ContractGroup[]
+  scheduleCount: number
 }
 interface CityGroup {
   city: string
   clientGroups: ClientGroup[]
+  scheduleCount: number
 }
 
 const groupedByCity = computed<CityGroup[]>(() => {
@@ -102,16 +105,24 @@ const groupedByCity = computed<CityGroup[]>(() => {
   }
 
   return [...byCity.entries()]
-    .map(([city, byClient]) => ({
-      city,
-      clientGroups: [...byClient.entries()]
-        .map(([clientId, byContract]) => ({
-          clientId,
-          clientName: clientNames.get(clientId) ?? clientId,
-          contractGroups: [...byContract.values()].sort((a, b) => a.contractLabel.localeCompare(b.contractLabel))
-        }))
+    .map(([city, byClient]) => {
+      const clientGroups = [...byClient.entries()]
+        .map(([clientId, byContract]) => {
+          const contractGroups = [...byContract.values()].sort((a, b) => a.contractLabel.localeCompare(b.contractLabel))
+          return {
+            clientId,
+            clientName: clientNames.get(clientId) ?? clientId,
+            contractGroups,
+            scheduleCount: contractGroups.reduce((n, c) => n + c.schedules.length, 0)
+          }
+        })
         .sort((a, b) => a.clientName.localeCompare(b.clientName))
-    }))
+      return {
+        city,
+        clientGroups,
+        scheduleCount: clientGroups.reduce((n, g) => n + g.scheduleCount, 0)
+      }
+    })
     .sort((a, b) => a.city.localeCompare(b.city))
 })
 
@@ -166,7 +177,7 @@ function rowUrgencyClass({ row }: { row: MaintenanceScheduleDto }) {
 
 function counterDetail(at: string | null, counter: number | null | undefined): string {
   if (!at) return '—'
-  return `${new Date(at).toLocaleDateString()} / ${counter ?? '—'}`
+  return `${formatDateLocal(at)} / ${counter ?? '—'}`
 }
 
 async function loadData() {
@@ -297,7 +308,7 @@ onMounted(loadData)
               <div>Insumos: {{ counterDetail(row.lastConsumablesChangeAt, row.lastConsumablesChangeCounter) }}</div>
             </template>
             <div class="maintenance-cell">
-              <span>{{ new Date(row.lastMaintenanceAt).toLocaleDateString() }}</span>
+              <span>{{ formatDateLocal(row.lastMaintenanceAt) }}</span>
               <el-tag v-for="code in row.lastMaintenanceCodes" :key="code" size="small">{{ code }}</el-tag>
             </div>
           </el-tooltip>
@@ -313,7 +324,7 @@ onMounted(loadData)
               <div>Insumos: contador {{ row.nextConsumablesDueCounter }}</div>
             </template>
             <div class="maintenance-cell">
-              <span>{{ row.nextMaintenanceAt ? new Date(row.nextMaintenanceAt).toLocaleDateString() : 'Por contador' }} / {{ row.nextMaintenanceCounter }}</span>
+              <span>{{ row.nextMaintenanceAt ? formatDateLocal(row.nextMaintenanceAt) : 'Por contador' }} / {{ row.nextMaintenanceCounter }}</span>
               <el-tag v-for="code in row.nextMaintenanceCodes" :key="code" size="small" type="warning">{{ code }}</el-tag>
             </div>
           </el-tooltip>
@@ -343,7 +354,7 @@ onMounted(loadData)
     <el-collapse v-else v-model="openGroups" v-loading="loading">
       <el-collapse-item v-for="cityGroup in groupedByCity" :key="cityGroup.city" :name="cityGroup.city">
         <template #title>
-          {{ cityGroup.city }} ({{ cityGroup.clientGroups.reduce((n, g) => n + g.contractGroups.reduce((m, c) => m + c.schedules.length, 0), 0) }})
+          {{ cityGroup.city }} ({{ cityGroup.scheduleCount }})
         </template>
         <el-collapse v-model="openGroups" class="nested-collapse">
           <el-collapse-item
@@ -352,7 +363,7 @@ onMounted(loadData)
             :name="`${cityGroup.city}::${clientGroup.clientId}`"
           >
             <template #title>
-              {{ clientGroup.clientName }} ({{ clientGroup.contractGroups.reduce((n, c) => n + c.schedules.length, 0) }})
+              {{ clientGroup.clientName }} ({{ clientGroup.scheduleCount }})
             </template>
             <el-collapse v-model="openGroups" class="nested-collapse">
               <el-collapse-item
@@ -380,7 +391,7 @@ onMounted(loadData)
                           <div>Insumos: {{ counterDetail(row.lastConsumablesChangeAt, row.lastConsumablesChangeCounter) }}</div>
                         </template>
                         <div class="maintenance-cell">
-                          <span>{{ new Date(row.lastMaintenanceAt).toLocaleDateString() }}</span>
+                          <span>{{ formatDateLocal(row.lastMaintenanceAt) }}</span>
                           <el-tag v-for="code in row.lastMaintenanceCodes" :key="code" size="small">{{ code }}</el-tag>
                         </div>
                       </el-tooltip>
@@ -396,7 +407,7 @@ onMounted(loadData)
                           <div>Insumos: contador {{ row.nextConsumablesDueCounter }}</div>
                         </template>
                         <div class="maintenance-cell">
-                          <span>{{ row.nextMaintenanceAt ? new Date(row.nextMaintenanceAt).toLocaleDateString() : 'Por contador' }} / {{ row.nextMaintenanceCounter }}</span>
+                          <span>{{ row.nextMaintenanceAt ? formatDateLocal(row.nextMaintenanceAt) : 'Por contador' }} / {{ row.nextMaintenanceCounter }}</span>
                           <el-tag v-for="code in row.nextMaintenanceCodes" :key="code" size="small" type="warning">{{ code }}</el-tag>
                         </div>
                       </el-tooltip>

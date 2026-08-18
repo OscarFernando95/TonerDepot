@@ -3,7 +3,8 @@ import router from '../router'
 import { useAuthStore } from '../stores/auth'
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL
+  baseURL: import.meta.env.VITE_API_URL,
+  timeout: 15000
 })
 
 http.interceptors.request.use((config) => {

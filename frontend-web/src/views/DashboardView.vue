@@ -26,7 +26,8 @@ async function loadSummary() {
   try {
     const res = await dashboardApi.getDashboardSummary(periodDays.value)
     summary.value = res.data
-  } catch {
+  } catch (err) {
+    console.error('No se pudo cargar el resumen del dashboard', err)
     ElMessage.error('No se pudieron cargar los indicadores')
   } finally {
     loading.value = false

@@ -16,6 +16,7 @@ import {
   type AssetTypeName,
   type ContractDto
 } from '../../api/types'
+import { formatDateUTC } from '../../utils/date'
 
 const router = useRouter()
 
@@ -164,8 +165,8 @@ const emptyAssetsText = computed(() =>
 const contractLabelById = computed(() => {
   const map = new Map<string, string>()
   for (const c of contracts.value) {
-    const start = new Date(c.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' })
-    const end = c.endDate ? new Date(c.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : 'indefinida'
+    const start = formatDateUTC(c.startDate)
+    const end = c.endDate ? formatDateUTC(c.endDate) : 'indefinida'
     map.set(c.id, `${c.clientName} (${start} – ${end})`)
   }
   return map
@@ -185,10 +186,12 @@ interface ClientGroup {
   clientKey: string
   clientLabel: string
   contractGroups: ContractGroup[]
+  assetCount: number
 }
 interface CityGroup {
   city: string
   clientGroups: ClientGroup[]
+  assetCount: number
 }
 
 const groupedByCity = computed<CityGroup[]>(() => {
@@ -217,16 +220,24 @@ const groupedByCity = computed<CityGroup[]>(() => {
   }
 
   return [...byCity.entries()]
-    .map(([city, byClient]) => ({
-      city,
-      clientGroups: [...byClient.entries()]
-        .map(([clientKey, byContract]) => ({
-          clientKey,
-          clientLabel: clientLabels.get(clientKey) ?? NO_CLIENT,
-          contractGroups: [...byContract.values()].sort((a, b) => a.contractLabel.localeCompare(b.contractLabel))
-        }))
+    .map(([city, byClient]) => {
+      const clientGroups = [...byClient.entries()]
+        .map(([clientKey, byContract]) => {
+          const contractGroups = [...byContract.values()].sort((a, b) => a.contractLabel.localeCompare(b.contractLabel))
+          return {
+            clientKey,
+            clientLabel: clientLabels.get(clientKey) ?? NO_CLIENT,
+            contractGroups,
+            assetCount: contractGroups.reduce((n, c) => n + c.assets.length, 0)
+          }
+        })
         .sort((a, b) => a.clientLabel.localeCompare(b.clientLabel))
-    }))
+      return {
+        city,
+        clientGroups,
+        assetCount: clientGroups.reduce((n, g) => n + g.assetCount, 0)
+      }
+    })
     .sort((a, b) => a.city.localeCompare(b.city))
 })
 
@@ -377,7 +388,7 @@ onMounted(loadData)
     <el-collapse v-else v-model="openGroups" v-loading="loading">
       <el-collapse-item v-for="cityGroup in groupedByCity" :key="cityGroup.city" :name="cityGroup.city">
         <template #title>
-          {{ cityGroup.city }} ({{ cityGroup.clientGroups.reduce((n, g) => n + g.contractGroups.reduce((m, c) => m + c.assets.length, 0), 0) }})
+          {{ cityGroup.city }} ({{ cityGroup.assetCount }})
         </template>
         <el-collapse v-model="openGroups" class="nested-collapse">
           <el-collapse-item
@@ -386,7 +397,7 @@ onMounted(loadData)
             :name="`${cityGroup.city}::${clientGroup.clientKey}`"
           >
             <template #title>
-              {{ clientGroup.clientLabel }} ({{ clientGroup.contractGroups.reduce((n, c) => n + c.assets.length, 0) }})
+              {{ clientGroup.clientLabel }} ({{ clientGroup.assetCount }})
             </template>
             <el-collapse v-model="openGroups" class="nested-collapse">
               <el-collapse-item

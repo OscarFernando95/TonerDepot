@@ -7,6 +7,7 @@ import * as contractsApi from '../../api/contracts'
 import * as clientsApi from '../../api/clients'
 import CreateClientDialog from '../../components/CreateClientDialog.vue'
 import type { ClientDto, ContractDto } from '../../api/types'
+import { formatDateUTC } from '../../utils/date'
 
 const router = useRouter()
 
@@ -145,8 +146,8 @@ onMounted(loadData)
       <el-table-column prop="clientName" label="Cliente" sortable />
       <el-table-column prop="startDate" label="Vigencia" width="220" sortable>
         <template #default="{ row }">
-          {{ new Date(row.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }} —
-          {{ row.endDate ? new Date(row.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : 'indefinida' }}
+          {{ formatDateUTC(row.startDate) }} —
+          {{ row.endDate ? formatDateUTC(row.endDate) : 'indefinida' }}
         </template>
       </el-table-column>
       <el-table-column prop="status" label="Estado" width="120" sortable>

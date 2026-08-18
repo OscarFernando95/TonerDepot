@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import * as contractsApi from '../../api/contracts'
 import type { ContractDto } from '../../api/types'
+import { formatDateUTC } from '../../utils/date'
 
 const contracts = ref<ContractDto[]>([])
 const loading = ref(false)
@@ -40,8 +41,8 @@ onMounted(loadContracts)
     <el-table :data="contracts" v-loading="loading" stripe>
       <el-table-column label="Vigencia" width="220">
         <template #default="{ row }">
-          {{ new Date(row.startDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) }} —
-          {{ row.endDate ? new Date(row.endDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : 'indefinida' }}
+          {{ formatDateUTC(row.startDate) }} —
+          {{ row.endDate ? formatDateUTC(row.endDate) : 'indefinida' }}
         </template>
       </el-table-column>
       <el-table-column label="Estado" width="120">
