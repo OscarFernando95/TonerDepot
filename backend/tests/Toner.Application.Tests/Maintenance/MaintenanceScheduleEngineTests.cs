@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Maintenance;
 using Toner.Application.Tests.TestSupport;
+using Toner.Domain.Entities;
 using Toner.Domain.Enums;
 
 namespace Toner.Application.Tests.Maintenance;
@@ -314,5 +315,112 @@ public class MaintenanceScheduleEngineTests
         await actDb.SaveChangesAsync();
 
         Assert.Equal(5000 + (60000 - 20000), schedule.NextConsumablesDueCounter);
+    }
+
+    // CODE_QUALITY_AUDIT.md hallazgo #6: EvaluateAllDueAsync reemplaza el loop de ~3 consultas por
+    // cronograma del job diario por un puñado de consultas en lote. Estos tests prueban que la
+    // decisión por cronograma sigue siendo independiente y correcta cuando se evalúan varios a la vez
+    // — no solo que el método compile.
+    [Fact]
+    public async Task EvaluateAllDueAsync_MultipleSchedules_EvaluatesEachIndependently()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+
+        var dueAsset = TestEntities.Asset(model, locationId: null);
+        var dueSchedule = TestEntities.MaintenanceSchedule(
+            dueAsset, contract,
+            nextGeneralDueAt: DateTime.UtcNow, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: FarCounter);
+
+        var farAsset = TestEntities.Asset(model, locationId: null);
+        var farSchedule = TestEntities.MaintenanceSchedule(
+            farAsset, contract,
+            nextGeneralDueAt: FarDate, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: FarCounter);
+
+        arrangeDb.AddRange(client, contract, brand, model, dueAsset, dueSchedule, farAsset, farSchedule);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var engine = new MaintenanceScheduleEngine(actDb);
+
+        var createdOrders = await engine.EvaluateAllDueAsync(DateTime.UtcNow);
+        await actDb.SaveChangesAsync();
+
+        var order = Assert.Single(createdOrders);
+        Assert.Equal(dueSchedule.Id, order.MaintenanceScheduleId);
+        Assert.True(order.IncludesGeneral);
+    }
+
+    [Fact]
+    public async Task EvaluateAllDueAsync_AlreadyHasOpenOrder_SkipsThatScheduleOnly()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+
+        var blockedAsset = TestEntities.Asset(model, locationId: null);
+        var blockedSchedule = TestEntities.MaintenanceSchedule(
+            blockedAsset, contract,
+            nextGeneralDueAt: DateTime.UtcNow, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: FarCounter);
+        var existingOrder = TestEntities.MaintenanceOrder(blockedSchedule, blockedAsset, MaintenanceOrderStatus.Asignada);
+
+        var freeAsset = TestEntities.Asset(model, locationId: null);
+        var freeSchedule = TestEntities.MaintenanceSchedule(
+            freeAsset, contract,
+            nextGeneralDueAt: DateTime.UtcNow, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: FarCounter);
+
+        arrangeDb.AddRange(client, contract, brand, model, blockedAsset, blockedSchedule, existingOrder, freeAsset, freeSchedule);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var engine = new MaintenanceScheduleEngine(actDb);
+
+        var createdOrders = await engine.EvaluateAllDueAsync(DateTime.UtcNow);
+
+        var order = Assert.Single(createdOrders);
+        Assert.Equal(freeSchedule.Id, order.MaintenanceScheduleId);
+    }
+
+    [Fact]
+    public async Task EvaluateAllDueAsync_UsesLastMeterReading_ForCounterBasedRule()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model, locationId: null);
+        var schedule = TestEntities.MaintenanceSchedule(
+            asset, contract,
+            nextGeneralDueAt: FarDate, nextGeneralDueCounter: 30000, // faltan 3000 desde el contador real (27000)
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: FarCounter);
+        var reading = new MeterReading { AssetId = asset.Id, ReadingDate = DateTime.UtcNow, CounterValue = 27000 };
+        arrangeDb.AddRange(client, contract, brand, model, asset, schedule, reading);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var engine = new MaintenanceScheduleEngine(actDb);
+
+        var createdOrders = await engine.EvaluateAllDueAsync(DateTime.UtcNow);
+
+        var order = Assert.Single(createdOrders);
+        Assert.True(order.IncludesGeneral);
     }
 }

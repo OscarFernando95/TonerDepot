@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Assets;
 using Toner.Application.Assets.Dtos;
+using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Contracts.Dtos;
@@ -100,11 +101,11 @@ public class ContractAssetService : IContractAssetService
         return dto;
     }
 
-    // Mismo patrón de dos pasos que AssetService.AttachLastMeterReadingsAsync (evita subconsultas
-    // correlacionadas para que InMemory/Npgsql se comporten igual en tests). El promedio de impresiones
-    // por mes no tiene un criterio previo en el sistema: se define acá como (última lectura - primera
-    // lectura) / meses transcurridos entre esas dos fechas — solo si hay 2+ lecturas que no sean del
-    // mismo instante; si no, se deja null y el frontend simplemente no muestra la celda.
+    // El promedio de impresiones por mes no tiene un criterio previo en el sistema: se define acá
+    // como (última lectura - primera lectura) / meses transcurridos entre esas dos fechas — solo si
+    // hay 2+ lecturas que no sean del mismo instante (elapsedDays > 0 ya cubre el caso de una sola
+    // lectura, donde primera y última son la misma fila); si no, se deja null y el frontend
+    // simplemente no muestra la celda.
     private async Task AttachAssetMetricsAsync(IReadOnlyList<ContractAssetDto> items, CancellationToken cancellationToken)
     {
         if (items.Count == 0)
@@ -119,31 +120,24 @@ public class ContractAssetService : IContractAssetService
             .Select(a => new { a.Id, a.Area })
             .ToDictionaryAsync(a => a.Id, a => a.Area, cancellationToken);
 
-        var readings = await _db.MeterReadings
-            .Where(m => assetIds.Contains(m.AssetId))
-            .Select(m => new { m.AssetId, m.ReadingDate, m.CounterValue })
-            .ToListAsync(cancellationToken);
-
-        var readingsByAsset = readings.GroupBy(r => r.AssetId).ToDictionary(g => g.Key, g => g.OrderBy(r => r.ReadingDate).ToList());
+        var (firstByAsset, lastByAsset) = await MeterReadingQueries.GetFirstAndLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
 
         foreach (var item in items)
         {
             item.Area = areasByAsset.GetValueOrDefault(item.AssetId);
 
-            if (!readingsByAsset.TryGetValue(item.AssetId, out var assetReadings) || assetReadings.Count == 0)
+            if (!lastByAsset.TryGetValue(item.AssetId, out var last))
             {
                 continue;
             }
 
-            item.LastMeterReading = assetReadings[^1].CounterValue;
+            item.LastMeterReading = last.CounterValue;
 
-            if (assetReadings.Count < 2)
+            if (!firstByAsset.TryGetValue(item.AssetId, out var first))
             {
                 continue;
             }
 
-            var first = assetReadings[0];
-            var last = assetReadings[^1];
             var elapsedDays = (last.ReadingDate - first.ReadingDate).TotalDays;
             if (elapsedDays <= 0)
             {

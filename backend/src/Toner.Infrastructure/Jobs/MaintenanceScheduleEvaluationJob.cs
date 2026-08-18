@@ -65,40 +65,31 @@ public class MaintenanceScheduleEvaluationJob
     private async Task<int> EvaluateSchedulesAsync(CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
-        var schedules = await _db.MaintenanceSchedules
-            .Where(s => s.IsActive)
-            .Select(s => s.AssetId)
-            .ToListAsync(cancellationToken);
 
-        var createdOrderIds = new List<Guid>();
+        // Un puñado de consultas para TODOS los cronogramas activos, en vez de ~3 por cronograma
+        // (CODE_QUALITY_AUDIT.md hallazgo #6) — ver MaintenanceScheduleEngine.EvaluateAllDueAsync.
+        var createdOrders = await _engine.EvaluateAllDueAsync(now, cancellationToken);
 
-        foreach (var assetId in schedules)
+        if (createdOrders.Count > 0)
         {
-            var lastReading = await _db.MeterReadings
-                .Where(m => m.AssetId == assetId)
-                .OrderByDescending(m => m.ReadingDate)
-                .Select(m => (long?)m.CounterValue)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            var order = await _engine.EvaluateAsync(assetId, lastReading ?? 0, now, cancellationToken);
-            if (order is not null)
-            {
-                await _db.SaveChangesAsync(cancellationToken);
-                createdOrderIds.Add(order.Id);
-            }
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
+        // Cuántos cronogramas activos se evaluaron, solo para el log — ya no hace falta traerlos aparte
+        // para el barrido en sí (EvaluateAllDueAsync ya los cargó internamente).
+        var scheduleCount = await _db.MaintenanceSchedules.CountAsync(s => s.IsActive, cancellationToken);
+
         // Mismo motor de asignación que ServiceTicket: por cobertura de ciudad + menor carga de trabajo.
-        foreach (var orderId in createdOrderIds)
+        foreach (var order in createdOrders)
         {
-            await _assignmentEngine.AssignMaintenanceOrderAsync(orderId, cancellationToken);
+            await _assignmentEngine.AssignMaintenanceOrderAsync(order.Id, cancellationToken);
         }
 
         _logger.LogInformation(
             "Evaluación de cronogramas de mantenimiento: {ScheduleCount} activos revisados, {OrderCount} órdenes generadas.",
-            schedules.Count,
-            createdOrderIds.Count);
+            scheduleCount,
+            createdOrders.Count);
 
-        return createdOrderIds.Count;
+        return createdOrders.Count;
     }
 }

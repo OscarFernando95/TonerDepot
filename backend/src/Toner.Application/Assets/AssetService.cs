@@ -92,10 +92,6 @@ public class AssetService : IAssetService
         return items;
     }
 
-    // Se resuelve en dos pasos (en vez de una subconsulta correlacionada dentro del Select principal)
-    // para que el comportamiento sea idéntico bajo Npgsql (producción) y el proveedor InMemory que usan
-    // los tests — una subconsulta OrderBy().FirstOrDefault() correlacionada no siempre traduce igual
-    // entre proveedores.
     private async Task AttachLastMeterReadingsAsync(IReadOnlyList<AssetDto> items, CancellationToken cancellationToken)
     {
         if (items.Count == 0)
@@ -104,14 +100,7 @@ public class AssetService : IAssetService
         }
 
         var assetIds = items.Select(i => i.Id).ToList();
-        var readings = await _db.MeterReadings
-            .Where(m => assetIds.Contains(m.AssetId))
-            .Select(m => new { m.AssetId, m.ReadingDate, m.CounterValue })
-            .ToListAsync(cancellationToken);
-
-        var lastByAsset = readings
-            .GroupBy(r => r.AssetId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReadingDate).First().CounterValue);
+        var lastByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
 
         foreach (var item in items)
         {
@@ -468,14 +457,7 @@ public class AssetService : IAssetService
         if (items.Count > 0)
         {
             var assetIds = items.Select(i => i.AssetId).ToList();
-            var readings = await _db.MeterReadings
-                .Where(m => assetIds.Contains(m.AssetId))
-                .Select(m => new { m.AssetId, m.ReadingDate, m.CounterValue })
-                .ToListAsync(cancellationToken);
-
-            var lastByAsset = readings
-                .GroupBy(r => r.AssetId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReadingDate).First().CounterValue);
+            var lastByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
 
             foreach (var item in items)
             {

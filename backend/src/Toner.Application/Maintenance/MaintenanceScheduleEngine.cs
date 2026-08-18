@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
 using Toner.Domain.Enums;
@@ -100,8 +101,68 @@ public class MaintenanceScheduleEngine : IMaintenanceScheduleEngine
             return null;
         }
 
-        var model = schedule.Asset.AssetModel;
+        var order = BuildOrderIfDue(schedule, schedule.Asset.AssetModel, currentCounter, asOf);
+        if (order is not null)
+        {
+            _db.MaintenanceOrders.Add(order);
+        }
 
+        return order;
+    }
+
+    public async Task<IReadOnlyList<MaintenanceOrder>> EvaluateAllDueAsync(
+        DateTime asOf,
+        CancellationToken cancellationToken = default)
+    {
+        // Un único query trae todos los cronogramas activos con su Asset+AssetModel — antes esto se
+        // repetía (Include incluido) una vez por activo dentro del loop del job.
+        var schedules = await _db.MaintenanceSchedules
+            .Include(s => s.Asset).ThenInclude(a => a.AssetModel)
+            .Where(s => s.IsActive)
+            .ToListAsync(cancellationToken);
+
+        if (schedules.Count == 0)
+        {
+            return Array.Empty<MaintenanceOrder>();
+        }
+
+        var scheduleIds = schedules.Select(s => s.Id).ToList();
+        var openScheduleIds = await _db.MaintenanceOrders
+            .Where(o => scheduleIds.Contains(o.MaintenanceScheduleId)
+                && o.Status != MaintenanceOrderStatus.Completada
+                && o.Status != MaintenanceOrderStatus.Cancelada)
+            .Select(o => o.MaintenanceScheduleId)
+            .ToListAsync(cancellationToken);
+        var openScheduleIdSet = openScheduleIds.ToHashSet();
+
+        var assetIds = schedules.Select(s => s.AssetId).ToList();
+        var lastReadingByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
+
+        var createdOrders = new List<MaintenanceOrder>();
+        foreach (var schedule in schedules)
+        {
+            if (openScheduleIdSet.Contains(schedule.Id))
+            {
+                continue;
+            }
+
+            var currentCounter = lastReadingByAsset.GetValueOrDefault(schedule.AssetId, 0L);
+            var order = BuildOrderIfDue(schedule, schedule.Asset.AssetModel, currentCounter, asOf);
+            if (order is not null)
+            {
+                _db.MaintenanceOrders.Add(order);
+                createdOrders.Add(order);
+            }
+        }
+
+        return createdOrders;
+    }
+
+    // Lógica de decisión pura (sin acceso a datos): la comparten EvaluateAsync (un activo, datos
+    // frescos) y EvaluateAllDueAsync (todos los activos, datos precargados en lote) — un solo lugar
+    // define cuándo corresponde generar una orden, sin importar el camino que llegó hasta acá.
+    private static MaintenanceOrder? BuildOrderIfDue(MaintenanceSchedule schedule, AssetModel model, long currentCounter, DateTime asOf)
+    {
         var generalDueSoon = (schedule.NextGeneralDueAt - asOf).TotalDays <= LeadDays
             || (schedule.NextGeneralDueCounter - currentCounter) <= LeadPrints;
         var unitsDueSoon = (schedule.NextUnitsDueAt - asOf).TotalDays <= LeadDays
@@ -111,7 +172,7 @@ public class MaintenanceScheduleEngine : IMaintenanceScheduleEngine
         var order = new MaintenanceOrder
         {
             MaintenanceScheduleId = schedule.Id,
-            AssetId = assetId,
+            AssetId = schedule.AssetId,
             Status = MaintenanceOrderStatus.Pendiente,
             ScheduledDate = asOf
         };
@@ -141,7 +202,6 @@ public class MaintenanceScheduleEngine : IMaintenanceScheduleEngine
             return null;
         }
 
-        _db.MaintenanceOrders.Add(order);
         return order;
     }
 

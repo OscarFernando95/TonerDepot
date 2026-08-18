@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Maintenance.Dtos;
@@ -118,14 +119,7 @@ public class MaintenanceScheduleService : IMaintenanceScheduleService
         }
 
         var assetIds = items.Select(i => i.AssetId).ToList();
-        var readings = await _db.MeterReadings
-            .Where(m => assetIds.Contains(m.AssetId))
-            .Select(m => new { m.AssetId, m.ReadingDate, m.CounterValue })
-            .ToListAsync(cancellationToken);
-
-        var lastByAsset = readings
-            .GroupBy(r => r.AssetId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.ReadingDate).First().CounterValue);
+        var lastByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
 
         foreach (var item in items)
         {

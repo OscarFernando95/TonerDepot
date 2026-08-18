@@ -28,6 +28,16 @@ public interface IMaintenanceScheduleEngine
         DateTime asOf,
         CancellationToken cancellationToken = default);
 
+    // Igual que EvaluateAsync, pero para TODOS los cronogramas activos a la vez — pensado para el
+    // barrido diario (MaintenanceScheduleEvaluationJob), que evaluado un activo a la vez hacía ~3
+    // consultas por cronograma (CODE_QUALITY_AUDIT.md hallazgo #6). Precarga cronogramas, órdenes
+    // abiertas y últimas lecturas en un puñado de consultas, y aplica la MISMA lógica de decisión que
+    // EvaluateAsync sobre esos datos ya en memoria — no hay una segunda implementación de la regla de
+    // negocio. Igual que el resto de la interfaz, no hace SaveChangesAsync.
+    Task<IReadOnlyList<MaintenanceOrder>> EvaluateAllDueAsync(
+        DateTime asOf,
+        CancellationToken cancellationToken = default);
+
     Task RecalculateAfterMaintenanceAsync(
         Guid scheduleId,
         long counterValue,
