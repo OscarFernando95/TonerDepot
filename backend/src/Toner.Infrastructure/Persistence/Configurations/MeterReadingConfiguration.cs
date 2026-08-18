@@ -11,6 +11,10 @@ public class MeterReadingConfiguration : IEntityTypeConfiguration<MeterReading>
         builder.ConfigureBaseEntity();
         builder.ToTable("MeterReadings");
 
+        // "Última lectura por activo" es la consulta más repetida del sistema (CODE_QUALITY_AUDIT.md
+        // hallazgo #3) — sin este compuesto, cada búsqueda hace index scan por AssetId + sort en memoria.
+        builder.HasIndex(m => new { m.AssetId, m.ReadingDate });
+
         builder.HasOne(m => m.Asset)
             .WithMany(a => a.MeterReadings)
             .HasForeignKey(m => m.AssetId)

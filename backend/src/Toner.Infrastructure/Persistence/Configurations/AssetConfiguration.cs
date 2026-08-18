@@ -18,6 +18,11 @@ public class AssetConfiguration : IEntityTypeConfiguration<Asset>
         builder.Property(a => a.LifecycleStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(a => a.Area).HasMaxLength(150);
 
+        // CODE_QUALITY_AUDIT.md hallazgo #11: filtrado por LifecycleStatus en 3 listados
+        // (AssetService.ListPendingInstallationsAsync, ListForMeterReadingAsync,
+        // MaintenanceScheduleService.BackfillMissingAsync) sin índice de soporte.
+        builder.HasIndex(a => a.LifecycleStatus);
+
         builder.HasOne(a => a.AssetModel)
             .WithMany(m => m.Assets)
             .HasForeignKey(a => a.AssetModelId)

@@ -17,6 +17,13 @@ public class ServiceTicketConfiguration : IEntityTypeConfiguration<ServiceTicket
         builder.Property(t => t.ExternalAssetBrand).HasMaxLength(100);
         builder.Property(t => t.ExternalAssetModel).HasMaxLength(150);
 
+        // CODE_QUALITY_AUDIT.md hallazgo #11: los listados ordenan por CreatedAt DESC sin índice de
+        // soporte; el dashboard filtra por Status y por ResolvedAt (este último acotado a las filas
+        // resueltas — la mayoría de las filas de un ticket viejo nunca tiene ResolvedAt).
+        builder.HasIndex(t => t.CreatedAt);
+        builder.HasIndex(t => t.Status);
+        builder.HasIndex(t => t.ResolvedAt).HasFilter("\"ResolvedAt\" IS NOT NULL");
+
         builder.HasOne(t => t.ClientLocation)
             .WithMany(l => l.ServiceTickets)
             .HasForeignKey(t => t.ClientLocationId)

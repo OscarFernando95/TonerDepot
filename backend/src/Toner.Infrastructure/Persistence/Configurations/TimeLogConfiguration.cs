@@ -17,6 +17,25 @@ public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
 
         builder.Property(l => l.Notes).HasMaxLength(1000);
 
+        // CODE_QUALITY_AUDIT.md hallazgo #11: el dashboard filtra por rango de StartTime; "TimeLog
+        // abierto" (TechnicianCheckInService, AssetService.ListPendingInstallationsAsync) busca por
+        // EndTime IS NULL, que a lo sumo tiene un puñado de filas a la vez — índices parciales
+        // diminutos en vez de escanear toda la tabla.
+        //
+        // TechnicianId se deja EXPLÍCITO (además del parcial de abajo) porque, a diferencia de
+        // AssetId, también se consulta SIN el filtro EndTime IS NULL
+        // (TechnicianService.ListTimeLogsAsync trae el historial completo del técnico): al agregar
+        // un índice explícito sobre esta columna, la convención de EF que generaba automáticamente
+        // el índice pleno de la FK deja de aplicarse, así que hay que pedirlo a mano o se perdería.
+        // El nombre va en el propio HasIndex(...) (no encadenado después con HasDatabaseName) porque
+        // EF resuelve HasIndex(mismaExpresión) contra el MISMO IndexBuilder si no hay nombre en la
+        // llamada — sin el nombre acá, la segunda llamada terminaría reconfigurando la primera en vez
+        // de crear un índice aparte.
+        builder.HasIndex(l => l.StartTime);
+        builder.HasIndex(l => l.TechnicianId);
+        builder.HasIndex(l => l.TechnicianId, "IX_TimeLogs_TechnicianId_Open").HasFilter("\"EndTime\" IS NULL");
+        builder.HasIndex(l => l.AssetId).HasFilter("\"EndTime\" IS NULL");
+
         builder.HasOne(l => l.ServiceTicket)
             .WithMany(t => t.TimeLogs)
             .HasForeignKey(l => l.ServiceTicketId)
