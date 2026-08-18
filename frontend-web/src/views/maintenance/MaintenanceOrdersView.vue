@@ -28,6 +28,8 @@ async function loadOrders() {
   try {
     const { data } = await ordersApi.listMaintenanceOrders()
     orders.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar las órdenes.')
   } finally {
     loading.value = false
   }

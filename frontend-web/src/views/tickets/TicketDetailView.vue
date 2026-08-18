@@ -49,6 +49,8 @@ async function loadAll() {
       history.value = results[1].data
       technicians.value = results[2].data
     }
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el ticket.')
   } finally {
     loading.value = false
   }

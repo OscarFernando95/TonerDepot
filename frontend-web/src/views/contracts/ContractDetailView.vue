@@ -61,6 +61,8 @@ async function loadAll() {
     // Acotado al cliente del contrato: el backend exige que la sede pertenezca a ese cliente.
     const { data: locationsData } = await clientLocationsApi.listClientLocations(contract.value.clientId)
     locations.value = locationsData
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el contrato.')
   } finally {
     loading.value = false
   }

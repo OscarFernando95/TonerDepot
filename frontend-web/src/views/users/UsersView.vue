@@ -57,6 +57,8 @@ async function loadData() {
     users.value = usersRes.data
     clients.value = clientsRes.data
     cities.value = citiesRes.data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los usuarios.')
   } finally {
     loading.value = false
   }

@@ -58,6 +58,8 @@ async function loadData() {
     const [contractsRes, clientsRes] = await Promise.all([contractsApi.listContracts(), clientsApi.listClients()])
     contracts.value = contractsRes.data
     clients.value = clientsRes.data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los contratos.')
   } finally {
     loading.value = false
   }

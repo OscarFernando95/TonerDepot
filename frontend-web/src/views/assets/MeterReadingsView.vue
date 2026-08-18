@@ -86,6 +86,8 @@ async function loadData() {
       openGroups.value = []
       groupsInitialized.value = true
     }
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los activos.')
   } finally {
     loading.value = false
   }

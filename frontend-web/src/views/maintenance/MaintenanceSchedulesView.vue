@@ -194,6 +194,8 @@ async function loadData() {
       openGroups.value = []
       groupsInitialized.value = true
     }
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los cronogramas.')
   } finally {
     loading.value = false
   }
@@ -221,6 +223,8 @@ async function evaluateNow() {
         : 'Ningún cronograma está por vencer todavía.'
     )
     await loadData()
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo evaluar los cronogramas.')
   } finally {
     evaluating.value = false
   }
@@ -234,6 +238,8 @@ async function backfill() {
       data.created > 0 ? `Se crearon ${data.created} cronograma(s) nuevo(s).` : 'No había activos instalados sin cronograma.'
     )
     await loadData()
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo completar el backfill de cronogramas.')
   } finally {
     backfilling.value = false
   }

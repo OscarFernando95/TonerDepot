@@ -97,6 +97,8 @@ async function loadAll() {
     history.value = historyRes.data
     meterReadings.value = readingsRes.data
     await syncInfoForm()
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el activo.')
   } finally {
     loading.value = false
   }

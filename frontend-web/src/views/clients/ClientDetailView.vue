@@ -58,6 +58,8 @@ async function loadAll() {
     locations.value = locationsRes.data
     cities.value = citiesRes.data
     syncClientForm()
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el cliente.')
   } finally {
     loading.value = false
   }

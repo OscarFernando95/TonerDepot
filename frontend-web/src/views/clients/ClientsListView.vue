@@ -31,6 +31,8 @@ async function loadClients() {
   try {
     const { data } = await clientsApi.listClients()
     clients.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los clientes.')
   } finally {
     loading.value = false
   }

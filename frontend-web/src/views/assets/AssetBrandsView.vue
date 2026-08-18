@@ -19,6 +19,8 @@ async function loadBrands() {
   try {
     const { data } = await assetBrandsApi.listAssetBrands()
     brands.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar las marcas.')
   } finally {
     loading.value = false
   }

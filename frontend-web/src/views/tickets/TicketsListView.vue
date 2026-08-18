@@ -57,6 +57,8 @@ async function loadTickets() {
   try {
     const { data } = await ticketsApi.listTickets()
     tickets.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los tickets.')
   } finally {
     loading.value = false
   }

@@ -24,6 +24,8 @@ async function loadData() {
     const [techRes, citiesRes] = await Promise.all([techniciansApi.listTechnicians(), citiesApi.listCities()])
     technicians.value = techRes.data
     cities.value = citiesRes.data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los técnicos.')
   } finally {
     loading.value = false
   }
@@ -50,6 +52,8 @@ async function openCoverageDialog(technician: TechnicianDto) {
   try {
     const { data } = await techniciansApi.listTechnicianCoverage(technician.id)
     coverage.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar la cobertura.')
   } finally {
     loadingCoverage.value = false
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import * as contractsApi from '../../api/contracts'
 import type { ContractDto } from '../../api/types'
 import { formatDateUTC } from '../../utils/date'
@@ -25,6 +26,8 @@ async function loadContracts() {
   try {
     const { data } = await contractsApi.listContracts()
     contracts.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar tus contratos.')
   } finally {
     loading.value = false
   }

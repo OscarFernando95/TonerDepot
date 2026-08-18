@@ -123,6 +123,8 @@ async function loadAll() {
     coverageOrders.value = coverageOrdersRes.data
     pendingInstallations.value = installationsRes.data
     coverageSchedules.value = coverageSchedulesRes.data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar tu trabajo.')
   } finally {
     loading.value = false
   }

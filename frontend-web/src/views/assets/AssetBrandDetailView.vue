@@ -52,6 +52,8 @@ async function loadAll() {
         }
       ])
     )
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar la marca.')
   } finally {
     loading.value = false
   }

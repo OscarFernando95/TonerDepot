@@ -43,6 +43,8 @@ async function loadAll() {
     order.value = orderRes.data
     history.value = historyRes.data
     technicians.value = techRes.data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar la orden.')
   } finally {
     loading.value = false
   }

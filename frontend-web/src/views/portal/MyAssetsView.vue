@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import * as assetsApi from '../../api/assets'
 import { AssetLifecycleStatusLabels, type AssetDto } from '../../api/types'
 
@@ -24,6 +25,8 @@ async function loadAssets() {
   try {
     const { data } = await assetsApi.listAssets()
     assets.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar tus activos.')
   } finally {
     loading.value = false
   }
