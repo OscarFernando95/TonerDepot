@@ -535,4 +535,91 @@ public class AssetServiceTests
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
     }
+
+    // CODE_QUALITY_AUDIT.md hallazgo #20: un Type que no corresponde a ningún valor de AssetType
+    // debe mapear a 400 (ValidationException), no explotar como 500 (Enum.Parse crudo lanzaría
+    // ArgumentException, que ExceptionHandlingMiddleware mapea al brazo genérico).
+    [Fact]
+    public async Task CreateAsync_InvalidType_ThrowsValidationException()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var db = TonerTestDb.CreateContext(dbName);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        db.AddRange(brand, model);
+        await db.SaveChangesAsync();
+
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), new AssignmentEngine(db));
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() => service.CreateAsync(
+            new CreateAssetRequest { AssetModelId = model.Id, SerialNumber = "SN-000123", Type = "NoExiste" }));
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_InvalidNewStatus_ThrowsValidationException()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.EnBodega);
+        arrangeDb.AddRange(brand, model, asset);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() => service.ChangeStatusAsync(
+            asset.Id,
+            new ChangeAssetStatusRequest { NewStatus = "NoExiste" },
+            Guid.NewGuid()));
+    }
+
+    // CODE_QUALITY_AUDIT.md hallazgo #26: GetByIdAsync dejó de re-consultar _db.Assets para
+    // verificar pertenencia — usa el CurrentClientId que Projected() ya trajo. Estos dos casos
+    // cubren exactamente esa comparación en memoria: dueño legítimo y cliente ajeno.
+    [Fact]
+    public async Task GetByIdAsync_ClienteOwnAsset_ReturnsAsset()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var client = TestEntities.Client();
+        var city = TestEntities.City();
+        var location = TestEntities.ClientLocation(client, city);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        arrangeDb.AddRange(brand, model, client, city, location, asset);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var owningClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, client.Id, null);
+
+        var result = await service.GetByIdAsync(owningClientUser, asset.Id);
+
+        Assert.Equal(asset.Id, result.Id);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ClienteDeOtroCliente_Deniega()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var owningClient = TestEntities.Client("Cliente dueño");
+        var otherClient = TestEntities.Client("Otro cliente");
+        var city = TestEntities.City();
+        var location = TestEntities.ClientLocation(owningClient, city);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        arrangeDb.AddRange(brand, model, owningClient, otherClient, city, location, asset);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var otherClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, otherClient.Id, null);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetByIdAsync(otherClientUser, asset.Id));
+    }
 }

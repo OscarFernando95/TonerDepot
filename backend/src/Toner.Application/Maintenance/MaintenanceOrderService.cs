@@ -220,8 +220,6 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         }
 
         return await _db.AssignmentHistories
-            .Include(a => a.Technician!).ThenInclude(t => t.User)
-            .Include(a => a.AssignedByUser)
             .Where(a => a.MaintenanceOrderId == id)
             .OrderByDescending(a => a.AssignedAt)
             .Select(a => new AssignmentHistoryDto

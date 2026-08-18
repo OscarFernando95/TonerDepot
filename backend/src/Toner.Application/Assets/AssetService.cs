@@ -64,7 +64,7 @@ public class AssetService : IAssetService
         {
             AssetModelId = request.AssetModelId,
             SerialNumber = serialNumber,
-            Type = Enum.Parse<AssetType>(request.Type),
+            Type = EnumParsing.ParseOrThrow<AssetType>(request.Type, nameof(request.Type)),
             LifecycleStatus = AssetLifecycleStatus.EnBodega
         };
 
@@ -132,9 +132,9 @@ public class AssetService : IAssetService
         if (!requestingUser.IsStaff)
         {
             var clientId = requestingUser.RequireClientId();
-            var belongsToClient = await _db.Assets
-                .AnyAsync(a => a.Id == id && a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId, cancellationToken);
-            if (!belongsToClient)
+            // El DTO ya proyectado trae CurrentClientId — evita repetir la consulta que Projected()
+            // acaba de resolver (CODE_QUALITY_AUDIT.md hallazgo #26).
+            if (asset.CurrentClientId != clientId)
             {
                 throw new ForbiddenException("Este activo no está instalado en ninguna de tus sedes.");
             }
@@ -159,7 +159,7 @@ public class AssetService : IAssetService
 
         asset.AssetModelId = request.AssetModelId;
         asset.SerialNumber = serialNumber;
-        asset.Type = Enum.Parse<AssetType>(request.Type);
+        asset.Type = EnumParsing.ParseOrThrow<AssetType>(request.Type, nameof(request.Type));
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -190,7 +190,7 @@ public class AssetService : IAssetService
         var asset = await _db.Assets.FirstOrDefaultAsync(a => a.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Asset), id);
 
-        var newStatus = Enum.Parse<AssetLifecycleStatus>(request.NewStatus);
+        var newStatus = EnumParsing.ParseOrThrow<AssetLifecycleStatus>(request.NewStatus, nameof(request.NewStatus));
 
         if (!AllowedTransitions[asset.LifecycleStatus].Contains(newStatus))
         {
@@ -288,7 +288,6 @@ public class AssetService : IAssetService
         }
 
         return await _db.AssetStatusLogs
-            .Include(l => l.ChangedByUser)
             .Where(l => l.AssetId == id)
             .OrderByDescending(l => l.ChangedAt)
             .Select(l => new AssetStatusLogDto
@@ -348,7 +347,6 @@ public class AssetService : IAssetService
         }
 
         return await _db.MeterReadings
-            .Include(m => m.RegisteredByUser)
             .Where(m => m.Id == reading.Id)
             .Select(m => new MeterReadingDto
             {
@@ -370,7 +368,6 @@ public class AssetService : IAssetService
         }
 
         return await _db.MeterReadings
-            .Include(m => m.RegisteredByUser)
             .Where(m => m.AssetId == id)
             .OrderByDescending(m => m.ReadingDate)
             .Select(m => new MeterReadingDto

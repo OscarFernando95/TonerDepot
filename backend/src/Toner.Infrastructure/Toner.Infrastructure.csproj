@@ -10,17 +10,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
-    <PackageReference Include="FirebaseAdmin" Version="3.6.0" />
     <PackageReference Include="Hangfire.Core" Version="1.8.24" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
-    <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
     <!-- Necesario para TonerDbContextFactory (factory de tiempo de diseño de EF Core), que lee
          MigrationsConnection desde appsettings para correr las migraciones con el rol owner. -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <!-- IHostEnvironment (DataSeeder) llegaba transitivamente vía Azure.Storage.Blobs/FirebaseAdmin;
+         al quitar esos paquetes sin uso (CODE_QUALITY_AUDIT.md hallazgo #37) quedó como referencia
+         directa faltante. Se hace explícita en vez de reintroducir el paquete que la traía de rebote. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+    <!-- IHealthCheck/HealthCheckResult para PostgresHealthCheck (hallazgo #39) — este proyecto usa
+         Microsoft.NET.Sdk, no Sdk.Web, así que no hereda el framework compartido de ASP.NET Core. -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="8.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

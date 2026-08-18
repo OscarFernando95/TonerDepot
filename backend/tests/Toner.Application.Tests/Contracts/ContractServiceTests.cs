@@ -66,4 +66,23 @@ public class ContractServiceTests
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
     }
+
+    // CODE_QUALITY_AUDIT.md hallazgo #20: un Status que no corresponde a ningún valor de
+    // ContractStatus debe mapear a 400 (ValidationException), no explotar como 500.
+    [Fact]
+    public async Task SetStatusAsync_InvalidStatus_ThrowsValidationException()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        arrangeDb.AddRange(client, contract);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new ContractService(actDb);
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
+            service.SetStatusAsync(contract.Id, "NoExiste"));
+    }
 }

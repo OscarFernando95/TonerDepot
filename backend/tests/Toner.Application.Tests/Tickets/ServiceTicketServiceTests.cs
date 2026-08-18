@@ -288,4 +288,40 @@ public class ServiceTicketServiceTests
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
     }
+
+    // CODE_QUALITY_AUDIT.md hallazgo #20: Priority/Status inválidos deben mapear a 400
+    // (ValidationException), no explotar como 500.
+    [Fact]
+    public async Task CreateAsync_InvalidPriority_ThrowsValidationException()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var db = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(db);
+        var staffUser = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() => service.CreateAsync(
+            staffUser,
+            new CreateServiceTicketRequest { ClientLocationId = Guid.NewGuid(), Description = "Impresora atascada", Priority = "NoExiste" }));
+    }
+
+    [Fact]
+    public async Task SetStatusAsync_InvalidStatus_ThrowsValidationException()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var user = TestEntities.User(role);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var ticket = TestEntities.ServiceTicket(location, user, ServiceTicketStatus.EnProceso);
+        arrangeDb.AddRange(role, user, city, client, location, ticket);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = BuildService(actDb);
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
+            service.SetStatusAsync(ticket.Id, "NoExiste"));
+    }
 }

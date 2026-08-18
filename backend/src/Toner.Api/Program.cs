@@ -27,6 +27,7 @@ using Toner.Application.Technicians;
 using Toner.Application.Tickets;
 using Toner.Application.Users;
 using Toner.Infrastructure.Auth;
+using Toner.Infrastructure.Health;
 using Toner.Infrastructure.Jobs;
 using Toner.Infrastructure.Logging;
 using Toner.Infrastructure.Persistence;
@@ -147,6 +148,9 @@ builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDb
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
 builder.Services.AddScoped<IExceptionLogger, TonerExceptionLogger>();
 builder.Services.AddScoped<DataSeeder>();
+
+builder.Services.AddHealthChecks()
+    .AddCheck<PostgresHealthCheck>("postgres");
 
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
@@ -335,6 +339,10 @@ app.UseAuthorization();
 app.UseMiddleware<MustChangePasswordMiddleware>();
 
 app.MapControllers();
+
+// AllowAnonymous explícito: el FallbackPolicy de arriba exige autenticación por defecto en TODO
+// endpoint, y un orquestador (Docker/K8s) que verifica liveness/readiness no puede autenticarse.
+app.MapHealthChecks("/health").AllowAnonymous();
 
 RecurringJob.AddOrUpdate<MaintenanceScheduleEvaluationJob>(
     "evaluate-maintenance-schedules",

@@ -83,7 +83,7 @@ public class ContractService : IContractService
         var contract = await _db.Contracts.FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Contract), id);
 
-        contract.Status = Enum.Parse<ContractStatus>(status);
+        contract.Status = EnumParsing.ParseOrThrow<ContractStatus>(status, "Status");
         await _db.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(id, cancellationToken);

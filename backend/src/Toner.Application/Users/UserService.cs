@@ -140,9 +140,6 @@ public class UserService : IUserService
 
     private static IQueryable<UserDto> Projected(IApplicationDbContext db) =>
         db.Users
-            .Include(u => u.Role)
-            .Include(u => u.Technician)
-            .Include(u => u.City)
             .Select(u => new UserDto
             {
                 Id = u.Id,

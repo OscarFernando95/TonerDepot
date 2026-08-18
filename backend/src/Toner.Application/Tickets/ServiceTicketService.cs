@@ -56,7 +56,7 @@ public class ServiceTicketService : IServiceTicketService
 
         var priority = string.IsNullOrEmpty(request.Priority)
             ? ServiceTicketPriority.Media
-            : Enum.Parse<ServiceTicketPriority>(request.Priority);
+            : EnumParsing.ParseOrThrow<ServiceTicketPriority>(request.Priority, nameof(request.Priority));
 
         var ticket = new ServiceTicket
         {
@@ -206,7 +206,7 @@ public class ServiceTicketService : IServiceTicketService
         var ticket = await _db.ServiceTickets.FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceTicket), id);
 
-        var newStatus = Enum.Parse<ServiceTicketStatus>(status);
+        var newStatus = EnumParsing.ParseOrThrow<ServiceTicketStatus>(status, "Status");
 
         if (!AllowedTransitions[ticket.Status].Contains(newStatus))
         {
@@ -231,8 +231,6 @@ public class ServiceTicketService : IServiceTicketService
         }
 
         return await _db.AssignmentHistories
-            .Include(a => a.Technician!).ThenInclude(t => t.User)
-            .Include(a => a.AssignedByUser)
             .Where(a => a.ServiceTicketId == id)
             .OrderByDescending(a => a.AssignedAt)
             .Select(a => new AssignmentHistoryDto

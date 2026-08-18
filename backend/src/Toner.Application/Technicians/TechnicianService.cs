@@ -40,7 +40,6 @@ public class TechnicianService : ITechnicianService
         }
 
         return await _db.TechnicianCoverages
-            .Include(c => c.City)
             .Where(c => c.TechnicianId == technicianId)
             .OrderBy(c => c.City.Name)
             .Select(c => new TechnicianCoverageDto { Id = c.Id, CityId = c.CityId, CityName = c.City.Name })
@@ -67,7 +66,6 @@ public class TechnicianService : ITechnicianService
         await _db.SaveChangesAsync(cancellationToken);
 
         return await _db.TechnicianCoverages
-            .Include(c => c.City)
             .Where(c => c.Id == coverage.Id)
             .Select(c => new TechnicianCoverageDto { Id = c.Id, CityId = c.CityId, CityName = c.City.Name })
             .FirstAsync(cancellationToken);
