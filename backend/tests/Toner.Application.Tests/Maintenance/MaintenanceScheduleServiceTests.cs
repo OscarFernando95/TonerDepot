@@ -28,7 +28,7 @@ public class MaintenanceScheduleServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new MaintenanceScheduleService(actDb, new MaintenanceScheduleEngine(actDb));
 
-        var result = await service.ListAsync();
+        var result = (await service.ListAsync(null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(client.Id, item.ClientId);
@@ -69,7 +69,7 @@ public class MaintenanceScheduleServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new MaintenanceScheduleService(actDb, new MaintenanceScheduleEngine(actDb));
 
-        var result = await service.ListAsync();
+        var result = (await service.ListAsync(null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal("Recepción", item.Area);
@@ -137,7 +137,7 @@ public class MaintenanceScheduleServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new MaintenanceScheduleService(actDb, new MaintenanceScheduleEngine(actDb));
 
-        var result = await service.ListInCoverageAsync(technician.Id);
+        var result = (await service.ListInCoverageAsync(technician.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(coveredSchedule.Id, item.Id);

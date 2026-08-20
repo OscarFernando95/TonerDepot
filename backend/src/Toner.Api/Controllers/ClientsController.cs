@@ -1,4 +1,5 @@
 using FluentValidation;
+using Toner.Application.Common.Paging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Toner.Application.Clients;
@@ -27,9 +28,9 @@ public class ClientsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ClientDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ClientDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _clientService.ListAsync(cancellationToken));
+        return Ok(await _clientService.ListAsync(page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

@@ -1,8 +1,9 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { AssignTicketRequest, AssignmentHistoryDto, CreateServiceTicketRequest, ServiceTicketDto } from './types'
 
 export function listTickets() {
-  return http.get<ServiceTicketDto[]>('/tickets')
+  return getList<ServiceTicketDto>('/tickets')
 }
 
 export function getTicket(id: string) {
@@ -22,5 +23,5 @@ export function setTicketStatus(id: string, status: string) {
 }
 
 export function getTicketAssignmentHistory(id: string) {
-  return http.get<AssignmentHistoryDto[]>(`/tickets/${id}/assignment-history`)
+  return getList<AssignmentHistoryDto>(`/tickets/${id}/assignment-history`)
 }

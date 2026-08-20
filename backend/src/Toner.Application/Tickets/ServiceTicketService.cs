@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common.Paging;
 using Toner.Application.Assignment;
 using Toner.Application.Common;
 using Toner.Application.Common.Dtos;
@@ -83,7 +84,7 @@ public class ServiceTicketService : IServiceTicketService
         return await ToDtoAsync(ticket.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ServiceTicketDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ServiceTicketDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var query = Projected(_db);
 
@@ -97,10 +98,10 @@ public class ServiceTicketService : IServiceTicketService
             query = query.Where(t => t.ClientId == clientId);
         }
 
-        return await query.OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
+        return await query.OrderByDescending(t => t.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ServiceTicketDto>> ListInCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ServiceTicketDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var coveredCityIds = await _db.TechnicianCoverages
             .Where(c => c.TechnicianId == technicianId)
@@ -109,7 +110,7 @@ public class ServiceTicketService : IServiceTicketService
 
         if (coveredCityIds.Count == 0)
         {
-            return Array.Empty<ServiceTicketDto>();
+            return PagedResultFactory.Empty<ServiceTicketDto>(pageSize);
         }
 
         var activeStatuses = new[]
@@ -122,7 +123,7 @@ public class ServiceTicketService : IServiceTicketService
             t.TechnicianId != technicianId &&
             coveredCityIds.Contains(t.ClientLocation.CityId));
 
-        return await ProjectedFrom(query).OrderByDescending(t => t.CreatedAt).ToListAsync(cancellationToken);
+        return await ProjectedFrom(query).OrderByDescending(t => t.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<ServiceTicketDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
@@ -234,7 +235,7 @@ public class ServiceTicketService : IServiceTicketService
         return ticket;
     }
 
-    public async Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var ticketExists = await _db.ServiceTickets.AnyAsync(t => t.Id == id, cancellationToken);
         if (!ticketExists)
@@ -242,9 +243,17 @@ public class ServiceTicketService : IServiceTicketService
             throw new NotFoundException(nameof(ServiceTicket), id);
         }
 
-        return await _db.AssignmentHistories
-            .Where(a => a.ServiceTicketId == id)
-            .OrderByDescending(a => a.AssignedAt)
+        var query = _db.AssignmentHistories.Where(a => a.ServiceTicketId == id);
+
+        var position = PageCursor.Decode(cursor);
+        if (position is not null)
+        {
+            var (ts, lastId) = position.Value;
+            query = query.Where(a => a.AssignedAt < ts || (a.AssignedAt == ts && a.Id.CompareTo(lastId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(a => a.AssignedAt).ThenByDescending(a => a.Id)
             .Select(a => new AssignmentHistoryDto
             {
                 Id = a.Id,
@@ -255,7 +264,7 @@ public class ServiceTicketService : IServiceTicketService
                 Reason = a.Reason,
                 AssignedAt = a.AssignedAt
             })
-            .ToListAsync(cancellationToken);
+            .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.AssignedAt, last.Id), cancellationToken);
     }
 
     private async Task<ServiceTicketDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>

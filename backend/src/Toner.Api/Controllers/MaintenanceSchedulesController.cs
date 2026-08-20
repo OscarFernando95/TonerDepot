@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Toner.Application.Common.Paging;
 using Microsoft.AspNetCore.Mvc;
 using Toner.Application.Maintenance;
 using Toner.Application.Maintenance.Dtos;
@@ -27,9 +28,9 @@ public class MaintenanceSchedulesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<MaintenanceScheduleDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceScheduleDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _scheduleService.ListAsync(cancellationToken));
+        return Ok(await _scheduleService.ListAsync(page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
@@ -45,9 +46,9 @@ public class MaintenanceSchedulesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/orders")]
-    public async Task<ActionResult<IReadOnlyList<MaintenanceOrderDto>>> GetOrders(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> GetOrders(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.ListByScheduleAsync(id, cancellationToken));
+        return Ok(await _orderService.ListByScheduleAsync(id, cursor, pageSize, cancellationToken));
     }
 
     // Crea el cronograma de activos ya Instalados con contrato activo que quedaron sin uno (instalados

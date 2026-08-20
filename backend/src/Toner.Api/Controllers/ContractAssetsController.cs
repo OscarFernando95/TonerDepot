@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,9 +24,9 @@ public class ContractAssetsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ContractAssetDto>>> List(Guid contractId, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ContractAssetDto>>> List(Guid contractId, [FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _contractAssetService.ListByContractAsync(contractId, cancellationToken));
+        return Ok(await _contractAssetService.ListByContractAsync(contractId, page, pageSize, cancellationToken));
     }
 
     [HttpPost]

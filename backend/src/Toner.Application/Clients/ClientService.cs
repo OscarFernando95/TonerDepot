@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common.Paging;
 using Toner.Application.Clients.Dtos;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -57,11 +58,11 @@ public class ClientService : IClientService
         return await GetByIdAsync(client.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ClientDto>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ClientDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         return await Projected(_db)
             .OrderBy(c => c.Name)
-            .ToListAsync(cancellationToken);
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<ClientDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

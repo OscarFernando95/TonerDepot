@@ -389,7 +389,7 @@ public class AssetServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
 
-        var result = await service.ListPendingInstallationsAsync(technician.Id);
+        var result = (await service.ListPendingInstallationsAsync(technician.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(coveredAsset.Id, item.AssetId);
@@ -417,7 +417,7 @@ public class AssetServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
 
-        var result = await service.ListPendingInstallationsAsync(technician.Id);
+        var result = (await service.ListPendingInstallationsAsync(technician.Id, null, null)).Items;
 
         Assert.Empty(result);
     }
@@ -533,7 +533,7 @@ public class AssetServiceTests
         var service = new AssetService(db, new MaintenanceScheduleEngine(db), new AssignmentEngine(db));
         var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser, null, null));
     }
 
     // CODE_QUALITY_AUDIT.md hallazgo #20: un Type que no corresponde a ningún valor de AssetType

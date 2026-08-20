@@ -131,7 +131,7 @@ public class ServiceTicketServiceTests
         Assert.Equal(nameof(ServiceTicketStatus.Asignado), result.Status);
         Assert.Equal(technician.Id, result.TechnicianId);
 
-        var history = await service.GetAssignmentHistoryAsync(ticket.Id);
+        var history = (await service.GetAssignmentHistoryAsync(ticket.Id, null, null)).Items;
         var entry = Assert.Single(history);
         Assert.Equal("Manual", entry.Reason);
         Assert.Equal(nameof(AssignmentType.Manual), entry.AssignmentType);
@@ -191,7 +191,7 @@ public class ServiceTicketServiceTests
         Assert.Equal(nameof(ServiceTicketStatus.Asignado), result.Status);
         Assert.Equal(claimingTechnician.Id, result.TechnicianId);
 
-        var history = await service.GetAssignmentHistoryAsync(ticket.Id);
+        var history = (await service.GetAssignmentHistoryAsync(ticket.Id, null, null)).Items;
         var entry = Assert.Single(history);
         Assert.Equal(nameof(AssignmentType.Reclamada), entry.AssignmentType);
     }
@@ -250,7 +250,7 @@ public class ServiceTicketServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = BuildService(actDb);
 
-        var result = await service.ListInCoverageAsync(technician.Id);
+        var result = (await service.ListInCoverageAsync(technician.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(ticketInCoverage.Id, item.Id);
@@ -286,7 +286,7 @@ public class ServiceTicketServiceTests
         var service = BuildService(db);
         var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser, null, null));
     }
 
     // CODE_QUALITY_AUDIT.md hallazgo #20: Priority/Status inválidos deben mapear a 400

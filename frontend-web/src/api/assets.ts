@@ -1,3 +1,4 @@
+import { getList } from './paging'
 import { http } from './http'
 import type {
   AssetDto,
@@ -10,7 +11,7 @@ import type {
 } from './types'
 
 export function listAssets() {
-  return http.get<AssetDto[]>('/assets')
+  return getList<AssetDto>('/assets')
 }
 
 export function getAsset(id: string) {
@@ -30,7 +31,7 @@ export function changeAssetStatus(id: string, request: ChangeAssetStatusRequest)
 }
 
 export function getAssetStatusHistory(id: string) {
-  return http.get<AssetStatusLogDto[]>(`/assets/${id}/status-history`)
+  return getList<AssetStatusLogDto>(`/assets/${id}/status-history`)
 }
 
 export function addMeterReading(id: string, request: CreateMeterReadingRequest) {
@@ -38,5 +39,5 @@ export function addMeterReading(id: string, request: CreateMeterReadingRequest) 
 }
 
 export function getMeterReadings(id: string) {
-  return http.get<MeterReadingDto[]>(`/assets/${id}/meter-readings`)
+  return getList<MeterReadingDto>(`/assets/${id}/meter-readings`)
 }

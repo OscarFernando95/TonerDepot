@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,33 +55,33 @@ public class TechnicianSelfServiceController : ControllerBase
 
     // Lista abierta entre los técnicos que cubren la ciudad del activo — no solo las propias.
     [HttpGet("pending-installations")]
-    public async Task<ActionResult<IReadOnlyList<PendingInstallationDto>>> GetPendingInstallations(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<PendingInstallationDto>>> GetPendingInstallations([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListPendingInstallationsAsync(CurrentTechnicianId, cancellationToken));
+        return Ok(await _assetService.ListPendingInstallationsAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
     }
 
     // Solo lectura: órdenes de mantenimiento asignadas a otros técnicos, en ciudades que este técnico
     // cubre. No habilita check-in — el motor de asignación sigue eligiendo un único técnico por orden.
     [HttpGet("coverage-maintenance-orders")]
-    public async Task<ActionResult<IReadOnlyList<MaintenanceOrderDto>>> GetCoverageMaintenanceOrders(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> GetCoverageMaintenanceOrders([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _maintenanceOrderService.ListInCoverageAsync(CurrentTechnicianId, cancellationToken));
+        return Ok(await _maintenanceOrderService.ListInCoverageAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
     }
 
     // Cronogramas de activos en ciudades cubiertas por el técnico — misma info que ve Staff en el
     // módulo de Cronogramas.
     [HttpGet("coverage-schedules")]
-    public async Task<ActionResult<IReadOnlyList<MaintenanceScheduleDto>>> GetCoverageSchedules(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceScheduleDto>>> GetCoverageSchedules([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _maintenanceScheduleService.ListInCoverageAsync(CurrentTechnicianId, cancellationToken));
+        return Ok(await _maintenanceScheduleService.ListInCoverageAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
     }
 
     // Igual que coverage-maintenance-orders pero para tickets: tickets activos de otros técnicos en
     // ciudades cubiertas. Los que aún no arrancó nadie se pueden tomar vía POST tickets/{id}/claim.
     [HttpGet("coverage-tickets")]
-    public async Task<ActionResult<IReadOnlyList<ServiceTicketDto>>> GetCoverageTickets(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> GetCoverageTickets([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _serviceTicketService.ListInCoverageAsync(CurrentTechnicianId, cancellationToken));
+        return Ok(await _serviceTicketService.ListInCoverageAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
     }
 
     // Autoasignación: toma una orden libre o asignada a otro técnico que aún no la inició.

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,9 +27,9 @@ public class MeterReadingsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<MeterReadingAssetDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListForMeterReadingAsync(CurrentUser, cancellationToken));
+        return Ok(await _assetService.ListForMeterReadingAsync(CurrentUser, page, pageSize, cancellationToken));
     }
 
     [HttpPost("{assetId:guid}")]

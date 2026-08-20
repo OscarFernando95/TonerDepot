@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -36,9 +37,9 @@ public class ServiceTicketsController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
-    public async Task<ActionResult<IReadOnlyList<ServiceTicketDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _ticketService.ListAsync(CurrentUser, cancellationToken));
+        return Ok(await _ticketService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
@@ -78,9 +79,9 @@ public class ServiceTicketsController : ControllerBase
 
     [HttpGet("{id:guid}/assignment-history")]
     [Authorize(Roles = RoleNames.StaffRoles)]
-    public async Task<ActionResult<IReadOnlyList<AssignmentHistoryDto>>> GetAssignmentHistory(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<AssignmentHistoryDto>>> GetAssignmentHistory(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _ticketService.GetAssignmentHistoryAsync(id, cancellationToken));
+        return Ok(await _ticketService.GetAssignmentHistoryAsync(id, cursor, pageSize, cancellationToken));
     }
 
     private RequestingUser CurrentUser

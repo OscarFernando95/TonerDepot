@@ -1,8 +1,9 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { MaintenanceOrderDto, MaintenanceScheduleDto } from './types'
 
 export function listMaintenanceSchedules() {
-  return http.get<MaintenanceScheduleDto[]>('/maintenance-schedules')
+  return getList<MaintenanceScheduleDto>('/maintenance-schedules')
 }
 
 export function getMaintenanceSchedule(id: string) {
@@ -14,7 +15,7 @@ export function setMaintenanceScheduleStatus(id: string, isActive: boolean) {
 }
 
 export function getScheduleOrders(id: string) {
-  return http.get<MaintenanceOrderDto[]>(`/maintenance-schedules/${id}/orders`)
+  return getList<MaintenanceOrderDto>(`/maintenance-schedules/${id}/orders`)
 }
 
 // Crea el cronograma de activos ya Instalados con contrato activo que quedaron sin uno.

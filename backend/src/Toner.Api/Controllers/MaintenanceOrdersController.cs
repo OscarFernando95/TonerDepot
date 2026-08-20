@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,9 +33,9 @@ public class MaintenanceOrdersController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
-    public async Task<ActionResult<IReadOnlyList<MaintenanceOrderDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.ListAsync(CurrentUser, cancellationToken));
+        return Ok(await _orderService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
@@ -71,9 +72,9 @@ public class MaintenanceOrdersController : ControllerBase
 
     [HttpGet("{id:guid}/assignment-history")]
     [Authorize(Roles = RoleNames.StaffRoles)]
-    public async Task<ActionResult<IReadOnlyList<AssignmentHistoryDto>>> GetAssignmentHistory(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<AssignmentHistoryDto>>> GetAssignmentHistory(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.GetAssignmentHistoryAsync(id, cancellationToken));
+        return Ok(await _orderService.GetAssignmentHistoryAsync(id, cursor, pageSize, cancellationToken));
     }
 
     private RequestingUser CurrentUser

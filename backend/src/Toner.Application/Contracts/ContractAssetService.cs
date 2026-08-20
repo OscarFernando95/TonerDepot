@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common.Paging;
 using Toner.Application.Assets;
 using Toner.Application.Assets.Dtos;
 using Toner.Application.Common;
@@ -70,16 +71,16 @@ public class ContractAssetService : IContractAssetService
         return await ToDtoAsync(contractAsset.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ContractAssetDto>> ListByContractAsync(Guid contractId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ContractAssetDto>> ListByContractAsync(Guid contractId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var items = await Projected(_db)
+        var result = await Projected(_db)
             .Where(ca => ca.ContractId == contractId)
             .OrderByDescending(ca => ca.StartDate)
-            .ToListAsync(cancellationToken);
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
-        await AttachAssetMetricsAsync(items, cancellationToken);
+        await AttachAssetMetricsAsync(result.Items, cancellationToken);
 
-        return items;
+        return result;
     }
 
     public async Task<ContractAssetDto> EndAsync(Guid contractId, Guid id, CancellationToken cancellationToken = default)

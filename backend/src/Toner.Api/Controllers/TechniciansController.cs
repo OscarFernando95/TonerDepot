@@ -1,4 +1,5 @@
 using FluentValidation;
+using Toner.Application.Common.Paging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Toner.Application.Technicians;
@@ -23,9 +24,9 @@ public class TechniciansController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<TechnicianDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<TechnicianDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _technicianService.ListAsync(cancellationToken));
+        return Ok(await _technicianService.ListAsync(page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}/coverage")]
@@ -51,8 +52,8 @@ public class TechniciansController : ControllerBase
     }
 
     [HttpGet("{id:guid}/time-logs")]
-    public async Task<ActionResult<IReadOnlyList<TimeLogDto>>> ListTimeLogs(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<TimeLogDto>>> ListTimeLogs(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _technicianService.ListTimeLogsAsync(id, cancellationToken));
+        return Ok(await _technicianService.ListTimeLogsAsync(id, cursor, pageSize, cancellationToken));
     }
 }

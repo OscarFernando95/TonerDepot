@@ -158,7 +158,7 @@ public class ContractAssetServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
 
-        var result = await service.ListByContractAsync(contract.Id);
+        var result = (await service.ListByContractAsync(contract.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Null(item.LastMeterReading);
@@ -185,7 +185,7 @@ public class ContractAssetServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
 
-        var result = await service.ListByContractAsync(contract.Id);
+        var result = (await service.ListByContractAsync(contract.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(1000, item.LastMeterReading);
@@ -213,7 +213,7 @@ public class ContractAssetServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
 
-        var result = await service.ListByContractAsync(contract.Id);
+        var result = (await service.ListByContractAsync(contract.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(4000, item.LastMeterReading);

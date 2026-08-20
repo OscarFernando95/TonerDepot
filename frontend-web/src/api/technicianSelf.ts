@@ -1,3 +1,4 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { MaintenanceOrderDto, MaintenanceScheduleDto, ServiceTicketDto } from './types'
 
@@ -62,19 +63,19 @@ export function checkOut(request: CheckOutRequest) {
 }
 
 export function listPendingInstallations() {
-  return http.get<PendingInstallationDto[]>('/technicians/me/pending-installations')
+  return getList<PendingInstallationDto>('/technicians/me/pending-installations')
 }
 
 export function listCoverageMaintenanceOrders() {
-  return http.get<MaintenanceOrderDto[]>('/technicians/me/coverage-maintenance-orders')
+  return getList<MaintenanceOrderDto>('/technicians/me/coverage-maintenance-orders')
 }
 
 export function listCoverageSchedules() {
-  return http.get<MaintenanceScheduleDto[]>('/technicians/me/coverage-schedules')
+  return getList<MaintenanceScheduleDto>('/technicians/me/coverage-schedules')
 }
 
 export function listCoverageTickets() {
-  return http.get<ServiceTicketDto[]>('/technicians/me/coverage-tickets')
+  return getList<ServiceTicketDto>('/technicians/me/coverage-tickets')
 }
 
 export function claimMaintenanceOrder(id: string) {

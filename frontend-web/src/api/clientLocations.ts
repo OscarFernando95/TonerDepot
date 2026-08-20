@@ -1,3 +1,4 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { ClientLocationDto, CreateClientLocationRequest, UpdateClientLocationRequest } from './types'
 
@@ -6,7 +7,7 @@ export function listClientLocations(clientId: string) {
 }
 
 export function listAllLocations() {
-  return http.get<ClientLocationDto[]>('/locations')
+  return getList<ClientLocationDto>('/locations')
 }
 
 export function createClientLocation(clientId: string, request: CreateClientLocationRequest) {

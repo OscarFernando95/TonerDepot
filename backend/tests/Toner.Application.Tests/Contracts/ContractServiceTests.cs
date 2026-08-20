@@ -64,7 +64,7 @@ public class ContractServiceTests
         var service = new ContractService(actDb);
         var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser, null, null));
     }
 
     // CODE_QUALITY_AUDIT.md hallazgo #20: un Status que no corresponde a ningún valor de

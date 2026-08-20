@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Common;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Contracts.Dtos;
@@ -36,7 +37,7 @@ public class ContractService : IContractService
         return await ToDtoAsync(contract.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ContractDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ContractDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var query = Projected(_db);
 
@@ -46,7 +47,7 @@ public class ContractService : IContractService
             query = query.Where(c => c.ClientId == clientId);
         }
 
-        return await query.OrderByDescending(c => c.CreatedAt).ToListAsync(cancellationToken);
+        return await query.OrderByDescending(c => c.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<ContractDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Toner.Application.Common.Paging;
 using Microsoft.AspNetCore.Mvc;
 using Toner.Application.Clients;
 using Toner.Application.Clients.Dtos;
@@ -21,8 +22,8 @@ public class LocationsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ClientLocationDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ClientLocationDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _locationService.ListAllAsync(cancellationToken));
+        return Ok(await _locationService.ListAllAsync(page, pageSize, cancellationToken));
     }
 }

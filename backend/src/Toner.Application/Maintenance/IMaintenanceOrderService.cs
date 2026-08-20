@@ -1,4 +1,5 @@
 using Toner.Application.Common;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common.Dtos;
 using Toner.Application.Maintenance.Dtos;
 using Toner.Domain.Entities;
@@ -7,12 +8,12 @@ namespace Toner.Application.Maintenance;
 
 public interface IMaintenanceOrderService
 {
-    Task<IReadOnlyList<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, CancellationToken cancellationToken = default);
+    Task<PagedResult<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, string? cursor, int? pageSize, CancellationToken cancellationToken = default);
 
     // Órdenes activas (no completadas/canceladas) de otros técnicos, en ciudades que el técnico cubre.
     // Puramente informativo: no da derecho a check-in, solo visibilidad de lo que pasa en su zona.
-    Task<IReadOnlyList<MaintenanceOrderDto>> ListInCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default);
+    Task<PagedResult<MaintenanceOrderDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> AssignAsync(Guid id, AssignMaintenanceOrderRequest request, Guid assignedByUserId, CancellationToken cancellationToken = default);
 
@@ -29,5 +30,5 @@ public interface IMaintenanceOrderService
     // (CODE_QUALITY_AUDIT.md hallazgo #8).
     Task<MaintenanceOrder> PrepareCompleteAsync(Guid id, CompleteMaintenanceOrderRequest request, Guid completedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> CancelAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default);
 }

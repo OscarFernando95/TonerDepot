@@ -1,8 +1,9 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { ClientDto, CreateClientRequest, UpdateClientRequest } from './types'
 
 export function listClients() {
-  return http.get<ClientDto[]>('/clients')
+  return getList<ClientDto>('/clients')
 }
 
 export function getClient(id: string) {

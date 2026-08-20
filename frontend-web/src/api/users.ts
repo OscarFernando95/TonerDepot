@@ -1,8 +1,9 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { CreateUserRequest, UpdateUserRequest, UserDto } from './types'
 
 export function listUsers() {
-  return http.get<UserDto[]>('/users')
+  return getList<UserDto>('/users')
 }
 
 export function createUser(request: CreateUserRequest) {

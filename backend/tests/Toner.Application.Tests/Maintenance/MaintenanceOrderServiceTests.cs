@@ -220,7 +220,7 @@ public class MaintenanceOrderServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
 
-        var result = await service.ListInCoverageAsync(viewerTechnician.Id);
+        var result = (await service.ListInCoverageAsync(viewerTechnician.Id, null, null)).Items;
 
         var item = Assert.Single(result);
         Assert.Equal(orderInCoveredCity.Id, item.Id);
@@ -257,7 +257,7 @@ public class MaintenanceOrderServiceTests
         Assert.Equal(nameof(MaintenanceOrderStatus.Asignada), result.Status);
         Assert.Equal(claimingTechnician.Id, result.TechnicianId);
 
-        var history = await service.GetAssignmentHistoryAsync(order.Id);
+        var history = (await service.GetAssignmentHistoryAsync(order.Id, null, null)).Items;
         var entry = Assert.Single(history);
         Assert.Equal(nameof(AssignmentType.Reclamada), entry.AssignmentType);
     }

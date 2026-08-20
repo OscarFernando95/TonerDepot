@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Technicians.Dtos;
@@ -15,7 +16,7 @@ public class TechnicianService : ITechnicianService
         _db = db;
     }
 
-    public async Task<IReadOnlyList<TechnicianDto>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<TechnicianDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         return await _db.Technicians
             .OrderBy(t => t.User.FullName)
@@ -28,7 +29,7 @@ public class TechnicianService : ITechnicianService
                 IsActive = t.IsActive,
                 CoverageCityNames = t.Coverages.Select(c => c.City.Name).ToList()
             })
-            .ToListAsync(cancellationToken);
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<IReadOnlyList<TechnicianCoverageDto>> ListCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
@@ -81,7 +82,7 @@ public class TechnicianService : ITechnicianService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<TimeLogDto>> ListTimeLogsAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<TimeLogDto>> ListTimeLogsAsync(Guid technicianId, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var technicianExists = await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken);
         if (!technicianExists)
@@ -89,9 +90,17 @@ public class TechnicianService : ITechnicianService
             throw new NotFoundException(nameof(Technician), technicianId);
         }
 
-        return await _db.TimeLogs
-            .Where(tl => tl.TechnicianId == technicianId)
-            .OrderByDescending(tl => tl.StartTime)
+        var query = _db.TimeLogs.Where(tl => tl.TechnicianId == technicianId);
+
+        var position = PageCursor.Decode(cursor);
+        if (position is not null)
+        {
+            var (ts, lastId) = position.Value;
+            query = query.Where(tl => tl.StartTime < ts || (tl.StartTime == ts && tl.Id.CompareTo(lastId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(tl => tl.StartTime).ThenByDescending(tl => tl.Id)
             .Select(tl => new TimeLogDto
             {
                 Id = tl.Id,
@@ -101,6 +110,6 @@ public class TechnicianService : ITechnicianService
                 EndTime = tl.EndTime,
                 Notes = tl.Notes
             })
-            .ToListAsync(cancellationToken);
+            .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.StartTime, last.Id), cancellationToken);
     }
 }

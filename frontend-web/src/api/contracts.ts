@@ -1,8 +1,9 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { ContractDto, CreateContractRequest, UpdateContractRequest } from './types'
 
 export function listContracts() {
-  return http.get<ContractDto[]>('/contracts')
+  return getList<ContractDto>('/contracts')
 }
 
 export function getContract(id: string) {

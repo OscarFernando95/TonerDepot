@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -37,9 +38,9 @@ public class AssetsController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffAndClientRoles)]
-    public async Task<ActionResult<IReadOnlyList<AssetDto>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<AssetDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListAsync(CurrentUser, cancellationToken));
+        return Ok(await _assetService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
@@ -79,9 +80,9 @@ public class AssetsController : ControllerBase
 
     [HttpGet("{id:guid}/status-history")]
     [Authorize(Roles = RoleNames.StaffRoles)]
-    public async Task<ActionResult<IReadOnlyList<AssetStatusLogDto>>> GetStatusHistory(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<AssetStatusLogDto>>> GetStatusHistory(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.GetStatusHistoryAsync(id, cancellationToken));
+        return Ok(await _assetService.GetStatusHistoryAsync(id, cursor, pageSize, cancellationToken));
     }
 
     [HttpPost("{id:guid}/meter-readings")]
@@ -96,9 +97,9 @@ public class AssetsController : ControllerBase
 
     [HttpGet("{id:guid}/meter-readings")]
     [Authorize(Roles = RoleNames.StaffRoles)]
-    public async Task<ActionResult<IReadOnlyList<MeterReadingDto>>> GetMeterReadings(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MeterReadingDto>>> GetMeterReadings(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.GetMeterReadingsAsync(id, cancellationToken));
+        return Ok(await _assetService.GetMeterReadingsAsync(id, cursor, pageSize, cancellationToken));
     }
 
     private RequestingUser CurrentUser

@@ -1,11 +1,12 @@
 using Toner.Application.Users.Dtos;
+using Toner.Application.Common.Paging;
 
 namespace Toner.Application.Users;
 
 public interface IUserService
 {
     Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<UserDto>> ListAsync(CancellationToken cancellationToken = default);
+    Task<PagedResult<UserDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default);
     Task<UserDto> SetActiveStatusAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default);
 
     // Actualiza los datos de perfil/contacto (ver comentario en UpdateUserRequest sobre qué queda

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common;
 using Toner.Application.Common.Dtos;
 using Toner.Application.Common.Exceptions;
@@ -26,7 +27,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         _engine = engine;
     }
 
-    public async Task<IReadOnlyList<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var query = Projected(_db);
 
@@ -35,18 +36,26 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             query = query.Where(o => o.TechnicianId == requestingUser.TechnicianId);
         }
 
-        return await query.OrderByDescending(o => o.CreatedAt).ToListAsync(cancellationToken);
+        return await query.OrderByDescending(o => o.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
-        return await Projected(_db)
-            .Where(o => o.MaintenanceScheduleId == scheduleId)
-            .OrderByDescending(o => o.CreatedAt)
-            .ToListAsync(cancellationToken);
+        var query = Projected(_db).Where(o => o.MaintenanceScheduleId == scheduleId);
+
+        var position = PageCursor.Decode(cursor);
+        if (position is not null)
+        {
+            var (ts, lastId) = position.Value;
+            query = query.Where(o => o.CreatedAt < ts || (o.CreatedAt == ts && o.Id.CompareTo(lastId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id)
+            .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.CreatedAt, last.Id), cancellationToken);
     }
 
-    public async Task<IReadOnlyList<MaintenanceOrderDto>> ListInCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceOrderDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var coveredCityIds = await _db.TechnicianCoverages
             .Where(c => c.TechnicianId == technicianId)
@@ -55,7 +64,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
 
         if (coveredCityIds.Count == 0)
         {
-            return Array.Empty<MaintenanceOrderDto>();
+            return PagedResultFactory.Empty<MaintenanceOrderDto>(pageSize);
         }
 
         var activeStatuses = new[]
@@ -69,7 +78,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             o.Asset.CurrentClientLocation != null &&
             coveredCityIds.Contains(o.Asset.CurrentClientLocation.CityId));
 
-        return await ProjectedFrom(query).OrderByDescending(o => o.CreatedAt).ToListAsync(cancellationToken);
+        return await ProjectedFrom(query).OrderByDescending(o => o.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<MaintenanceOrderDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
@@ -222,7 +231,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         return await ToDtoAsync(id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var orderExists = await _db.MaintenanceOrders.AnyAsync(o => o.Id == id, cancellationToken);
         if (!orderExists)
@@ -230,9 +239,17 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             throw new NotFoundException(nameof(MaintenanceOrder), id);
         }
 
-        return await _db.AssignmentHistories
-            .Where(a => a.MaintenanceOrderId == id)
-            .OrderByDescending(a => a.AssignedAt)
+        var query = _db.AssignmentHistories.Where(a => a.MaintenanceOrderId == id);
+
+        var position = PageCursor.Decode(cursor);
+        if (position is not null)
+        {
+            var (ts, lastId) = position.Value;
+            query = query.Where(a => a.AssignedAt < ts || (a.AssignedAt == ts && a.Id.CompareTo(lastId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(a => a.AssignedAt).ThenByDescending(a => a.Id)
             .Select(a => new AssignmentHistoryDto
             {
                 Id = a.Id,
@@ -243,7 +260,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
                 Reason = a.Reason,
                 AssignedAt = a.AssignedAt
             })
-            .ToListAsync(cancellationToken);
+            .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.AssignedAt, last.Id), cancellationToken);
     }
 
     private async Task<MaintenanceOrderDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>

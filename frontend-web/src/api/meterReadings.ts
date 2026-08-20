@@ -1,9 +1,10 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { CreateMeterReadingRequest, MeterReadingAssetDto, MeterReadingDto } from './types'
 
 // Módulo abierto a los 5 roles.
 export function listMeterReadingAssets() {
-  return http.get<MeterReadingAssetDto[]>('/meter-readings')
+  return getList<MeterReadingAssetDto>('/meter-readings')
 }
 
 export function registerMeterReading(assetId: string, request: CreateMeterReadingRequest) {

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -19,12 +20,14 @@ public class MaintenanceScheduleService : IMaintenanceScheduleService
         _engine = engine;
     }
 
-    public async Task<IReadOnlyList<MaintenanceScheduleDto>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceScheduleDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var items = await Projected(_db).OrderBy(s => s.CityName).ThenBy(s => s.ClientName).ToListAsync(cancellationToken);
-        await AttachLastKnownCountersAsync(items, cancellationToken);
-        await AttachMaintenanceSummariesAsync(items, cancellationToken);
-        return items;
+        var result = await Projected(_db)
+            .OrderBy(s => s.CityName).ThenBy(s => s.ClientName)
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
+        await AttachLastKnownCountersAsync(result.Items, cancellationToken);
+        await AttachMaintenanceSummariesAsync(result.Items, cancellationToken);
+        return result;
     }
 
     public async Task<MaintenanceScheduleDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -47,7 +50,7 @@ public class MaintenanceScheduleService : IMaintenanceScheduleService
         return await GetByIdAsync(id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<MaintenanceScheduleDto>> ListInCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceScheduleDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var coveredCityIds = await _db.TechnicianCoverages
             .Where(c => c.TechnicianId == technicianId)
@@ -56,16 +59,18 @@ public class MaintenanceScheduleService : IMaintenanceScheduleService
 
         if (coveredCityIds.Count == 0)
         {
-            return Array.Empty<MaintenanceScheduleDto>();
+            return PagedResultFactory.Empty<MaintenanceScheduleDto>(pageSize);
         }
 
         var query = _db.MaintenanceSchedules.Where(s =>
             s.Asset.CurrentClientLocation != null && coveredCityIds.Contains(s.Asset.CurrentClientLocation.CityId));
 
-        var items = await ProjectedFrom(query).OrderBy(s => s.CityName).ThenBy(s => s.ClientName).ToListAsync(cancellationToken);
-        await AttachLastKnownCountersAsync(items, cancellationToken);
-        await AttachMaintenanceSummariesAsync(items, cancellationToken);
-        return items;
+        var result = await ProjectedFrom(query)
+            .OrderBy(s => s.CityName).ThenBy(s => s.ClientName)
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
+        await AttachLastKnownCountersAsync(result.Items, cancellationToken);
+        await AttachMaintenanceSummariesAsync(result.Items, cancellationToken);
+        return result;
     }
 
     public async Task<int> BackfillMissingAsync(CancellationToken cancellationToken = default)

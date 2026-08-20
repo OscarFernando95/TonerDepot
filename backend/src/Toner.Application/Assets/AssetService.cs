@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Toner.Application.Assets.Dtos;
 using Toner.Application.Assignment;
 using Toner.Application.Common;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Maintenance;
@@ -74,7 +75,7 @@ public class AssetService : IAssetService
         return await ToDtoAsync(asset.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<AssetDto>> ListAsync(RequestingUser requestingUser, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AssetDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var query = _db.Assets.AsQueryable();
 
@@ -85,11 +86,15 @@ public class AssetService : IAssetService
             query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId);
         }
 
-        var items = await ProjectedFrom(query).OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model).ToListAsync(cancellationToken);
+        // La paginación va ANTES de adjuntar las últimas lecturas: así el trabajo extra se hace solo
+        // sobre la página, no sobre el listado completo.
+        var result = await ProjectedFrom(query)
+            .OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model)
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
-        await AttachLastMeterReadingsAsync(items, cancellationToken);
+        await AttachLastMeterReadingsAsync(result.Items, cancellationToken);
 
-        return items;
+        return result;
     }
 
     private async Task AttachLastMeterReadingsAsync(IReadOnlyList<AssetDto> items, CancellationToken cancellationToken)
@@ -268,7 +273,7 @@ public class AssetService : IAssetService
         });
     }
 
-    public async Task<IReadOnlyList<AssetStatusLogDto>> GetStatusHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AssetStatusLogDto>> GetStatusHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var assetExists = await _db.Assets.AnyAsync(a => a.Id == id, cancellationToken);
         if (!assetExists)
@@ -276,9 +281,17 @@ public class AssetService : IAssetService
             throw new NotFoundException(nameof(Asset), id);
         }
 
-        return await _db.AssetStatusLogs
-            .Where(l => l.AssetId == id)
-            .OrderByDescending(l => l.ChangedAt)
+        var query = _db.AssetStatusLogs.Where(l => l.AssetId == id);
+
+        var position = PageCursor.Decode(cursor);
+        if (position is not null)
+        {
+            var (ts, lastId) = position.Value;
+            query = query.Where(l => l.ChangedAt < ts || (l.ChangedAt == ts && l.Id.CompareTo(lastId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(l => l.ChangedAt).ThenByDescending(l => l.Id)
             .Select(l => new AssetStatusLogDto
             {
                 Id = l.Id,
@@ -288,7 +301,7 @@ public class AssetService : IAssetService
                 ChangedByUserName = l.ChangedByUser != null ? l.ChangedByUser.FullName : null,
                 Notes = l.Notes
             })
-            .ToListAsync(cancellationToken);
+            .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.ChangedAt, last.Id), cancellationToken);
     }
 
     public async Task<MeterReadingDto> AddMeterReadingAsync(
@@ -353,7 +366,7 @@ public class AssetService : IAssetService
             .FirstAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<MeterReadingDto>> GetMeterReadingsAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MeterReadingDto>> GetMeterReadingsAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var assetExists = await _db.Assets.AnyAsync(a => a.Id == id, cancellationToken);
         if (!assetExists)
@@ -361,9 +374,17 @@ public class AssetService : IAssetService
             throw new NotFoundException(nameof(Asset), id);
         }
 
-        return await _db.MeterReadings
-            .Where(m => m.AssetId == id)
-            .OrderByDescending(m => m.ReadingDate)
+        var query = _db.MeterReadings.Where(m => m.AssetId == id);
+
+        var position = PageCursor.Decode(cursor);
+        if (position is not null)
+        {
+            var (ts, lastId) = position.Value;
+            query = query.Where(m => m.ReadingDate < ts || (m.ReadingDate == ts && m.Id.CompareTo(lastId) < 0));
+        }
+
+        return await query
+            .OrderByDescending(m => m.ReadingDate).ThenByDescending(m => m.Id)
             .Select(m => new MeterReadingDto
             {
                 Id = m.Id,
@@ -372,10 +393,10 @@ public class AssetService : IAssetService
                 CounterValue = m.CounterValue,
                 RegisteredByUserName = m.RegisteredByUser != null ? m.RegisteredByUser.FullName : null
             })
-            .ToListAsync(cancellationToken);
+            .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.ReadingDate, last.Id), cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PendingInstallationDto>> ListPendingInstallationsAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PendingInstallationDto>> ListPendingInstallationsAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var coveredCityIds = await _db.TechnicianCoverages
             .Where(c => c.TechnicianId == technicianId)
@@ -384,10 +405,10 @@ public class AssetService : IAssetService
 
         if (coveredCityIds.Count == 0)
         {
-            return Array.Empty<PendingInstallationDto>();
+            return PagedResultFactory.Empty<PendingInstallationDto>(pageSize);
         }
 
-        var pending = await _db.Assets
+        var result = await _db.Assets
             .Where(a => a.LifecycleStatus == AssetLifecycleStatus.PendienteInstalacion
                 && a.CurrentClientLocation != null
                 && coveredCityIds.Contains(a.CurrentClientLocation.CityId))
@@ -404,11 +425,12 @@ public class AssetService : IAssetService
                 CityName = a.CurrentClientLocation!.City.Name
             })
             .OrderBy(p => p.ClientName)
-            .ToListAsync(cancellationToken);
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
+        var pending = result.Items;
         if (pending.Count == 0)
         {
-            return pending;
+            return result;
         }
 
         var assetIds = pending.Select(p => p.AssetId).ToList();
@@ -433,16 +455,16 @@ public class AssetService : IAssetService
             item.TakenByAnotherTechnician = takenSet.Contains(item.AssetId);
         }
 
-        return pending;
+        return result;
     }
 
     // El alcance por rol se resuelve enteramente en MeterReadingsController ([Authorize(Roles =
     // RoleNames.StaffAndTechnicianRoles)]): Admin/Coordinador/Técnico ven todos los activos instalados,
     // no hay recorte adicional por cliente.
-    public async Task<IReadOnlyList<MeterReadingAssetDto>> ListForMeterReadingAsync(
-        RequestingUser requestingUser, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var items = await _db.Assets
+        var result = await _db.Assets
             .Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado)
             .Select(a => new MeterReadingAssetDto
             {
@@ -457,20 +479,20 @@ public class AssetService : IAssetService
                 CityName = a.CurrentClientLocation != null ? a.CurrentClientLocation.City.Name : null
             })
             .OrderBy(a => a.ClientName)
-            .ToListAsync(cancellationToken);
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
-        if (items.Count > 0)
+        if (result.Items.Count > 0)
         {
-            var assetIds = items.Select(i => i.AssetId).ToList();
+            var assetIds = result.Items.Select(i => i.AssetId).ToList();
             var lastByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
 
-            foreach (var item in items)
+            foreach (var item in result.Items)
             {
                 item.LastMeterReading = lastByAsset.TryGetValue(item.AssetId, out var value) ? value : null;
             }
         }
 
-        return items;
+        return result;
     }
 
     private async Task<AssetDto> ToDtoAsync(Guid id, CancellationToken cancellationToken)

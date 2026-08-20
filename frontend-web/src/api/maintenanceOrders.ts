@@ -1,8 +1,9 @@
+import { getList } from './paging'
 import { http } from './http'
 import type { AssignmentHistoryDto, CompleteMaintenanceOrderRequest, MaintenanceOrderDto } from './types'
 
 export function listMaintenanceOrders() {
-  return http.get<MaintenanceOrderDto[]>('/maintenance-orders')
+  return getList<MaintenanceOrderDto>('/maintenance-orders')
 }
 
 export function getMaintenanceOrder(id: string) {
@@ -22,5 +23,5 @@ export function cancelMaintenanceOrder(id: string) {
 }
 
 export function getMaintenanceOrderAssignmentHistory(id: string) {
-  return http.get<AssignmentHistoryDto[]>(`/maintenance-orders/${id}/assignment-history`)
+  return getList<AssignmentHistoryDto>(`/maintenance-orders/${id}/assignment-history`)
 }

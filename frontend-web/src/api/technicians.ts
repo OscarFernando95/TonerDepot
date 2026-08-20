@@ -1,3 +1,4 @@
+import { getList } from './paging'
 import { http } from './http'
 
 export interface TechnicianDto {
@@ -16,7 +17,7 @@ export interface TechnicianCoverageDto {
 }
 
 export function listTechnicians() {
-  return http.get<TechnicianDto[]>('/technicians')
+  return getList<TechnicianDto>('/technicians')
 }
 
 export function listTechnicianCoverage(technicianId: string) {
