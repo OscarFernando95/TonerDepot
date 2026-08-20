@@ -1,6 +1,7 @@
 using Toner.Application.Common;
 using Toner.Application.Common.Dtos;
 using Toner.Application.Maintenance.Dtos;
+using Toner.Domain.Entities;
 
 namespace Toner.Application.Maintenance;
 
@@ -19,6 +20,14 @@ public interface IMaintenanceOrderService
     // inició (EnProceso queda fuera de AssignableStatuses, así que ya no se puede tomar).
     Task<MaintenanceOrderDto> ClaimAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> CompleteAsync(Guid id, CompleteMaintenanceOrderRequest request, Guid completedByUserId, CancellationToken cancellationToken = default);
+
+    // Igual que CompleteAsync pero SIN guardar: deja la orden, la MeterReading y el recálculo del
+    // cronograma trackeados para que el caller los persista en su propio SaveChangesAsync (mismo
+    // patrón que AssetService.PrepareStatusChangeAsync). Lo usa
+    // TechnicianCheckInService.CheckOutAsync — antes esto era un commit aparte, y si fallaba la
+    // visita quedaba cerrada con la orden todavía EnProceso y el cronograma sin avanzar
+    // (CODE_QUALITY_AUDIT.md hallazgo #8).
+    Task<MaintenanceOrder> PrepareCompleteAsync(Guid id, CompleteMaintenanceOrderRequest request, Guid completedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> CancelAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default);
 }

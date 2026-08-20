@@ -70,6 +70,20 @@ public class MaintenanceScheduleEvaluationJob
         // (CODE_QUALITY_AUDIT.md hallazgo #6) — ver MaintenanceScheduleEngine.EvaluateAllDueAsync.
         var createdOrders = await _engine.EvaluateAllDueAsync(now, cancellationToken);
 
+        // Mismo motor de asignación que ServiceTicket: por cobertura de ciudad + menor carga de
+        // trabajo. Corre ANTES del único SaveChanges, sobre las órdenes todavía sin guardar: o se
+        // persisten todas las órdenes CON su asignación, o no se persiste ninguna.
+        //
+        // Antes era un SaveChanges para las órdenes y otro por cada asignación, y una caída a mitad
+        // del loop dejaba órdenes Pendiente huérfanas de forma PERMANENTE: el reintento de Hangfire
+        // no las cura, porque EvaluateAllDueAsync salta los cronogramas que ya tienen orden abierta.
+        // Esas impresoras se quedaban sin mantenimiento preventivo en silencio
+        // (CODE_QUALITY_AUDIT.md hallazgo #8).
+        foreach (var order in createdOrders)
+        {
+            await _assignmentEngine.AssignMaintenanceOrderAsync(order, cancellationToken);
+        }
+
         if (createdOrders.Count > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -78,12 +92,6 @@ public class MaintenanceScheduleEvaluationJob
         // Cuántos cronogramas activos se evaluaron, solo para el log — ya no hace falta traerlos aparte
         // para el barrido en sí (EvaluateAllDueAsync ya los cargó internamente).
         var scheduleCount = await _db.MaintenanceSchedules.CountAsync(s => s.IsActive, cancellationToken);
-
-        // Mismo motor de asignación que ServiceTicket: por cobertura de ciudad + menor carga de trabajo.
-        foreach (var order in createdOrders)
-        {
-            await _assignmentEngine.AssignMaintenanceOrderAsync(order.Id, cancellationToken);
-        }
 
         _logger.LogInformation(
             "Evaluación de cronogramas de mantenimiento: {ScheduleCount} activos revisados, {OrderCount} órdenes generadas.",

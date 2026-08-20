@@ -9,15 +9,23 @@ public class AssignmentEngine : IAssignmentEngine
 {
     private readonly IApplicationDbContext _db;
 
+    // Carga asignada durante la vida de esta instancia y todavía SIN guardar. Al dejar de hacer
+    // SaveChangesAsync por asignación (hallazgo #8), las consultas de carga de trabajo ya no ven lo
+    // asignado hace un instante: un lote de 40 órdenes le vería a todos los técnicos la misma carga
+    // inicial y se las apilaría todas al mismo. Este acumulador conserva el reparto por carga que
+    // antes daba, de rebote, el commit intermedio. El servicio es scoped, así que su vida es la de
+    // la request o la del job — exactamente el alcance del lote.
+    private readonly Dictionary<Guid, int> _pendingWorkload = new();
+
     public AssignmentEngine(IApplicationDbContext db)
     {
         _db = db;
     }
 
-    public async Task<Guid?> AssignServiceTicketAsync(Guid serviceTicketId, CancellationToken cancellationToken = default)
+    public async Task<Guid?> AssignServiceTicketAsync(ServiceTicket ticket, CancellationToken cancellationToken = default)
     {
-        var ticket = await _db.ServiceTickets.FirstAsync(t => t.Id == serviceTicketId, cancellationToken);
-
+        // La sede sí se lee de la base: existe desde antes que el ticket, no es parte de lo que está
+        // por guardarse.
         var cityId = await _db.ClientLocations
             .Where(l => l.Id == ticket.ClientLocationId)
             .Select(l => l.CityId)
@@ -30,7 +38,7 @@ public class AssignmentEngine : IAssignmentEngine
             ticket.Status = ServiceTicketStatus.SinAsignar;
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
-                ServiceTicketId = serviceTicketId,
+                ServiceTicketId = ticket.Id,
                 TechnicianId = null,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
@@ -43,22 +51,21 @@ public class AssignmentEngine : IAssignmentEngine
             ticket.Status = ServiceTicketStatus.Asignado;
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
-                ServiceTicketId = serviceTicketId,
+                ServiceTicketId = ticket.Id,
                 TechnicianId = candidateId,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
                 Reason = "Asignación automática por cobertura y carga de trabajo."
             });
+
+            _pendingWorkload[candidateId.Value] = _pendingWorkload.GetValueOrDefault(candidateId.Value) + 1;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
         return candidateId;
     }
 
-    public async Task<Guid?> AssignMaintenanceOrderAsync(Guid maintenanceOrderId, CancellationToken cancellationToken = default)
+    public async Task<Guid?> AssignMaintenanceOrderAsync(MaintenanceOrder order, CancellationToken cancellationToken = default)
     {
-        var order = await _db.MaintenanceOrders.FirstAsync(o => o.Id == maintenanceOrderId, cancellationToken);
-
         var cityId = await _db.Assets
             .Where(a => a.Id == order.AssetId)
             .Select(a => a.CurrentClientLocation != null ? (Guid?)a.CurrentClientLocation.CityId : null)
@@ -70,7 +77,7 @@ public class AssignmentEngine : IAssignmentEngine
         {
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
-                MaintenanceOrderId = maintenanceOrderId,
+                MaintenanceOrderId = order.Id,
                 TechnicianId = null,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
@@ -85,20 +92,22 @@ public class AssignmentEngine : IAssignmentEngine
             order.Status = MaintenanceOrderStatus.Asignada;
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
-                MaintenanceOrderId = maintenanceOrderId,
+                MaintenanceOrderId = order.Id,
                 TechnicianId = candidateId,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
                 Reason = "Asignación automática por cobertura y carga de trabajo."
             });
+
+            _pendingWorkload[candidateId.Value] = _pendingWorkload.GetValueOrDefault(candidateId.Value) + 1;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
         return candidateId;
     }
 
     // Candidatos: técnicos activos, con cobertura en la ciudad, que no estén Ocupado ahora mismo.
-    // Entre los candidatos, gana el de menor carga (tickets + órdenes actualmente asignados o en proceso).
+    // Entre los candidatos, gana el de menor carga (tickets + órdenes actualmente asignados o en
+    // proceso, más lo ya asignado en este mismo lote y aún sin guardar).
     private async Task<Guid?> FindCandidateAsync(Guid cityId, CancellationToken cancellationToken)
     {
         var candidateIds = await _db.Technicians
@@ -133,7 +142,9 @@ public class AssignmentEngine : IAssignmentEngine
             .ToDictionaryAsync(x => x.TechnicianId, x => x.Count, cancellationToken);
 
         return candidateIds
-            .OrderBy(id => ticketWorkload.GetValueOrDefault(id) + orderWorkload.GetValueOrDefault(id))
+            .OrderBy(id => ticketWorkload.GetValueOrDefault(id)
+                + orderWorkload.GetValueOrDefault(id)
+                + _pendingWorkload.GetValueOrDefault(id))
             .First();
     }
 }

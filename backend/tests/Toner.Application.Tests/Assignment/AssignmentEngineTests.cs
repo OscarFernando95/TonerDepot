@@ -32,7 +32,10 @@ public class AssignmentEngineTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var engine = new AssignmentEngine(actDb);
 
-        var result = await engine.AssignServiceTicketAsync(ticket.Id);
+        // El motor ya no guarda: recibe la entidad trackeada y el caller decide cuándo persistir.
+        var tracked = await actDb.ServiceTickets.SingleAsync(t => t.Id == ticket.Id);
+        var result = await engine.AssignServiceTicketAsync(tracked);
+        await actDb.SaveChangesAsync();
 
         Assert.Null(result);
 
@@ -68,7 +71,8 @@ public class AssignmentEngineTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var engine = new AssignmentEngine(actDb);
 
-        var result = await engine.AssignServiceTicketAsync(ticket.Id);
+        var tracked = await actDb.ServiceTickets.SingleAsync(t => t.Id == ticket.Id);
+        var result = await engine.AssignServiceTicketAsync(tracked);
 
         Assert.Null(result);
     }
@@ -109,7 +113,8 @@ public class AssignmentEngineTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var engine = new AssignmentEngine(actDb);
 
-        var result = await engine.AssignServiceTicketAsync(newTicket.Id);
+        var tracked = await actDb.ServiceTickets.SingleAsync(t => t.Id == newTicket.Id);
+        var result = await engine.AssignServiceTicketAsync(tracked);
 
         Assert.Equal(freeTechnician.Id, result);
     }
@@ -133,7 +138,9 @@ public class AssignmentEngineTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var engine = new AssignmentEngine(actDb);
 
-        var result = await engine.AssignMaintenanceOrderAsync(order.Id);
+        var tracked = await actDb.MaintenanceOrders.SingleAsync(o => o.Id == order.Id);
+        var result = await engine.AssignMaintenanceOrderAsync(tracked);
+        await actDb.SaveChangesAsync();
 
         Assert.Null(result);
 
@@ -168,7 +175,9 @@ public class AssignmentEngineTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var engine = new AssignmentEngine(actDb);
 
-        var result = await engine.AssignMaintenanceOrderAsync(order.Id);
+        var tracked = await actDb.MaintenanceOrders.SingleAsync(o => o.Id == order.Id);
+        var result = await engine.AssignMaintenanceOrderAsync(tracked);
+        await actDb.SaveChangesAsync();
 
         Assert.Equal(technician.Id, result);
 

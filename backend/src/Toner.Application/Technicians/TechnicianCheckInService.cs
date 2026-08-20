@@ -294,26 +294,24 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             if (request.ExternalAssetCounter is not null) openTicket.ExternalAssetCounter = request.ExternalAssetCounter;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-
         if (orderFromTicketReading is not null)
         {
-            await _assignmentEngine.AssignMaintenanceOrderAsync(orderFromTicketReading.Id, cancellationToken);
+            await _assignmentEngine.AssignMaintenanceOrderAsync(orderFromTicketReading, cancellationToken);
         }
 
         // El check-out solo cierra la visita; marcar Resuelto/Completada reutiliza la misma lógica
-        // (y efectos secundarios, como el recálculo del cronograma) que usan los endpoints manuales de Staff.
-        // La asignación de una orden que pudo haberse generado en la rama de ticket (arriba) también se
-        // dispara acá, después de que el pedido quedó guardado con un Id real.
+        // (y efectos secundarios, como el recálculo del cronograma) que usan los endpoints manuales de
+        // Staff — pero en su variante que NO guarda, para que todo caiga en el único SaveChanges de
+        // abajo.
         if (request.Resolved)
         {
             if (openLog.ServiceTicketId.HasValue)
             {
-                await _ticketService.SetStatusAsync(openLog.ServiceTicketId.Value, nameof(ServiceTicketStatus.Resuelto), cancellationToken);
+                await _ticketService.PrepareStatusChangeAsync(openLog.ServiceTicketId.Value, nameof(ServiceTicketStatus.Resuelto), cancellationToken);
             }
             else if (openLog.MaintenanceOrderId.HasValue)
             {
-                await _orderService.CompleteAsync(
+                await _orderService.PrepareCompleteAsync(
                     openLog.MaintenanceOrderId.Value,
                     new CompleteMaintenanceOrderRequest
                     {
@@ -324,6 +322,15 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                     cancellationToken);
             }
         }
+
+        // ÚNICO punto de persistencia de todo el check-out: cierre del TimeLog, técnico a Disponible,
+        // lectura de contador, cronograma, asignación de la orden generada y el cierre del
+        // ticket/orden. Antes eran hasta tres commits sucesivos; si el último fallaba, la visita
+        // quedaba cerrada y el técnico Disponible pero el ticket seguía EnProceso — y el reintento
+        // natural (volver a hacer check-in, que EnProceso permite) grababa una MeterReading
+        // DUPLICADA, que corrompe tanto los umbrales de mantenimiento como el promedio de impresiones
+        // por mes del contrato (CODE_QUALITY_AUDIT.md hallazgo #8).
+        await _db.SaveChangesAsync(cancellationToken);
 
         return await GetMyStatusAsync(technicianId, cancellationToken);
     }

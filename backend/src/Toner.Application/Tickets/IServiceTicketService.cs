@@ -1,6 +1,7 @@
 using Toner.Application.Common;
 using Toner.Application.Common.Dtos;
 using Toner.Application.Tickets.Dtos;
+using Toner.Domain.Entities;
 
 namespace Toner.Application.Tickets;
 
@@ -18,5 +19,14 @@ public interface IServiceTicketService
     // El propio técnico se autoasigna un ticket libre o asignado a otro técnico que aún no lo inició.
     Task<ServiceTicketDto> ClaimAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default);
     Task<ServiceTicketDto> SetStatusAsync(Guid id, string status, CancellationToken cancellationToken = default);
+
+    // Igual que SetStatusAsync pero SIN guardar: deja el ticket trackeado para que el caller lo
+    // persista en su propio SaveChangesAsync (mismo patrón que AssetService.PrepareStatusChangeAsync).
+    // Lo usa TechnicianCheckInService.CheckOutAsync, que necesita que el cierre de la visita y el
+    // cambio de estado del ticket caigan en un único commit — antes eran dos, y si el segundo
+    // fallaba la visita quedaba cerrada con el ticket todavía EnProceso
+    // (CODE_QUALITY_AUDIT.md hallazgo #8).
+    Task<ServiceTicket> PrepareStatusChangeAsync(Guid id, string status, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default);
 }

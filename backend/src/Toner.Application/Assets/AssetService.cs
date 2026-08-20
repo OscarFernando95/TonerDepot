@@ -328,12 +328,17 @@ public class AssetService : IAssetService
 
         var order = await _scheduleEngine.EvaluateAsync(id, request.CounterValue, reading.ReadingDate, cancellationToken);
 
-        await _db.SaveChangesAsync(cancellationToken);
-
+        // La asignación corre ANTES del SaveChanges, sobre la orden todavía sin guardar: lectura,
+        // orden y asignación caen en un único commit. Antes eran dos, y si el segundo fallaba
+        // quedaba una orden Pendiente huérfana que además bloquea para siempre la generación de
+        // órdenes de ese cronograma — EvaluateAllDueAsync salta los que ya tienen orden abierta
+        // (CODE_QUALITY_AUDIT.md hallazgo #8).
         if (order is not null)
         {
-            await _assignmentEngine.AssignMaintenanceOrderAsync(order.Id, cancellationToken);
+            await _assignmentEngine.AssignMaintenanceOrderAsync(order, cancellationToken);
         }
+
+        await _db.SaveChangesAsync(cancellationToken);
 
         return await _db.MeterReadings
             .Where(m => m.Id == reading.Id)

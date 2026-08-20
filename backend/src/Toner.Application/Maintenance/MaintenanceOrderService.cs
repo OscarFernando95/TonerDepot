@@ -154,6 +154,19 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         Guid completedByUserId,
         CancellationToken cancellationToken = default)
     {
+        await PrepareCompleteAsync(id, request, completedByUserId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    // Igual que CompleteAsync pero sin guardar — ver IMaintenanceOrderService.
+    public async Task<MaintenanceOrder> PrepareCompleteAsync(
+        Guid id,
+        CompleteMaintenanceOrderRequest request,
+        Guid completedByUserId,
+        CancellationToken cancellationToken = default)
+    {
         var order = await _db.MaintenanceOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(MaintenanceOrder), id);
 
@@ -190,9 +203,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             order.MaintenanceScheduleId, request.CounterValue, readingDate,
             order.IncludesGeneral, order.IncludesUnits, order.IncludesConsumables, cancellationToken);
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return await ToDtoAsync(id, cancellationToken);
+        return order;
     }
 
     public async Task<MaintenanceOrderDto> CancelAsync(Guid id, CancellationToken cancellationToken = default)

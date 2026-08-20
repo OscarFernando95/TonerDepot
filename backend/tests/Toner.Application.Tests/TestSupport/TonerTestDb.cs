@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Toner.Infrastructure.Persistence;
 
 namespace Toner.Application.Tests.TestSupport;
@@ -8,12 +9,16 @@ namespace Toner.Application.Tests.TestSupport;
 // DbContext por request en ASP.NET Core, en vez de reutilizar el mismo tracker en todo el test.
 public static class TonerTestDb
 {
-    public static TonerDbContext CreateContext(string databaseName)
+    public static TonerDbContext CreateContext(string databaseName, params IInterceptor[] interceptors)
     {
-        var options = new DbContextOptionsBuilder<TonerDbContext>()
-            .UseInMemoryDatabase(databaseName)
-            .Options;
+        var builder = new DbContextOptionsBuilder<TonerDbContext>()
+            .UseInMemoryDatabase(databaseName);
 
-        return new TonerDbContext(options);
+        if (interceptors.Length > 0)
+        {
+            builder.AddInterceptors(interceptors);
+        }
+
+        return new TonerDbContext(builder.Options);
     }
 }

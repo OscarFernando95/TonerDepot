@@ -69,11 +69,16 @@ public class ServiceTicketService : IServiceTicketService
         };
 
         _db.ServiceTickets.Add(ticket);
-        await _db.SaveChangesAsync(cancellationToken);
 
         // Intento de asignación automática por cobertura/carga apenas se crea el ticket; si no hay
         // candidato, el motor mismo deja el ticket en SinAsignar y registra el intento fallido.
-        await _assignmentEngine.AssignServiceTicketAsync(ticket.Id, cancellationToken);
+        // Corre ANTES del SaveChanges y sobre la entidad todavía sin guardar: el ticket y su
+        // asignación (o su AssignmentHistory de intento fallido) se persisten en un único commit.
+        // Antes eran dos, y si el segundo fallaba el ticket quedaba en Abierto sin que nada volviera
+        // a intentar asignarlo (CODE_QUALITY_AUDIT.md hallazgo #8).
+        await _assignmentEngine.AssignServiceTicketAsync(ticket, cancellationToken);
+
+        await _db.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(ticket.Id, cancellationToken);
     }
@@ -203,6 +208,15 @@ public class ServiceTicketService : IServiceTicketService
 
     public async Task<ServiceTicketDto> SetStatusAsync(Guid id, string status, CancellationToken cancellationToken = default)
     {
+        await PrepareStatusChangeAsync(id, status, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    // Igual que SetStatusAsync pero sin guardar — ver IServiceTicketService.
+    public async Task<ServiceTicket> PrepareStatusChangeAsync(Guid id, string status, CancellationToken cancellationToken = default)
+    {
         var ticket = await _db.ServiceTickets.FirstOrDefaultAsync(t => t.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceTicket), id);
 
@@ -217,9 +231,7 @@ public class ServiceTicketService : IServiceTicketService
         ticket.ResolvedAt = newStatus == ServiceTicketStatus.Resuelto ? DateTime.UtcNow : ticket.ResolvedAt;
         ticket.ClosedAt = newStatus == ServiceTicketStatus.Cerrado ? DateTime.UtcNow : ticket.ClosedAt;
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return await ToDtoAsync(id, cancellationToken);
+        return ticket;
     }
 
     public async Task<IReadOnlyList<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, CancellationToken cancellationToken = default)
