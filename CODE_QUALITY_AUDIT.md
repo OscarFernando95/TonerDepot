@@ -480,6 +480,8 @@ Secuencia correcta: (1) mover `cityId`, `clientId`, `lifecycleStatus` a query st
 
 ### 5.1 Estado actual: no hay ninguna capa de cache
 
+> **Actualizado (`5a8bc5d`).** Esta sección describe el punto de partida. Los candidatos 1, 2 y 3 de §5.3 ya están implementados con `IMemoryCache`; el resto del análisis sigue vigente, incluida la regla de §5.2 —que resultó aplicar al dashboard, y no solo a los listados por cliente.
+
 Verificado: cero referencias a `IMemoryCache`, `IDistributedCache`, `AddOutputCache`, `[ResponseCache]` o encabezados HTTP de cache en todo el backend. En el frontend, ninguna vista cachea nada: cada navegación re-dispara todos sus `loadX()` desde cero.
 
 Consecuencia para la pregunta sobre invalidación mal manejada: **no hay invalidación mal manejada porque no hay cache**. El hallazgo es la ausencia total, no una implementación defectuosa.
@@ -494,15 +496,15 @@ Por eso todos los candidatos que recomiendo abajo son **independientes del tenan
 
 **1. `GET /api/cities` — el mejor candidato del proyecto, sin discusión.**
 ~1.100 ciudades colombianas sembradas por migración desde `colombia-cities.json` (32 departamentos). **No existe ningún endpoint de escritura sobre `Cities`**: el dato es inmutable en tiempo de ejecución. Se consulta desde `CreateClientDialog`, `UsersView` y `ClientDetailView`, cada vez que se abre el diálogo.
-→ `IMemoryCache` sin expiración, o `OutputCache` con duración larga. **Invalidación: ninguna, un deploy la limpia.** Elimina ~1.100 filas de tráfico por cada apertura de formulario. Esfuerzo: 5 líneas.
+→ **Implementado (`5a8bc5d`)** con `IMemoryCache` y TTL absoluto de 4 h. **Invalidación: ninguna** —no hay endpoint de escritura que invalidar—, solo el TTL o un deploy. Elimina ~1.100 filas de tráfico por cada apertura de formulario.
 
 **2. `GET /api/dashboard/summary` — el mayor ahorro de trabajo del servidor.**
 Es la consulta más cara del sistema (4 scans completos sin índices + agregación en memoria, §2.8/§3.7). Se dispara en `onMounted` **y en cada clic del selector de período** ([DashboardView.vue:91](frontend-web/src/views/DashboardView.vue#L91): `watch(periodDays, loadSummary)`). Son métricas operativas donde 60 segundos de desactualización no le importan a nadie.
-→ `OutputCache` con clave por `periodDays`, 60–300 s. Es solo-staff, así que no hay riesgo de tenant. **Invalidación: por expiración, no hace falta activa.** Con 3 opciones de período son 3 entradas de cache.
+→ ~~`OutputCache` con clave por `periodDays`, 60–300 s. Es solo-staff, así que no hay riesgo de tenant.~~ **Corregido al implementar (`5a8bc5d`): la premisa de "solo-staff" era falsa.** `DashboardService` consulta `Assets`, `ServiceTickets` y `Contracts` —las tres con política RLS— y responde también a usuarios Cliente, con datos ya filtrados por su tenant. Una clave compartida por `periodDays` habría sido exactamente la fuga de §5.2. Implementado con `IMemoryCache` y clave `dashboard:summary:{staff|client:<id>}:{periodDays}`, TTL 30 s, con `periodDays` **normalizado antes** de construir la clave (si no, `0`, `-5` y `30` generan tres entradas idénticas). **Invalidación: por expiración, no hace falta activa.**
 
 **3. Catálogo de marcas y modelos (`AssetBrands`, `AssetModels`).**
 Cambian rara vez (alta manual desde el diálogo de activos), se leen constantemente: los listados de marcas/modelos alimentan varios formularios, y `AssetModel` participa como join en las proyecciones de activos, órdenes y cronogramas.
-→ `IMemoryCache` sobre los listados. **Invalidación activa y sencilla**: solo hay 3 caminos de escritura (`AssetBrandService.CreateAsync`, `AssetModelService.CreateAsync`/`UpdateAsync`); cada uno hace `cache.Remove(key)`. Esfuerzo bajo, riesgo bajo.
+→ **Implementado (`5a8bc5d`)** con `IMemoryCache`, TTL 4 h y una entrada por `brandId` en los modelos. **Invalidación activa** en los 3 caminos de escritura previstos (`AssetBrandService.CreateAsync`, `AssetModelService.CreateAsync`/`UpdateAsync`); la de modelos borra solo la marca afectada, no todo el catálogo.
 
 **4. Tabla `Roles`.**
 [UserService.CreateAsync:38](backend/src/Toner.Application/Users/UserService.cs#L38) consulta `Roles` por nombre en cada alta de usuario. Son 5 filas inmutables sembradas por `DataSeeder`.
@@ -709,6 +711,39 @@ Es lo mejor del código. Los comentarios explican consistentemente el *por qué*
 
 Un riesgo asociado: varios comentarios afirman invariantes que dependen de configuración externa. El de `NpgsqlSessionResetTests` **sí** está respaldado por un test, y el de "a lo sumo un `ContractAsset` activo" **sí** está respaldado por un índice único parcial — bien. Pero el de [ContractAssetConfiguration](backend/src/Toner.Infrastructure/Persistence/Configurations/ContractAssetConfiguration.cs) sobre la traducción de la violación de unicidad depende de que `TonerDbContext.TryGetUniqueViolationMessage` siga existiendo; y el comentario de `EnableRetryOnFailure` sobre "sin transacciones explícitas (verificado)" dejará de ser cierto en cuanto se implemente §8.4, y ahí hay que acordarse de envolver las transacciones en el execution strategy.
 
+
+### 7.8 Drift del sistema de diseño (hallazgo #41)
+
+Detectado en [MaintenanceSchedulesView.vue](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue). **Es deuda preexistente**, del commit `883bfa2`, no introducida por ninguna de las tandas de correcciones de este audit. Severidad **Baja / Cosmético**; **sin tanda asignada todavía** — el segundo punto depende de una decisión de diseño que no es técnica.
+
+**1. `font-size` literal en vez de token — sistémico, no local.**
+[L466](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L466) y [L497](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L497) declaran `font-size: 0.85rem` crudo. El valor coincide exactamente con el paso `--text-md` de la escala tipográfica de `DESIGN.md`, que enuncia la regla explícitamente: *"Font sizes are always `var(--text-*)`; a literal `font-size` value in board-world CSS is drift, not a new step"*.
+
+Lo relevante es el alcance: `font-size: 0.85rem` aparece en **13 archivos** del frontend. Cambiarlo solo en esta vista sería un parche arbitrario que deja la regla igual de rota en las otras 12. **Pide un barrido sistémico** —idealmente con una regla de lint que lo impida a futuro—, no una corrección puntual.
+
+**2. Cuatro niveles de urgencia contra una paleta de dos — decisión de diseño pendiente.**
+
+El drift **no está solo en el bloque `<style>`; también en el `<script>`**, y el alcance es mayor de lo que sugieren las filas de la tabla. `urgencyColors` ([L156-161](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L156)) define **cuatro** niveles, ninguno con un color de la paleta:
+
+| Nivel | Literal | Qué es realmente | Fila teñida |
+|---|---|---|---|
+| `far` | `#67c23a` | verde `success` de Element Plus | no |
+| `soon` | `#eab308` / `rgba(234, 179, 8, 0.08)` ([L501](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L501)) | ámbar de Tailwind, no `signal-amber` (`#d9a441`) | sí |
+| `urgent` | `#f97316` / `rgba(249, 115, 22, 0.1)` ([L505](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L505)) | naranja **que no existe en la paleta**, en ningún tono | sí |
+| `overdue` | `#f56c6c` / `rgba(245, 108, 108, 0.12)` ([L509](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L509)) | `danger` de Element Plus, no `signal-red` (`#d64545`) | sí |
+
+A eso se suma el `color: '#fff'` de `urgencyTagStyle` ([L171](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L171)): la tinta del sistema es `flap-ink` (`#eef0ec`, blanco cálido), y el blanco puro solo está sancionado en `DESIGN.md` para texto sobre relleno Signal Blue —el botón primario—, no como color de primer plano genérico.
+
+La causa raíz no es descuido de valores: **`DESIGN.md` define dos lámparas de estado reservadas** —`signal-amber` para "en riesgo/retrasado" y `signal-red` para "crítico/vencido"— **pero el código implementa cuatro niveles**. El naranja de `urgent` se inventó para llenar un hueco que la paleta no cubre, y `far` se pinta de verde cuando `DESIGN.md` reserva Signal Blue para el estado "en hora / en marcha" y descarta explícitamente el verde del vocabulario de lámparas de dominio. Mientras esa brecha exista, cualquier "corrección" de los valores sería adivinar.
+
+> **Decisión pendiente (de Oscar, no técnica):** ¿se **colapsa el nivel intermedio a ámbar** —dejando dos niveles visuales sobre los lógicos, coherente con la paleta actual—, o se **agrega `signal-orange` como token nuevo** a `DESIGN.md`, asumiendo la tercera lámpara como parte del sistema de diseño?
+>
+> Al resolverla hay que decidir de paso qué le corresponde a `far`: hoy verde, cuando el sistema tiene Signal Blue para ese estado.
+>
+> Hasta que se responda, esto no entra a ninguna tanda.
+
+Sobre la regla *"State is never color-only"* de `DESIGN.md`: la **etiqueta sí cumple** — `urgencyLabels` ([L162-167](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L162)) acompaña cada color con texto ("Lejano", "Próximo", "Muy próximo", "Vencido"). El tinte de fila es color puro, pero no aporta información que la etiqueta de la misma fila no lleve ya, así que es redundancia visual y no un incumplimiento.
+
 ---
 
 ## 8. Manejo de errores y resiliencia
@@ -823,7 +858,7 @@ Esfuerzo: **XS** < 1 h · **S** 1–4 h · **M** 1–2 días · **L** 3–5 día
 | # | Hallazgo | Capa | Tipo | Impacto | Archivo | Esfuerzo |
 |---|---|---|---|---|---|---|
 | 9 | El interceptor RLS añade un round-trip **por consulta**; abrir la conexión una vez por request lo reduce a uno por request | Backend | Performance | Medio — ✅ Resuelto (`b50b2ae`) | [TenantContextInterceptor.cs](backend/src/Toner.Infrastructure/Persistence/TenantContextInterceptor.cs), [Program.cs:331](backend/src/Toner.Api/Program.cs#L331) | **M** |
-| 10 | Sin cache en ningún lado; `GET /api/cities` (~1.100 filas inmutables) y el dashboard son candidatos evidentes | Backend | Performance | Medio | [CityService.cs](backend/src/Toner.Application/Cities/CityService.cs), [DashboardService.cs](backend/src/Toner.Application/Dashboard/DashboardService.cs) | **S** |
+| 10 | Sin cache en ningún lado; `GET /api/cities` (~1.100 filas inmutables) y el dashboard son candidatos evidentes. Resuelto con `IMemoryCache` nativo a nivel de servicio (sin dependencias nuevas) en 4 endpoints: los 3 catálogos (`cities`, `asset-brands`, `asset-models`) con TTL 4 h y el resumen del dashboard con TTL 30 s, siempre con expiración **absoluta**, no deslizante. `Cities` queda sin invalidación activa porque no existe endpoint de escritura sobre esa tabla; marcas y modelos se invalidan desde sus `Create`/`UpdateAsync`, y los modelos solo para el `brandId` afectado. **La clave del dashboard incluye el tenant**: contra la premisa de que era un agregado global solo-staff, el servicio sí consulta tablas con RLS, y una clave compartida habría sido la fuga de §5.2. Ver §5.3. | Backend | Performance | Medio — ✅ Resuelto (`5a8bc5d`) | [Common/Caching/](backend/src/Toner.Application/Common/Caching/), [CityService.cs](backend/src/Toner.Application/Cities/CityService.cs), [DashboardService.cs](backend/src/Toner.Application/Dashboard/DashboardService.cs) | **S** |
 | 11 | Faltan índices en `CreatedAt`, `Status`, `LifecycleStatus`, `ResolvedAt`, `CompletedAt`, `StartTime` y los parciales de `TimeLogs` | DB | Performance | Medio | Configurations + migración | **S** |
 | 12 | `Intl.DateTimeFormat` instanciado en línea dentro de celdas de tabla (hasta 4 por fila) | Frontend | Performance | Medio | [MaintenanceSchedulesView.vue:300](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L300) +5 sitios | **XS** |
 | 13 | `.reduce()` anidados dentro del `<template>` para contar elementos de grupo | Frontend | Performance | Medio | [AssetsListView.vue:380](frontend-web/src/views/assets/AssetsListView.vue#L380), [MaintenanceSchedulesView.vue:346](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L346) | **XS** |
@@ -859,6 +894,7 @@ Esfuerzo: **XS** < 1 h · **S** 1–4 h · **M** 1–2 días · **L** 3–5 día
 | 38 | Indexadores de diccionario sobre enums sin guarda de exhaustividad → 500 si se agrega un valor | Backend | Código limpio | Bajo | [AssetService.cs:195](backend/src/Toner.Application/Assets/AssetService.cs#L195) +2 | **XS** |
 | 39 | Sin endpoint `/health` para readiness/liveness del contenedor | Backend | Resiliencia | Bajo | [Program.cs](backend/src/Toner.Api/Program.cs) | **XS** |
 | 40 | Sin virtualización de tablas (`el-table-v2`); mitigado en su mayor parte por #4 | Frontend | Performance | Bajo | vistas de listado | **M** |
+| 41 | Drift respecto a `DESIGN.md` en `MaintenanceSchedulesView.vue`: 2 `font-size: 0.85rem` literales en vez de `var(--text-md)` (el literal está en 13 archivos, pide barrido sistémico) y 8 colores literales fuera de la paleta entre el `<script>` y el `<style>` (los 4 de `urgencyColors`, sus 3 tintes de fila y el `#fff` de `urgencyTagStyle`). **Preexistente** (`883bfa2`), no introducido por ninguna tanda de este audit. Bloqueado por una decisión de diseño pendiente: `DESIGN.md` define dos lámparas de estado (`signal-amber`, `signal-red`) pero el código ya implementa cuatro niveles (`far`/`soon`/`urgent`/`overdue`). Ver §7.8. | Frontend | Cosmético | **Baja** — ⏸️ Pendiente de decisión de Oscar, sin tanda asignada | [MaintenanceSchedulesView.vue:466](frontend-web/src/views/maintenance/MaintenanceSchedulesView.vue#L466) | **XS** (parche local) / **S** (barrido de los 13 archivos) |
 
 ### Secuencia sugerida
 
