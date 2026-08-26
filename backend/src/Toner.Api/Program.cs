@@ -152,6 +152,12 @@ builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddHealthChecks()
     .AddCheck<PostgresHealthCheck>("postgres");
 
+// Caché in-memory para catálogos y el resumen del dashboard (CODE_QUALITY_AUDIT.md hallazgo #10).
+// Sin SizeLimit a propósito: lo que se cachea está acotado por construcción — una entrada para
+// ciudades, una para marcas, una por marca para modelos, y una por (tenant, período) para el
+// dashboard. No hay ninguna clave derivada de entrada libre del usuario que pueda hacerla crecer.
+builder.Services.AddMemoryCache();
+
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
 builder.Services.AddScoped<IAuthService, AuthService>();

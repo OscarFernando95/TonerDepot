@@ -1,3 +1,4 @@
+using Toner.Application.Common.Interfaces;
 using Toner.Application.Dashboard;
 using Toner.Application.Tests.TestSupport;
 using Toner.Domain.Common;
@@ -8,12 +9,17 @@ namespace Toner.Application.Tests.Dashboard;
 
 public class DashboardServiceTests
 {
+    // Caché NUEVA por invocación: si los tests compartieran una, el resultado de uno se filtraría al
+    // siguiente y estarían midiendo la caché en vez de la lógica del dashboard.
+    private static DashboardService BuildService(Infrastructure.Persistence.TonerDbContext db) =>
+        new(db, TestCache.New(), TestCache.StaffTenant());
+
     [Fact]
     public async Task GetSummaryAsync_NoData_ReturnsNullAveragesNotZeroOrException()
     {
         var dbName = Guid.NewGuid().ToString();
         using var db = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(db);
+        var service = BuildService(db);
 
         var result = await service.GetSummaryAsync(30);
 
@@ -48,7 +54,7 @@ public class DashboardServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(actDb);
+        var service = BuildService(actDb);
 
         var result = await service.GetSummaryAsync(30);
 
@@ -81,7 +87,7 @@ public class DashboardServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(actDb);
+        var service = BuildService(actDb);
 
         var result = await service.GetSummaryAsync(30);
 
@@ -115,7 +121,7 @@ public class DashboardServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(actDb);
+        var service = BuildService(actDb);
 
         var result = await service.GetSummaryAsync(30);
 
@@ -144,7 +150,7 @@ public class DashboardServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(actDb);
+        var service = BuildService(actDb);
 
         var result = await service.GetSummaryAsync(30);
 
@@ -175,7 +181,7 @@ public class DashboardServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(actDb);
+        var service = BuildService(actDb);
 
         // Periodo de 10 días -> base asumida de 80h; 4h registradas -> 5% de utilización.
         var result = await service.GetSummaryAsync(10);

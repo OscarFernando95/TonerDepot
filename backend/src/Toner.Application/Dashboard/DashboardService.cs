@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Toner.Application.Common.Caching;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Dashboard.Dtos;
 using Toner.Domain.Enums;
@@ -29,17 +31,39 @@ public class DashboardService : IDashboardService
     private const double AssumedHoursPerDay = 8.0;
 
     private readonly IApplicationDbContext _db;
+    private readonly IMemoryCache _cache;
+    private readonly ITenantContextAccessor _tenantContextAccessor;
 
-    public DashboardService(IApplicationDbContext db)
+    public DashboardService(IApplicationDbContext db, IMemoryCache cache, ITenantContextAccessor tenantContextAccessor)
     {
         _db = db;
+        _cache = cache;
+        _tenantContextAccessor = tenantContextAccessor;
     }
 
+    // Es la consulta más cara del sistema: cuatro barridos sin índice de soporte más agregación en
+    // memoria, y se dispara en cada clic del selector de período (CODE_QUALITY_AUDIT.md hallazgo #10).
+    //
+    // ⚠️ A diferencia de los catálogos, esto SÍ toca tablas con RLS: ServiceTickets tiene políticas, y
+    // la proyección de tickets abiertos navega a ClientLocation, que también. Que hoy sea seguro
+    // cachearlo depende de que el endpoint sea solo-staff ([Authorize(Roles = StaffRoles)] en
+    // DashboardController), no del modelo de datos. Por eso el tenant va EN LA CLAVE: si mañana se
+    // abriera al rol Cliente, cada cliente tendría su propia entrada en vez de leer la del vecino.
     public async Task<DashboardSummaryDto> GetSummaryAsync(int periodDays, CancellationToken cancellationToken = default)
     {
         if (periodDays <= 0)
         {
             periodDays = 30;
+        }
+
+        // La clave usa el periodDays YA normalizado: si no, ?periodDays=0, =-5 y =30 crearían tres
+        // entradas con exactamente el mismo contenido.
+        var tenant = _tenantContextAccessor.Current;
+        var cacheKey = CacheKeys.DashboardSummary(tenant?.IsStaff ?? false, tenant?.ClientId, periodDays);
+
+        if (_cache.TryGetValue(cacheKey, out DashboardSummaryDto? cached) && cached is not null)
+        {
+            return cached;
         }
 
         var periodStart = DateTime.UtcNow.AddDays(-periodDays);
@@ -64,7 +88,7 @@ public class DashboardService : IDashboardService
             .Select(l => new TimeLogRow(l.TechnicianId, l.StartTime, l.EndTime!.Value, l.Technician.User.FullName))
             .ToListAsync(cancellationToken);
 
-        return new DashboardSummaryDto
+        var summary = new DashboardSummaryDto
         {
             PeriodDays = periodDays,
             Mttr = BuildMttr(resolvedTickets),
@@ -73,6 +97,12 @@ public class DashboardService : IDashboardService
             TechnicianUtilization = BuildUtilization(timeLogs, periodDays),
             SlaCompliance = BuildSlaCompliance(resolvedTickets)
         };
+
+        // Absoluta: 30 segundos es el techo real de antigüedad. Con expiración deslizante, un
+        // dashboard abierto y refrescándose nunca volvería a consultar la base.
+        _cache.Set(cacheKey, summary, CacheDurations.DashboardSummary);
+
+        return summary;
     }
 
     private static MttrDto BuildMttr(IReadOnlyCollection<ResolvedTicketRow> resolved)

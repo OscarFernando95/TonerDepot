@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Toner.Application.Assets.Dtos;
+using Toner.Application.Common.Caching;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
@@ -9,15 +11,26 @@ namespace Toner.Application.Assets;
 public class AssetModelService : IAssetModelService
 {
     private readonly IApplicationDbContext _db;
+    private readonly IMemoryCache _cache;
 
-    public AssetModelService(IApplicationDbContext db)
+    public AssetModelService(IApplicationDbContext db, IMemoryCache cache)
     {
         _db = db;
+        _cache = cache;
     }
 
+    // Sin RLS (AssetModels no está entre las tablas con políticas). Se cachea POR MARCA: los modelos
+    // se piden siempre acotados a un brandId (cascada marca -> modelo en los formularios), así que
+    // una entrada por marca evita que editar un modelo de una marca invalide las demás.
     public async Task<IReadOnlyList<AssetModelDto>> ListAsync(Guid brandId, CancellationToken cancellationToken = default)
     {
-        return await _db.AssetModels
+        var cacheKey = CacheKeys.AssetModels(brandId);
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<AssetModelDto>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var models = await _db.AssetModels
             .Where(m => m.AssetBrandId == brandId)
             .OrderBy(m => m.Name)
             .Select(m => new AssetModelDto
@@ -32,6 +45,10 @@ public class AssetModelService : IAssetModelService
                 ConsumablesPrintThreshold = m.ConsumablesPrintThreshold
             })
             .ToListAsync(cancellationToken);
+
+        _cache.Set(cacheKey, (IReadOnlyList<AssetModelDto>)models, CacheDurations.Catalog);
+
+        return models;
     }
 
     public async Task<AssetModelDto> CreateAsync(Guid brandId, CreateAssetModelRequest request, CancellationToken cancellationToken = default)
@@ -63,6 +80,9 @@ public class AssetModelService : IAssetModelService
         _db.AssetModels.Add(model);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // Invalidación activa, solo la entrada de ESTA marca.
+        _cache.Remove(CacheKeys.AssetModels(brandId));
+
         return ToDto(model);
     }
 
@@ -90,6 +110,10 @@ public class AssetModelService : IAssetModelService
         await RecalculateSchedulesForModelAsync(model, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Editar umbrales cambia lo que devuelve el listado, así que la entrada de esta marca se
+        // invalida igual que al crear.
+        _cache.Remove(CacheKeys.AssetModels(brandId));
 
         return ToDto(model);
     }
