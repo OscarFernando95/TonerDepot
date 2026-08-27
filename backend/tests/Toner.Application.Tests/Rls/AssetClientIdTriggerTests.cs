@@ -21,16 +21,13 @@ public class AssetClientIdTriggerTests
 
     public AssetClientIdTriggerTests(RlsFixture fixture) => _fixture = fixture;
 
-    private const string OwnerConnectionString =
-        "Host=localhost;Port=5433;Database=toner;Username=toner;Password=toner_dev_password;Ssl Mode=Require";
-
     private static readonly Guid LocationOfClientA = Guid.Parse("aaaaaaaa-0000-0000-0000-000000000001");
     private static readonly Guid LocationOfClientB = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
     private const string AssetModelId = "ffffffff-0000-0000-0000-000000000002";
 
     private static async Task<NpgsqlConnection> OpenOwnerAsync()
     {
-        var connection = new NpgsqlConnection(OwnerConnectionString);
+        var connection = new NpgsqlConnection(PostgresFactAttribute.OwnerConnectionString);
         await connection.OpenAsync();
         return connection;
     }

@@ -19,9 +19,6 @@ public sealed class RlsFixture
     // Cliente debe verlo (ver SECURITY_AUDIT_V2.md hallazgo N1).
     public static readonly Guid AssetWithoutLocation = Guid.Parse("a55e7000-0000-0000-0000-000000000003");
 
-    private const string OwnerConnectionString =
-        "Host=localhost;Port=5433;Database=toner;Username=toner;Password=toner_dev_password;Ssl Mode=Require";
-
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _seeded;
 
@@ -35,7 +32,7 @@ public sealed class RlsFixture
                 return;
             }
 
-            await using var connection = new NpgsqlConnection(OwnerConnectionString);
+            await using var connection = new NpgsqlConnection(PostgresFactAttribute.OwnerConnectionString);
             await connection.OpenAsync();
 
             await using var command = connection.CreateCommand();
@@ -58,8 +55,10 @@ public sealed class RlsFixture
                        (@contractB,@clientB,now(),'Activo',now())
                 ON CONFLICT (""Id"") DO NOTHING;
 
-                INSERT INTO ""ServiceTickets"" (""Id"",""ClientLocationId"",""ReportedByUserId"",""Description"",""Status"",""Priority"",""CreatedAt"")
-                SELECT @ticketA, @locationA, u.""Id"", 'Ticket del cliente A', 'Abierto', 'Media', now()
+                -- ClientId es NOT NULL desde la fase 3a (columna denormalizada que usa la política
+                -- RLS): hay que sembrarlo explícitamente, igual que lo hace ServiceTicketService.
+                INSERT INTO ""ServiceTickets"" (""Id"",""ClientLocationId"",""ClientId"",""ReportedByUserId"",""Description"",""Status"",""Priority"",""CreatedAt"")
+                SELECT @ticketA, @locationA, @clientA, u.""Id"", 'Ticket del cliente A', 'Abierto', 'Media', now()
                 FROM ""Users"" u LIMIT 1
                 ON CONFLICT (""Id"") DO NOTHING;
 

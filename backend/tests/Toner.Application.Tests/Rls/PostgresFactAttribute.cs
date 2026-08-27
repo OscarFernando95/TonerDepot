@@ -8,8 +8,19 @@ namespace Toner.Application.Tests.Rls;
 // máquina sin Docker, pero nadie confunde "saltado" con "pasó".
 public sealed class PostgresFactAttribute : FactAttribute
 {
+    // Rol de la aplicación: sujeto a RLS. Es con el que se prueban las políticas.
     public const string ConnectionString =
         "Host=localhost;Port=5433;Database=toner;Username=toner_app;Password=toner_app_dev_password;Ssl Mode=Require";
+
+    // Rol owner: en el docker-compose de desarrollo es superusuario, así que bypasea RLS y puede
+    // sembrar datos de prueba sin toparse con las políticas. Vive acá, junto a la cadena del rol de
+    // aplicación, para no repetirla en cada fixture o test que necesite sembrar.
+    //
+    // Las credenciales son las de desarrollo del docker-compose, ya públicas en docker-compose.yml y
+    // .env.example — no filtran nada que no esté ya en el repo. Si algún día se leen del entorno, este
+    // es el único sitio a cambiar.
+    public const string OwnerConnectionString =
+        "Host=localhost;Port=5433;Database=toner;Username=toner;Password=toner_dev_password;Ssl Mode=Require";
 
     private static readonly Lazy<string?> SkipReason = new(() =>
     {
