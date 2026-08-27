@@ -42,26 +42,34 @@ public class ServiceTicketService : IServiceTicketService
 
     public async Task<ServiceTicketDto> CreateAsync(RequestingUser requestingUser, CreateServiceTicketRequest request, CancellationToken cancellationToken = default)
     {
-        if (!requestingUser.IsStaff)
-        {
-            var locationClientId = await _db.ClientLocations
-                .Where(l => l.Id == request.ClientLocationId)
-                .Select(l => l.ClientId)
-                .FirstAsync(cancellationToken);
-
-            if (locationClientId != requestingUser.RequireClientId())
-            {
-                throw new ForbiddenException("No puedes reportar tickets para una sede que no pertenece a tu cliente.");
-            }
-        }
-
+        // La validación del payload va ANTES de tocar la base: es más barata, y sobre todo un
+        // Priority inválido tiene que salir como ValidationException → 400 (CODE_QUALITY_AUDIT.md
+        // hallazgo #20). Si la consulta de la sede corriera primero, una petición con Priority
+        // inválido devolvería el error de esa consulta y no el de validación.
         var priority = string.IsNullOrEmpty(request.Priority)
             ? ServiceTicketPriority.Media
             : EnumParsing.ParseOrThrow<ServiceTicketPriority>(request.Priority, nameof(request.Priority));
 
+        // La consulta ahora es incondicional (antes solo corría para no-staff): su resultado también
+        // alimenta ServiceTicket.ClientId, la columna denormalizada que usa la política RLS. Sigue
+        // siendo una sola consulta, que sirve para el chequeo de autorización y para la captura.
+        var locationClientId = await _db.ClientLocations
+            .Where(l => l.Id == request.ClientLocationId)
+            .Select(l => l.ClientId)
+            .FirstAsync(cancellationToken);
+
+        if (!requestingUser.IsStaff && locationClientId != requestingUser.RequireClientId())
+        {
+            throw new ForbiddenException("No puedes reportar tickets para una sede que no pertenece a tu cliente.");
+        }
+
         var ticket = new ServiceTicket
         {
             ClientLocationId = request.ClientLocationId,
+            // Captura al escribir: el ticket queda atado al cliente dueño de la sede en este momento
+            // (ver ServiceTicket.ClientId). ClientLocation.ClientId es inmutable, así que no puede
+            // desincronizarse después.
+            ClientId = locationClientId,
             AssetId = request.AssetId,
             ReportedByUserId = requestingUser.UserId,
             Description = request.Description.Trim(),

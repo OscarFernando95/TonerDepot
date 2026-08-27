@@ -96,6 +96,24 @@ convención" ahí.
   acceso a `DbContext` fuera de `Toner.Infrastructure`/registro de DI. Un
   servicio nuevo de aplicación solo conoce `IApplicationDbContext`, nunca
   Npgsql ni EF Core directamente más allá de esa interfaz.
+  - **Excepción registrada (única hasta hoy): el trigger
+    `assets_sync_client_id`** (migración `AddPhase3aDenormalizedClientId`),
+    que mantiene `Assets."ClientId"` sincronizado con la sede actual del
+    activo. Se aceptó como excepción porque **no es una regla de dominio
+    sino integridad referencial derivada** — está más cerca de una
+    `FOREIGN KEY` o de una columna calculada que de una decisión de
+    negocio: no decide nada, solo impide que una copia denormalizada se
+    separe de su origen. La alternativa era que los cuatro caminos que
+    mueven un activo (y el próximo que se escriba) se acordaran de
+    sincronizar a mano una columna de la que depende el aislamiento entre
+    clientes; el trigger elimina esa dependencia de la memoria de quien
+    programa. Contrapartida obligatoria: `AssetClientIdTriggerTests`
+    verifica `INSERT`, `UPDATE` de sede, vuelta a bodega (`NULL`),
+    manipulación directa de la columna, y deriva global.
+  - Antes de agregar otra excepción, el criterio es el mismo: ¿es una
+    *decisión* de negocio (va en Application) o una *garantía de
+    integridad* sobre datos derivados (puede ir en la base)? Ante la duda,
+    Application.
 
 ## Frontend (Vue 3)
 

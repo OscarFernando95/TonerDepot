@@ -24,6 +24,13 @@ public class ServiceTicketConfiguration : IEntityTypeConfiguration<ServiceTicket
         builder.HasIndex(t => t.Status);
         builder.HasIndex(t => t.ResolvedAt).HasFilter("\"ResolvedAt\" IS NOT NULL");
 
+        // Denormalizado desde ClientLocation.ClientId, capturado al escribir (ver ServiceTicket.ClientId).
+        // NOT NULL sin default: obliga a que todo camino de escritura decida el cliente explícitamente.
+        builder.Property(t => t.ClientId).IsRequired();
+
+        // Sin este índice la política RLS no resuelve por Index Scan.
+        builder.HasIndex(t => t.ClientId);
+
         builder.HasOne(t => t.ClientLocation)
             .WithMany(l => l.ServiceTickets)
             .HasForeignKey(t => t.ClientLocationId)

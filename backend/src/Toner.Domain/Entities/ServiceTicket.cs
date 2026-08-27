@@ -8,6 +8,16 @@ public class ServiceTicket : BaseEntity
     public Guid ClientLocationId { get; set; }
     public ClientLocation ClientLocation { get; set; } = null!;
 
+    // Denormalizado desde ClientLocation.ClientId para que la política RLS pueda comparar una columna
+    // propia en vez de resolver un EXISTS contra ClientLocations — sin esto el predicado del Cliente
+    // no es sargable y toda consulta degrada a Seq Scan (SECURITY_AUDIT_V2.md fase 3a).
+    //
+    // Se CAPTURA AL ESCRIBIR, no se deriva en cada lectura: ClientLocation.ClientId es inmutable (una
+    // sede pertenece a un cliente para siempre — UpdateClientLocationRequest no expone ClientId), así
+    // que capturar y derivar dan el mismo valor por siempre. NOT NULL sin default a propósito: hace
+    // imposible insertar un ticket sin decidir a qué cliente pertenece.
+    public Guid ClientId { get; set; }
+
     public Guid? AssetId { get; set; }
     public Asset? Asset { get; set; }
 

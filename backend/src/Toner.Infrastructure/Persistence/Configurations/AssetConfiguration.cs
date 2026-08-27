@@ -23,6 +23,16 @@ public class AssetConfiguration : IEntityTypeConfiguration<Asset>
         // MaintenanceScheduleService.BackfillMissingAsync) sin índice de soporte.
         builder.HasIndex(a => a.LifecycleStatus);
 
+        // Denormalizado y mantenido por el trigger assets_sync_client_id (ver la migración
+        // AddPhase3aDenormalizedClientId). La aplicación NUNCA lo escribe: se mapea como generado por
+        // la base para que EF no lo mande en el INSERT/UPDATE y lo lea de vuelta con RETURNING — si
+        // EF lo enviara, sobreescribiría en memoria el valor que calculó el trigger.
+        builder.Property(a => a.ClientId).ValueGeneratedOnAddOrUpdate();
+
+        // Sin este índice la política RLS no resuelve por Index Scan y todo el trabajo de
+        // denormalización no sirve de nada.
+        builder.HasIndex(a => a.ClientId);
+
         builder.HasOne(a => a.AssetModel)
             .WithMany(m => m.Assets)
             .HasForeignKey(a => a.AssetModelId)
