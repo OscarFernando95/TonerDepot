@@ -89,7 +89,7 @@ Ambas cadenas incluyen `Ssl Mode=Require`; el Postgres de `docker-compose.yml` c
 
 Postgres aplica aislamiento por cliente como **segunda capa**, además del filtrado por cliente/técnico que ya hace la capa de aplicación en C# (`RequestingUser` + los `Where` de cada servicio). El filtrado de C# sigue siendo la primera línea y no se eliminó: RLS existe para que un `Where` olvidado en un endpoint futuro no se convierta en una fuga entre clientes.
 
-- **Tablas con políticas:** `ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` (todas con `FORCE ROW LEVEL SECURITY`). Son exactamente las cuatro que el rol `Cliente` puede alcanzar desde algún endpoint. En `Assets`, un `CurrentClientLocationId` nulo (activo en bodega) no pertenece a ningún cliente y la política lo deniega.
+- **Tablas con políticas:** `Clients`, `ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` (todas con `FORCE ROW LEVEL SECURITY`). Las cuatro últimas son las que el rol `Cliente` puede alcanzar desde algún endpoint; `Clients` es la tabla **raíz** de la tenencia y lleva política como defensa en profundidad, aunque hoy `ClientsController` sea solo-Staff. En `Assets`, un `CurrentClientLocationId` nulo (activo en bodega) no pertenece a ningún cliente y la política lo deniega.
 - **Alcance:** solo el borde `Cliente`. `Administrador`, `Coordinador` y `Tecnico` son confiables a nivel de BD porque ven datos de varios clientes por diseño; su filtrado fino vive en C#.
 - **`Users` queda deliberadamente fuera de RLS**, no por olvido: el login consulta esa tabla *antes* de que exista un usuario autenticado, así que una política fail-closed impediría iniciar sesión. Su protección sigue dependiendo de la capa de aplicación.
 - **Contexto:** `TenantContextMiddleware` establece el contexto por request y `TenantContextInterceptor` lo propaga a Postgres. Fuera de HTTP (`DataSeeder`, jobs de Hangfire, `TonerExceptionLogger`) se establece `TenantContext.Staff` de forma explícita. Si no hay contexto determinable, el interceptor **lanza** en vez de dejar la sesión sin setear — un `SELECT` sin contexto devolvería 0 filas, indistinguible de "no hay datos".
@@ -119,7 +119,7 @@ El interceptor cambia de rol con `set_config('role', …)` — equivalente a `SE
 
 ### ⚠️ RLS y migraciones
 
-`ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Y como ahora están **restringidas por rol** (`TO toner_app` / `TO toner_app_staff`), un owner que no sea miembro de `toner_app_staff` no coincide con **ninguna** política: su DML afectaría **0 filas en silencio**, sin lanzar error.
+`Clients`, `ClientLocations`, `Contracts`, `ServiceTickets` y `Assets` tienen **`FORCE ROW LEVEL SECURITY`**, así que las políticas aplican también al owner. Y como ahora están **restringidas por rol** (`TO toner_app` / `TO toner_app_staff`), un owner que no sea miembro de `toner_app_staff` no coincide con **ninguna** política: su DML afectaría **0 filas en silencio**, sin lanzar error.
 
 Eso lo resuelve `create-app-role.sh`, que concede la membresía al owner que corre el script:
 

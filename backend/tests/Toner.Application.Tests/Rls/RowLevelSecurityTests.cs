@@ -60,6 +60,53 @@ public class RowLevelSecurityTests
     }
 
     [PostgresFact]
+    public async Task Cliente_SoloSeVeASiMismoEnLaTablaClients()
+    {
+        // SECURITY_AUDIT_V2.md hallazgo N3: Clients es la tabla RAÍZ de la tenencia (TaxId, correo y
+        // teléfono de contacto) y era la única a 0 saltos sin política. Hoy ClientsController es
+        // solo-Staff, así que esto es defensa en profundidad: si mañana un endpoint la expusiera a un
+        // Cliente, la política ya está.
+        await _fixture.EnsureSeededAsync();
+
+        await using var asClientA = await OpenAsAsync(isStaff: false, RlsFixture.ClientA);
+        var idsForA = await SelectClientIdsAsync(asClientA);
+        Assert.Equal(new[] { RlsFixture.ClientA }, idsForA);
+
+        await using var asClientB = await OpenAsAsync(isStaff: false, RlsFixture.ClientB);
+        var idsForB = await SelectClientIdsAsync(asClientB);
+        Assert.Equal(new[] { RlsFixture.ClientB }, idsForB);
+    }
+
+    [PostgresFact]
+    public async Task Cliente_NoPuedeRenombrarAOtroCliente()
+    {
+        await _fixture.EnsureSeededAsync();
+
+        await using var asClientB = await OpenAsAsync(isStaff: false, RlsFixture.ClientB);
+        await using var command = asClientB.CreateCommand();
+        command.CommandText = @"UPDATE ""Clients"" SET ""Name"" = 'hackeado' WHERE ""Id"" = @otherClient";
+        command.Parameters.AddWithValue("otherClient", RlsFixture.ClientA);
+
+        // La política USING no deja ni ver la fila del otro cliente: 0 filas afectadas.
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+    }
+
+    private static async Task<List<Guid>> SelectClientIdsAsync(NpgsqlConnection connection)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"SELECT ""Id"" FROM ""Clients"" ORDER BY ""Id""";
+
+        var ids = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            ids.Add(reader.GetGuid(0));
+        }
+
+        return ids;
+    }
+
+    [PostgresFact]
     public async Task Cliente_SoloVeSusPropiosActivos_YNuncaLosDeBodega()
     {
         // SECURITY_AUDIT_V2.md hallazgo N1: Assets es alcanzable por el rol Cliente
@@ -168,6 +215,7 @@ public class RowLevelSecurityTests
         await _fixture.EnsureSeededAsync();
 
         await using var asStaff = await OpenAsAsync(isStaff: true, clientId: null);
+        Assert.True(await CountAsync(asStaff, "Clients") >= 2);
         Assert.True(await CountAsync(asStaff, "ClientLocations") >= 2);
         Assert.True(await CountAsync(asStaff, "Contracts") >= 2);
         Assert.True(await CountAsync(asStaff, "ServiceTickets") >= 1);
@@ -184,6 +232,7 @@ public class RowLevelSecurityTests
         await using var connection = new NpgsqlConnection(PostgresFactAttribute.ConnectionString);
         await connection.OpenAsync();
 
+        Assert.Equal(0, await CountAsync(connection, "Clients"));
         Assert.Equal(0, await CountAsync(connection, "ClientLocations"));
         Assert.Equal(0, await CountAsync(connection, "Contracts"));
         Assert.Equal(0, await CountAsync(connection, "ServiceTickets"));
