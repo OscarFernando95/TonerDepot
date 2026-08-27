@@ -6,6 +6,11 @@ namespace Toner.Domain.Entities;
 public class MaintenanceOrder : BaseEntity
 {
     public Guid MaintenanceScheduleId { get; set; }
+
+    // Denormalizado para la política RLS (fase 3b). CAPTURA AL ESCRIBIR desde el cronograma que la
+    // generó: el trabajo es para el cliente que tenía el activo cuando se creó la orden. NOT NULL —
+    // toda orden nace de un cronograma, y todo cronograma tiene contrato y por tanto cliente.
+    public Guid ClientId { get; set; }
     public MaintenanceSchedule MaintenanceSchedule { get; set; } = null!;
 
     // Denormalizado desde MaintenanceSchedule.AssetId para facilitar consultas del técnico y del dashboard.

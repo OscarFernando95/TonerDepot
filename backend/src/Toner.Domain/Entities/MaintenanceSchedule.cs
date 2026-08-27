@@ -14,6 +14,11 @@ public class MaintenanceSchedule : BaseEntity
     // Contrato bajo el cual se creó/renovó el cronograma (informativo — un activo que vuelve a bodega y
     // se reinstala bajo otro contrato reinicia su cronograma con el contrato nuevo).
     public Guid ContractId { get; set; }
+
+    // Denormalizado para la política RLS (fase 3b). CAPTURA AL ESCRIBIR desde Contract.ClientId, que
+    // es inmutable (UpdateContractRequest no expone ClientId), así que no puede desincronizarse.
+    // NOT NULL: un cronograma siempre se crea bajo un contrato.
+    public Guid ClientId { get; set; }
     public Contract Contract { get; set; } = null!;
 
     public bool IsActive { get; set; } = true;

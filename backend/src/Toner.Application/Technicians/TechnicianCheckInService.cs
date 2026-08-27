@@ -131,9 +131,23 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             Reason = "Check-in"
         });
 
+        // Captura al escribir desde el padre presente (exactamente uno de los tres, ver el check
+        // constraint de TimeLogs). Nullable: un check-in de instalación sobre un activo que todavía
+        // no tiene sede deja el TimeLog sin cliente, y la política no se lo muestra a nadie.
+        var timeLogClientId = request.ServiceTicketId.HasValue
+            ? await _db.ServiceTickets.Where(t => t.Id == request.ServiceTicketId.Value)
+                .Select(t => (Guid?)t.ClientId).FirstOrDefaultAsync(cancellationToken)
+            : request.MaintenanceOrderId.HasValue
+                ? await _db.MaintenanceOrders.Where(o => o.Id == request.MaintenanceOrderId.Value)
+                    .Select(o => (Guid?)o.ClientId).FirstOrDefaultAsync(cancellationToken)
+                : request.AssetId.HasValue
+                    ? await GetAssetClientIdAsync(request.AssetId.Value, cancellationToken)
+                    : null;
+
         _db.TimeLogs.Add(new TimeLog
         {
             TechnicianId = technicianId,
+            ClientId = timeLogClientId,
             ServiceTicketId = request.ServiceTicketId,
             MaintenanceOrderId = request.MaintenanceOrderId,
             AssetId = request.AssetId,
@@ -246,6 +260,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             _db.MeterReadings.Add(new MeterReading
             {
                 AssetId = openLog.AssetId.Value,
+                ClientId = await GetAssetClientIdAsync(openLog.AssetId.Value, cancellationToken),
                 ReadingDate = counterDate,
                 CounterValue = request.InitialCounterValue!.Value,
                 RegisteredByUserId = technician.UserId
@@ -276,6 +291,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             _db.MeterReadings.Add(new MeterReading
             {
                 AssetId = ticketAssetId.Value,
+                ClientId = await GetAssetClientIdAsync(ticketAssetId.Value, cancellationToken),
                 ReadingDate = counterDate,
                 CounterValue = request.InitialCounterValue!.Value,
                 RegisteredByUserId = technician.UserId
@@ -334,4 +350,12 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
         return await GetMyStatusAsync(technicianId, cancellationToken);
     }
+
+    // El ClientId denormalizado de las tablas de fase 3b se captura al escribir. En este servicio el
+    // origen es siempre el activo, del que solo se tiene el id — de ahí esta consulta puntual por PK.
+    // Devuelve null si el activo está en bodega: esa fila no pertenece a ningún cliente y la política
+    // RLS no se la muestra a nadie (fail-closed).
+    private Task<Guid?> GetAssetClientIdAsync(Guid assetId, CancellationToken cancellationToken) =>
+        _db.Assets.Where(a => a.Id == assetId).Select(a => a.ClientId).FirstOrDefaultAsync(cancellationToken);
+
 }

@@ -11,6 +11,11 @@ public class ContractAssetConfiguration : IEntityTypeConfiguration<ContractAsset
         builder.ConfigureBaseEntity();
         builder.ToTable("ContractAssets");
 
+        // Denormalizado para RLS (fase 3b). Sin este índice la política no resuelve por
+        // Index Scan y la denormalización no sirve de nada.
+        builder.Property(ca => ca.ClientId).IsRequired();
+        builder.HasIndex(ca => ca.ClientId);
+
         builder.HasOne(ca => ca.Contract)
             .WithMany(c => c.ContractAssets)
             .HasForeignKey(ca => ca.ContractId)

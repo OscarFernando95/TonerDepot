@@ -15,6 +15,10 @@ public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
             "CASE WHEN \"MaintenanceOrderId\" IS NOT NULL THEN 1 ELSE 0 END + " +
             "CASE WHEN \"AssetId\" IS NOT NULL THEN 1 ELSE 0 END) = 1"));
 
+        // Denormalizado para RLS (fase 3b). Sin este índice la política no resuelve por
+        // Index Scan y la denormalización no sirve de nada.
+        builder.HasIndex(t => t.ClientId);
+
         builder.Property(l => l.Notes).HasMaxLength(1000);
 
         // CODE_QUALITY_AUDIT.md hallazgo #11: el dashboard filtra por rango de StartTime; "TimeLog

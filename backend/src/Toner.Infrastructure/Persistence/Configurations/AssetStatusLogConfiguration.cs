@@ -11,6 +11,10 @@ public class AssetStatusLogConfiguration : IEntityTypeConfiguration<AssetStatusL
         builder.ConfigureBaseEntity();
         builder.ToTable("AssetStatusLogs");
 
+        // Denormalizado para RLS (fase 3b). Sin este índice la política no resuelve por
+        // Index Scan y la denormalización no sirve de nada.
+        builder.HasIndex(l => l.ClientId);
+
         builder.Property(l => l.PreviousStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(l => l.NewStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(l => l.Notes).HasMaxLength(500);

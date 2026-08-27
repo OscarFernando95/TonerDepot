@@ -203,6 +203,8 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         _db.MeterReadings.Add(new MeterReading
         {
             AssetId = order.AssetId,
+            // Captura al escribir desde la orden, que ya lleva el cliente denormalizado (fase 3b).
+            ClientId = order.ClientId,
             ReadingDate = readingDate,
             CounterValue = request.CounterValue,
             RegisteredByUserId = completedByUserId

@@ -58,6 +58,9 @@ public class ContractAssetService : IContractAssetService
         var contractAsset = new ContractAsset
         {
             ContractId = contractId,
+            // Captura al escribir desde el contrato ya cargado arriba; Contract.ClientId es inmutable
+            // (fase 3b).
+            ClientId = contract.ClientId,
             AssetId = request.AssetId,
             StartDate = request.StartDate ?? DateTime.UtcNow
         };

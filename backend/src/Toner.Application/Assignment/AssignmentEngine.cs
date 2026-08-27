@@ -39,6 +39,7 @@ public class AssignmentEngine : IAssignmentEngine
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
                 ServiceTicketId = ticket.Id,
+                ClientId = ticket.ClientId,
                 TechnicianId = null,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
@@ -52,6 +53,7 @@ public class AssignmentEngine : IAssignmentEngine
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
                 ServiceTicketId = ticket.Id,
+                ClientId = ticket.ClientId,
                 TechnicianId = candidateId,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
@@ -78,6 +80,7 @@ public class AssignmentEngine : IAssignmentEngine
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
                 MaintenanceOrderId = order.Id,
+                ClientId = order.ClientId,
                 TechnicianId = null,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,
@@ -93,6 +96,7 @@ public class AssignmentEngine : IAssignmentEngine
             _db.AssignmentHistories.Add(new AssignmentHistory
             {
                 MaintenanceOrderId = order.Id,
+                ClientId = order.ClientId,
                 TechnicianId = candidateId,
                 AssignedByUserId = null,
                 AssignmentType = AssignmentType.Automatica,

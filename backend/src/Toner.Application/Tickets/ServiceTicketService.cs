@@ -168,6 +168,7 @@ public class ServiceTicketService : IServiceTicketService
         _db.AssignmentHistories.Add(new AssignmentHistory
         {
             ServiceTicketId = ticket.Id,
+            ClientId = ticket.ClientId,
             TechnicianId = request.TechnicianId,
             AssignedByUserId = assignedByUserId,
             AssignmentType = AssignmentType.Manual,
@@ -205,6 +206,7 @@ public class ServiceTicketService : IServiceTicketService
         _db.AssignmentHistories.Add(new AssignmentHistory
         {
             ServiceTicketId = ticket.Id,
+            ClientId = ticket.ClientId,
             TechnicianId = technicianId,
             AssignedByUserId = claimingUserId,
             AssignmentType = AssignmentType.Reclamada

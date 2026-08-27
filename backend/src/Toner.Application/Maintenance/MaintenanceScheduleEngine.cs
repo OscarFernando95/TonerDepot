@@ -40,6 +40,13 @@ public class MaintenanceScheduleEngine : IMaintenanceScheduleEngine
         }
 
         schedule.ContractId = contractId;
+        // Captura al escribir desde el contrato. Contract.ClientId es inmutable, así que este valor no
+        // puede desincronizarse después (fase 3b). Se reasigna en cada upsert porque un activo que
+        // vuelve a bodega y se reinstala bajo OTRO contrato reinicia su cronograma con ese contrato.
+        schedule.ClientId = await _db.Contracts
+            .Where(c => c.Id == contractId)
+            .Select(c => c.ClientId)
+            .FirstAsync(cancellationToken);
         schedule.IsActive = true;
 
         // "Realizado" (true) arranca una línea base fresca (un intervalo completo por delante). No marcado
@@ -173,6 +180,9 @@ public class MaintenanceScheduleEngine : IMaintenanceScheduleEngine
         {
             MaintenanceScheduleId = schedule.Id,
             AssetId = schedule.AssetId,
+            // Captura al escribir desde el cronograma: el trabajo es para el cliente que tenía el
+            // activo cuando se generó la orden (fase 3b).
+            ClientId = schedule.ClientId,
             Status = MaintenanceOrderStatus.Pendiente,
             ScheduledDate = asOf
         };

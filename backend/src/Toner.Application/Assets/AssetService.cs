@@ -266,6 +266,10 @@ public class AssetService : IAssetService
         _db.AssetStatusLogs.Add(new AssetStatusLog
         {
             AssetId = asset.Id,
+            // Captura al escribir DESPUÉS de la mutación de arriba: refleja a quién pertenece el activo
+            // como RESULTADO de la transición. En una vuelta a bodega queda NULL y ningún cliente ve el
+            // log — coherente, porque en ese mismo momento el activo también sale de su vista (fase 3b).
+            ClientId = asset.ClientId,
             PreviousStatus = previousStatus,
             NewStatus = newStatus,
             ChangedByUserId = changedByUserId,
@@ -332,6 +336,10 @@ public class AssetService : IAssetService
         var reading = new MeterReading
         {
             AssetId = id,
+            // Captura al escribir desde el activo. Nullable: hoy se puede registrar una lectura de un
+            // activo en bodega (este método solo comprueba que exista, no su LifecycleStatus), y esa
+            // lectura no pertenece a ningún cliente — fail-closed (fase 3b).
+            ClientId = await _db.Assets.Where(a => a.Id == id).Select(a => a.ClientId).FirstOrDefaultAsync(cancellationToken),
             ReadingDate = request.ReadingDate ?? DateTime.UtcNow,
             CounterValue = request.CounterValue,
             RegisteredByUserId = registeredByUserId

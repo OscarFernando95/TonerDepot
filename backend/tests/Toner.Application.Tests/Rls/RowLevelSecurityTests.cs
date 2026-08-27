@@ -232,10 +232,51 @@ public class RowLevelSecurityTests
         await using var connection = new NpgsqlConnection(PostgresFactAttribute.ConnectionString);
         await connection.OpenAsync();
 
-        Assert.Equal(0, await CountAsync(connection, "Clients"));
-        Assert.Equal(0, await CountAsync(connection, "ClientLocations"));
-        Assert.Equal(0, await CountAsync(connection, "Contracts"));
-        Assert.Equal(0, await CountAsync(connection, "ServiceTickets"));
+        foreach (var table in TablesWithRls)
+        {
+            Assert.Equal(0, await CountAsync(connection, table));
+        }
+    }
+
+    // Las 12 tablas con política RLS. Se enumeran acá para que los tests de "sin contexto no se ve
+    // nada" y "toda tabla protegida tiene sus dos políticas" cubran automáticamente cualquier tabla
+    // que se agregue en el futuro sin tener que acordarse de sumarla a cada test.
+    private static readonly string[] TablesWithRls =
+    {
+        "Clients", "ClientLocations", "Contracts", "ServiceTickets", "Assets",
+        "MeterReadings", "MaintenanceOrders", "MaintenanceSchedules",
+        "AssetStatusLogs", "ContractAssets", "TimeLogs", "AssignmentHistories"
+    };
+
+    [PostgresFact]
+    public async Task TodaTablaConRls_TienePoliticaDeClienteYDeStaff_ForzadaTambienParaElOwner()
+    {
+        // Verifica la FORMA de la protección, no solo su efecto: cada tabla debe tener exactamente dos
+        // políticas (una por rol) y FORCE ROW LEVEL SECURITY. Detecta una tabla que quede a medias —
+        // por ejemplo con RLS habilitado pero sin la política de staff, que dejaría al back-office sin
+        // ver nada, o sin FORCE, que dejaría al owner fuera del alcance de las políticas.
+        await using var connection = new NpgsqlConnection(PostgresFactAttribute.OwnerConnectionString);
+        await connection.OpenAsync();
+
+        foreach (var table in TablesWithRls)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = @"
+                SELECT c.relrowsecurity, c.relforcerowsecurity,
+                       (SELECT count(*) FROM pg_policies p
+                        WHERE p.schemaname = 'public' AND p.tablename = c.relname)
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relname = @table";
+            command.Parameters.AddWithValue("table", table);
+
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync(), $"La tabla {table} no existe.");
+
+            Assert.True(reader.GetBoolean(0), $"{table} no tiene ROW LEVEL SECURITY habilitado.");
+            Assert.True(reader.GetBoolean(1), $"{table} no tiene FORCE ROW LEVEL SECURITY.");
+            Assert.True(reader.GetInt64(2) == 2, $"{table} tiene {reader.GetInt64(2)} políticas, se esperaban 2 (cliente + staff).");
+        }
     }
 
     [PostgresFact]

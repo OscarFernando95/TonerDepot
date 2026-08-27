@@ -6,6 +6,10 @@ namespace Toner.Domain.Entities;
 public class ContractAsset : BaseEntity
 {
     public Guid ContractId { get; set; }
+
+    // Denormalizado para la política RLS (fase 3b). CAPTURA AL ESCRIBIR desde Contract.ClientId, que
+    // es inmutable. NOT NULL: siempre se crea bajo un contrato.
+    public Guid ClientId { get; set; }
     public Contract Contract { get; set; } = null!;
 
     public Guid AssetId { get; set; }

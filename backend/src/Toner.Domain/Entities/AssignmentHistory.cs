@@ -7,6 +7,10 @@ namespace Toner.Domain.Entities;
 // Exactamente uno de ServiceTicketId / MaintenanceOrderId debe estar presente (se valida en Application).
 public class AssignmentHistory : BaseEntity
 {
+    // Denormalizado para la política RLS (fase 3b). CAPTURA AL ESCRIBIR desde el ticket o la orden
+    // a la que pertenece el intento de asignación. NOT NULL: siempre hay exactamente uno de los dos.
+    public Guid ClientId { get; set; }
+
     public Guid? ServiceTicketId { get; set; }
     public ServiceTicket? ServiceTicket { get; set; }
 

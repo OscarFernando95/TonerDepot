@@ -11,6 +11,11 @@ public class MaintenanceOrderConfiguration : IEntityTypeConfiguration<Maintenanc
         builder.ConfigureBaseEntity();
         builder.ToTable("MaintenanceOrders");
 
+        // Denormalizado para RLS (fase 3b). Sin este índice la política no resuelve por
+        // Index Scan y la denormalización no sirve de nada.
+        builder.Property(o => o.ClientId).IsRequired();
+        builder.HasIndex(o => o.ClientId);
+
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
 
         // CODE_QUALITY_AUDIT.md hallazgo #11: los listados ordenan por CreatedAt DESC sin índice de

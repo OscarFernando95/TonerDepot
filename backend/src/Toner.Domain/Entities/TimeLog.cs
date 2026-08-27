@@ -5,6 +5,11 @@ namespace Toner.Domain.Entities;
 // Tiempo de atención del técnico. Exactamente uno de ServiceTicketId / MaintenanceOrderId / AssetId debe estar presente.
 public class TimeLog : BaseEntity
 {
+    // Denormalizado para la política RLS (fase 3b). CAPTURA AL ESCRIBIR desde el padre presente
+    // (ticket, orden o activo). Nullable: el check-in de instalación puede apuntar a un activo sin
+    // cliente asignado todavía.
+    public Guid? ClientId { get; set; }
+
     public Guid? ServiceTicketId { get; set; }
     public ServiceTicket? ServiceTicket { get; set; }
 
