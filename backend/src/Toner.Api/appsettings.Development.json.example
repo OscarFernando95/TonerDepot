@@ -23,5 +23,18 @@
   },
   "Cors": {
     "AllowedOrigins": ["http://localhost:5173"]
+  },
+  "Smtp": {
+    "Host": "localhost",
+    "Port": 2525,
+    "Username": "",
+    "Password": "",
+    "FromAddress": "no-reply@toner.local"
+  },
+  "PasswordDelivery": {
+    "AdminEmail": "<CORREO_ADMINISTRATIVO_QUE_RECIBE_LAS_CONTRASEÑAS_GENERADAS>"
+  },
+  "JobPayloadEncryption": {
+    "Key": "<GENERA_UNA_CLAVE_AES-256_CON_openssl_rand_-base64_32>"
   }
 }

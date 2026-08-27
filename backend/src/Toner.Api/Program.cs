@@ -27,11 +27,14 @@ using Toner.Application.Technicians;
 using Toner.Application.Tickets;
 using Toner.Application.Users;
 using Toner.Infrastructure.Auth;
+using Toner.Infrastructure.Email;
 using Toner.Infrastructure.Health;
 using Toner.Infrastructure.Jobs;
 using Toner.Infrastructure.Logging;
+using Toner.Infrastructure.Notifications;
 using Toner.Infrastructure.Persistence;
 using Toner.Infrastructure.Persistence.Seed;
+using Toner.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -180,6 +183,12 @@ builder.Services.AddScoped<ITechnicianCheckInService, TechnicianCheckInService>(
 builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
+// Contraseña generada al crear/resetear un usuario (hallazgo #3 de SECURITY_AUDIT.md).
+builder.Services.AddSingleton<IJobPayloadEncryptor, AesGcmJobPayloadEncryptor>();
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IBackgroundJobScheduler, HangfireBackgroundJobScheduler>();
+builder.Services.AddScoped<SendGeneratedPasswordEmailJob>();
+
 builder.Services.AddValidatorsFromAssembly(typeof(IAuthService).Assembly);
 
 builder.Services.AddHangfire(config => config
@@ -194,6 +203,21 @@ var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>()
     ?? throw new InvalidOperationException("Falta la sección de configuración 'Jwt'.");
 JwtSettingsValidator.EnsureValid(jwtSettings);
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"));
+
+var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>()
+    ?? throw new InvalidOperationException("Falta la sección de configuración 'Smtp'.");
+SmtpSettingsValidator.EnsureValid(smtpSettings);
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+
+var passwordDeliverySettings = builder.Configuration.GetSection("PasswordDelivery").Get<PasswordDeliverySettings>()
+    ?? throw new InvalidOperationException("Falta la sección de configuración 'PasswordDelivery'.");
+PasswordDeliverySettingsValidator.EnsureValid(passwordDeliverySettings);
+builder.Services.Configure<PasswordDeliverySettings>(builder.Configuration.GetSection("PasswordDelivery"));
+
+var jobPayloadEncryptionSettings = builder.Configuration.GetSection("JobPayloadEncryption").Get<JobPayloadEncryptionSettings>()
+    ?? throw new InvalidOperationException("Falta la sección de configuración 'JobPayloadEncryption'.");
+JobPayloadEncryptionSettingsValidator.EnsureValid(jobPayloadEncryptionSettings);
+builder.Services.Configure<JobPayloadEncryptionSettings>(builder.Configuration.GetSection("JobPayloadEncryption"));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

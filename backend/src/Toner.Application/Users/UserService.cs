@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Auth;
 using Toner.Application.Common.Paging;
 using Microsoft.Extensions.Logging;
 using Toner.Application.Common.Exceptions;
@@ -14,16 +15,22 @@ public class UserService : IUserService
 {
     private readonly IApplicationDbContext _db;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IBackgroundJobScheduler _jobScheduler;
     private readonly ILogger<UserService> _logger;
 
-    public UserService(IApplicationDbContext db, IPasswordHasher passwordHasher, ILogger<UserService> logger)
+    public UserService(
+        IApplicationDbContext db,
+        IPasswordHasher passwordHasher,
+        IBackgroundJobScheduler jobScheduler,
+        ILogger<UserService> logger)
     {
         _db = db;
         _passwordHasher = passwordHasher;
+        _jobScheduler = jobScheduler;
         _logger = logger;
     }
 
-    public async Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<UserWithGeneratedPasswordDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
     {
         var cedula = request.Cedula.Trim();
 
@@ -38,11 +45,13 @@ public class UserService : IUserService
         var role = await _db.Roles.FirstOrDefaultAsync(r => r.Name == request.RoleName, cancellationToken)
             ?? throw new NotFoundException(nameof(Role), request.RoleName);
 
+        var generatedPassword = SecurePasswordGenerator.Generate();
+
         var user = new User
         {
             Cedula = cedula,
             Email = normalizedEmail,
-            PasswordHash = _passwordHasher.Hash(PasswordDefaults.DefaultPassword),
+            PasswordHash = _passwordHasher.Hash(generatedPassword),
             MustChangePassword = true,
             FullName = request.FullName.Trim(),
             Phone = request.Phone.Trim(),
@@ -70,7 +79,12 @@ public class UserService : IUserService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        return await ToDtoAsync(user.Id, cancellationToken);
+        // Después del único SaveChanges: si algo previo falla, no queremos haber encolado un correo
+        // para un usuario que no llegó a existir.
+        _jobScheduler.EnqueueGeneratedPasswordEmail(cedula, generatedPassword);
+
+        var dto = await ToDtoAsync(user.Id, cancellationToken);
+        return ToWithGeneratedPassword(dto, generatedPassword);
     }
 
     public async Task<PagedResult<UserDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)
@@ -118,26 +132,53 @@ public class UserService : IUserService
         return await ToDtoAsync(userId, cancellationToken);
     }
 
-    public async Task<UserDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default)
+    public async Task<UserWithGeneratedPasswordDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
             ?? throw new NotFoundException(nameof(User), userId);
 
-        user.PasswordHash = _passwordHasher.Hash(PasswordDefaults.DefaultPassword);
+        var generatedPassword = SecurePasswordGenerator.Generate();
+
+        user.PasswordHash = _passwordHasher.Hash(generatedPassword);
         user.MustChangePassword = true;
         // Invalida cualquier JWT ya emitido para este usuario (ver SecurityStampValidator).
         user.SecurityStamp = Guid.NewGuid();
         await _db.SaveChangesAsync(cancellationToken);
 
+        _jobScheduler.EnqueueGeneratedPasswordEmail(user.Cedula, generatedPassword);
+
+        // Nunca la contraseña acá, ni en claro ni cifrada (SECURITY_AUDIT.md hallazgo #8) — solo el
+        // hecho de que se reseteó y quién lo pidió.
         _logger.LogInformation(
-            "Contraseña reseteada a la genérica para usuario {TargetUserId} por administrador {PerformedByUserId}",
+            "Contraseña reseteada para usuario {TargetUserId} por administrador {PerformedByUserId}",
             userId, performedByUserId?.ToString() ?? "desconocido");
 
-        return await ToDtoAsync(userId, cancellationToken);
+        var dto = await ToDtoAsync(userId, cancellationToken);
+        return ToWithGeneratedPassword(dto, generatedPassword);
     }
 
     private async Task<UserDto> ToDtoAsync(Guid userId, CancellationToken cancellationToken) =>
         await Projected(_db).FirstAsync(u => u.Id == userId, cancellationToken);
+
+    private static UserWithGeneratedPasswordDto ToWithGeneratedPassword(UserDto dto, string generatedPassword) =>
+        new()
+        {
+            Id = dto.Id,
+            Cedula = dto.Cedula,
+            Email = dto.Email,
+            FullName = dto.FullName,
+            Phone = dto.Phone,
+            Address = dto.Address,
+            CityId = dto.CityId,
+            CityName = dto.CityName,
+            RoleName = dto.RoleName,
+            IsActive = dto.IsActive,
+            MustChangePassword = dto.MustChangePassword,
+            ClientId = dto.ClientId,
+            TechnicianId = dto.TechnicianId,
+            CreatedAt = dto.CreatedAt,
+            GeneratedPassword = generatedPassword
+        };
 
     private static IQueryable<UserDto> Projected(IApplicationDbContext db) =>
         db.Users

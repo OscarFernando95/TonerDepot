@@ -13,6 +13,10 @@
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="Hangfire.Core" Version="1.8.24" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
+    <!-- Envío de correo real (hallazgo #3 de SECURITY_AUDIT.md: contraseña generada al funcionario
+         administrativo). Se había quitado por no usarse (CODE_QUALITY_AUDIT.md hallazgo #37); ahora sí
+         se usa, ver Email/SmtpEmailSender.cs. -->
+    <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
     <!-- Necesario para TonerDbContextFactory (factory de tiempo de diseño de EF Core), que lee
          MigrationsConnection desde appsettings para correr las migraciones con el rol owner. -->

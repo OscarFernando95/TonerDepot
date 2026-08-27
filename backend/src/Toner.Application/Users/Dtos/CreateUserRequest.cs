@@ -6,7 +6,7 @@ public class CreateUserRequest
     public string Cedula { get; set; } = string.Empty;
 
     // Contacto, opcional — ya no se usa para autenticar. La contraseña NO se pide acá: todo usuario
-    // nuevo arranca con PasswordDefaults.DefaultPassword y debe cambiarla en su próximo login.
+    // nuevo arranca con una generada por SecurePasswordGenerator y debe cambiarla en su próximo login.
     public string? Email { get; set; }
 
     public string FullName { get; set; } = string.Empty;

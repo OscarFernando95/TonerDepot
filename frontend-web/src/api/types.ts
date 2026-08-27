@@ -43,6 +43,12 @@ export interface UserDto {
   createdAt: string
 }
 
+// Solo la devuelven crear/resetear (nunca listar/actualizar): la contraseña generada, en claro, para
+// mostrarla una vez en pantalla al Administrador (SECURITY_AUDIT.md hallazgo #3).
+export interface UserWithGeneratedPasswordDto extends UserDto {
+  generatedPassword: string
+}
+
 export interface CreateUserRequest {
   cedula: string
   email?: string | null

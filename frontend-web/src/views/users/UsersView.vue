@@ -112,7 +112,7 @@ async function handleSave() {
       })
       ElMessage.success('Usuario actualizado.')
     } else {
-      await usersApi.createUser({
+      const { data } = await usersApi.createUser({
         cedula: form.cedula,
         email: form.email || null,
         fullName: form.fullName,
@@ -122,7 +122,7 @@ async function handleSave() {
         roleName: form.roleName as any,
         clientId: requiresClient.value ? form.clientId : null
       })
-      ElMessage.success('Usuario creado. Contraseña inicial: Toner123')
+      ElMessage.success(`Usuario creado. Contraseña inicial: ${data.generatedPassword}`)
     }
     dialogVisible.value = false
     await loadData()
@@ -147,12 +147,12 @@ async function toggleStatus(user: UserDto) {
 
 async function resetPassword(user: UserDto) {
   await ElMessageBox.confirm(
-    `¿Restablecer la contraseña de ${user.fullName} a la contraseña genérica?`,
+    `¿Restablecer la contraseña de ${user.fullName} a una nueva generada?`,
     'Confirmar',
     { type: 'warning' }
   )
-  await usersApi.resetUserPassword(user.id)
-  ElMessage.success('Contraseña restablecida a Toner123. El usuario deberá cambiarla en su próximo inicio de sesión.')
+  const { data } = await usersApi.resetUserPassword(user.id)
+  ElMessage.success(`Contraseña restablecida: ${data.generatedPassword}. El usuario deberá cambiarla en su próximo inicio de sesión.`)
   await loadData()
 }
 

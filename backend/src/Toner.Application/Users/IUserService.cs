@@ -5,7 +5,9 @@ namespace Toner.Application.Users;
 
 public interface IUserService
 {
-    Task<UserDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
+    // Genera una contraseña nueva (SecurePasswordGenerator) y la devuelve en claro UNA vez, para que
+    // el Administrador la vea en pantalla — ver UserWithGeneratedPasswordDto.
+    Task<UserWithGeneratedPasswordDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default);
     Task<PagedResult<UserDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default);
     Task<UserDto> SetActiveStatusAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default);
 
@@ -13,7 +15,7 @@ public interface IUserService
     // fuera). Lanza ConflictException si la cédula ya la tiene otro usuario.
     Task<UserDto> UpdateAsync(Guid userId, UpdateUserRequest request, CancellationToken cancellationToken = default);
 
-    // Restablece la contraseña a la genérica (PasswordDefaults.DefaultPassword) y vuelve a exigir
+    // Restablece la contraseña a una nueva generada (SecurePasswordGenerator) y vuelve a exigir
     // cambio en el próximo login. Solo Administrador (ver UsersController).
-    Task<UserDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default);
+    Task<UserWithGeneratedPasswordDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default);
 }

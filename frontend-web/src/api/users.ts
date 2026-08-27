@@ -1,13 +1,13 @@
 import { getList } from './paging'
 import { http } from './http'
-import type { CreateUserRequest, UpdateUserRequest, UserDto } from './types'
+import type { CreateUserRequest, UpdateUserRequest, UserDto, UserWithGeneratedPasswordDto } from './types'
 
 export function listUsers() {
   return getList<UserDto>('/users')
 }
 
 export function createUser(request: CreateUserRequest) {
-  return http.post<UserDto>('/users', request)
+  return http.post<UserWithGeneratedPasswordDto>('/users', request)
 }
 
 export function updateUser(id: string, request: UpdateUserRequest) {
@@ -19,5 +19,5 @@ export function setUserStatus(id: string, isActive: boolean) {
 }
 
 export function resetUserPassword(id: string) {
-  return http.post<UserDto>(`/users/${id}/reset-password`)
+  return http.post<UserWithGeneratedPasswordDto>(`/users/${id}/reset-password`)
 }

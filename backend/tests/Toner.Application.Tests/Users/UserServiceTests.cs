@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Toner.Application.Auth.Validators;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Tests.TestSupport;
+using Toner.Application.Auth.Dtos;
 using Toner.Application.Users;
 using Toner.Application.Users.Dtos;
 using Toner.Domain.Common;
@@ -11,11 +13,23 @@ namespace Toner.Application.Tests.Users;
 
 public class UserServiceTests
 {
-    private static UserService BuildService(Infrastructure.Persistence.TonerDbContext db) =>
-        new(db, new BCryptPasswordHasher(), NullLogger<UserService>.Instance);
+    private static UserService BuildService(Infrastructure.Persistence.TonerDbContext db, FakeBackgroundJobScheduler? jobScheduler = null) =>
+        new(db, new BCryptPasswordHasher(), jobScheduler ?? new FakeBackgroundJobScheduler(), NullLogger<UserService>.Instance);
+
+    // La contraseña real que cumpla ChangePasswordRequestValidator (no una copia paralela de sus
+    // reglas): si el generador y el validador se desincronizan, este assert falla.
+    private static void AssertMeetsRealPasswordPolicy(string password)
+    {
+        var result = new ChangePasswordRequestValidator().Validate(new ChangePasswordRequest
+        {
+            CurrentPassword = "cualquiera",
+            NewPassword = password
+        });
+        Assert.True(result.IsValid, string.Join("; ", result.Errors.Select(e => e.ErrorMessage)));
+    }
 
     [Fact]
-    public async Task CreateAsync_AlwaysUsesDefaultPassword_AndRequiresPasswordChange()
+    public async Task CreateAsync_GeneratesPasswordMeetingRealPolicy_AndRequiresPasswordChange()
     {
         var dbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(dbName);
@@ -25,7 +39,8 @@ public class UserServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = BuildService(actDb);
+        var jobScheduler = new FakeBackgroundJobScheduler();
+        var service = BuildService(actDb, jobScheduler);
 
         var result = await service.CreateAsync(new CreateUserRequest
         {
@@ -39,10 +54,17 @@ public class UserServiceTests
 
         Assert.True(result.MustChangePassword);
         Assert.Equal("1112223334", result.Cedula);
+        AssertMeetsRealPasswordPolicy(result.GeneratedPassword);
 
         using var assertDb = TonerTestDb.CreateContext(dbName);
         var user = await assertDb.Users.SingleAsync(u => u.Id == result.Id);
-        Assert.True(new BCryptPasswordHasher().Verify(PasswordDefaults.DefaultPassword, user.PasswordHash));
+        Assert.True(new BCryptPasswordHasher().Verify(result.GeneratedPassword, user.PasswordHash));
+
+        // El job debe encolarse con la MISMA contraseña que se muestra en pantalla — si no, el
+        // correo administrativo y lo que ve el admin quedarían desincronizados.
+        var enqueued = Assert.Single(jobScheduler.EnqueuedEmails);
+        Assert.Equal("1112223334", enqueued.Cedula);
+        Assert.Equal(result.GeneratedPassword, enqueued.GeneratedPassword);
     }
 
     [Fact]
@@ -71,7 +93,7 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task ResetPasswordAsync_RehashesToDefaultAndReactivatesMustChangeFlag()
+    public async Task ResetPasswordAsync_GeneratesPasswordMeetingRealPolicy_AndReactivatesMustChangeFlag()
     {
         var dbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(dbName);
@@ -83,16 +105,22 @@ public class UserServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = BuildService(actDb);
+        var jobScheduler = new FakeBackgroundJobScheduler();
+        var service = BuildService(actDb, jobScheduler);
 
         var result = await service.ResetPasswordAsync(user.Id);
 
         Assert.True(result.MustChangePassword);
+        AssertMeetsRealPasswordPolicy(result.GeneratedPassword);
 
         using var assertDb = TonerTestDb.CreateContext(dbName);
         var updated = await assertDb.Users.SingleAsync(u => u.Id == user.Id);
-        Assert.True(new BCryptPasswordHasher().Verify(PasswordDefaults.DefaultPassword, updated.PasswordHash));
+        Assert.True(new BCryptPasswordHasher().Verify(result.GeneratedPassword, updated.PasswordHash));
         Assert.True(updated.MustChangePassword);
+
+        var enqueued = Assert.Single(jobScheduler.EnqueuedEmails);
+        Assert.Equal(user.Cedula, enqueued.Cedula);
+        Assert.Equal(result.GeneratedPassword, enqueued.GeneratedPassword);
     }
 
     [Fact]

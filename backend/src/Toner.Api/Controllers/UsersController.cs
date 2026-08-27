@@ -35,7 +35,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<UserWithGeneratedPasswordDto>> Create([FromBody] CreateUserRequest request, CancellationToken cancellationToken)
     {
         await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
@@ -60,7 +60,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("{id:guid}/reset-password")]
-    public async Task<ActionResult<UserDto>> ResetPassword(Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<UserWithGeneratedPasswordDto>> ResetPassword(Guid id, CancellationToken cancellationToken)
     {
         var user = await _userService.ResetPasswordAsync(id, CurrentUserId, cancellationToken);
         return Ok(user);
