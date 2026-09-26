@@ -1,0 +1,60 @@
+class ServiceTicket {
+  final String id;
+  final String clientLocationId;
+  final String clientLocationName;
+  final String clientId;
+  final String clientName;
+  final String? cityName;
+  final String? assetId;
+  final String? assetBrandName;
+  final String? assetModel;
+  final String? assetSerialNumber;
+  final String description;
+  final String status; // Abierto|SinAsignar|Asignado|EnProceso|Resuelto|Cerrado|Cancelado
+  final String priority; // Baja|Media|Alta|Critica
+  final String? technicianId;
+  final String? technicianName;
+  final String createdAt;
+
+  ServiceTicket({
+    required this.id,
+    required this.clientLocationId,
+    required this.clientLocationName,
+    required this.clientId,
+    required this.clientName,
+    required this.cityName,
+    required this.assetId,
+    required this.assetBrandName,
+    required this.assetModel,
+    required this.assetSerialNumber,
+    required this.description,
+    required this.status,
+    required this.priority,
+    required this.technicianId,
+    required this.technicianName,
+    required this.createdAt,
+  });
+
+  /// Ticket sobre un equipo de un cliente externo, no catalogado en el inventario
+  /// (ver comentario del mismo nombre en frontend-web/src/api/types.ts).
+  bool get isExternal => assetId == null;
+
+  factory ServiceTicket.fromJson(Map<String, dynamic> json) => ServiceTicket(
+        id: json['id'] as String,
+        clientLocationId: json['clientLocationId'] as String,
+        clientLocationName: json['clientLocationName'] as String,
+        clientId: json['clientId'] as String,
+        clientName: json['clientName'] as String,
+        cityName: json['cityName'] as String?,
+        assetId: json['assetId'] as String?,
+        assetBrandName: json['assetBrandName'] as String?,
+        assetModel: json['assetModel'] as String?,
+        assetSerialNumber: json['assetSerialNumber'] as String?,
+        description: json['description'] as String,
+        status: json['status'] as String,
+        priority: json['priority'] as String,
+        technicianId: json['technicianId'] as String?,
+        technicianName: json['technicianName'] as String?,
+        createdAt: json['createdAt'] as String,
+      );
+}
