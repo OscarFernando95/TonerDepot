@@ -229,6 +229,12 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 throw new ConflictException(
                     $"La lectura ({request.InitialCounterValue.Value}) no puede ser menor a la última registrada ({lastReading.CounterValue}).");
             }
+
+            // Misma fecha efectiva que se va a guardar en el MeterReading más abajo (request.InitialCounterDate
+            // ?? DateTime.UtcNow) — si se valida solo cuando el técnico manda fecha explícita, dejar el campo
+            // vacío se cuela sin chequeo aunque igual quede fechado hoy.
+            await EnsureCounterDateWithinContractAsync(
+                assetForCounterCheck.Value, request.InitialCounterDate ?? DateTime.UtcNow, cancellationToken);
         }
 
         openLog.EndTime = DateTime.UtcNow;
@@ -357,5 +363,32 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     // RLS no se la muestra a nadie (fail-closed).
     private Task<Guid?> GetAssetClientIdAsync(Guid assetId, CancellationToken cancellationToken) =>
         _db.Assets.Where(a => a.Id == assetId).Select(a => a.ClientId).FirstOrDefaultAsync(cancellationToken);
+
+    // La fecha de lectura de un check-out (instalación, orden o ticket) no puede caer fuera de la
+    // vigencia del contrato que cubre ese activo — de lo contrario queda un registro que contradice el
+    // contrato mismo (ej. una "instalación" fechada antes de que el contrato exista). El caller siempre
+    // pasa la fecha EFECTIVA (request.InitialCounterDate ?? DateTime.UtcNow), así que dejar el campo de
+    // fecha vacío no evade esta regla. Si el activo no tiene un contrato activo vinculado, no hay nada
+    // que validar aquí.
+    private async Task EnsureCounterDateWithinContractAsync(Guid assetId, DateTime counterDate, CancellationToken cancellationToken)
+    {
+        var contractId = await _db.ContractAssets
+            .Where(ca => ca.AssetId == assetId && ca.EndDate == null)
+            .Select(ca => (Guid?)ca.ContractId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (!contractId.HasValue) return;
+
+        var contract = await _db.Contracts.FirstOrDefaultAsync(c => c.Id == contractId.Value, cancellationToken);
+        if (contract is null) return;
+
+        var date = counterDate.Date;
+        if (date < contract.StartDate.Date || (contract.EndDate.HasValue && date > contract.EndDate.Value.Date))
+        {
+            var rango = contract.EndDate.HasValue
+                ? $"entre el {contract.StartDate:dd/MM/yyyy} y el {contract.EndDate.Value:dd/MM/yyyy}"
+                : $"a partir del {contract.StartDate:dd/MM/yyyy}";
+            throw new ConflictException($"La fecha de la lectura debe estar {rango}, según la vigencia del contrato de este cliente.");
+        }
+    }
 
 }

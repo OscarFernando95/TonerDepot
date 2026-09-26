@@ -86,6 +86,32 @@ const filteredInstallations = computed(() =>
   pendingInstallations.value.filter((i) => !installationFilter.clientId || i.clientId === installationFilter.clientId)
 )
 
+// Restringe el selector de fecha a la vigencia del contrato cuando se conoce (instalaciones) — evita
+// que el técnico elija una fecha que el backend va a rechazar de todos modos (ver
+// TechnicianCheckInService.EnsureCounterDateWithinContractAsync). Comparación por día calendario local,
+// no por instante, para que no dependa de a qué hora del día se abra el selector.
+function toDayNumber(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+const counterDateBounds = computed(() => {
+  const inst = activeInstallation.value
+  if (!inst?.contractStartDate) return null
+  return {
+    start: new Date(inst.contractStartDate),
+    end: inst.contractEndDate ? new Date(inst.contractEndDate) : null
+  }
+})
+
+function isCounterDateDisabled(date: Date) {
+  const bounds = counterDateBounds.value
+  if (!bounds) return false
+  const day = toDayNumber(date)
+  if (day < toDayNumber(bounds.start)) return true
+  if (bounds.end && day > toDayNumber(bounds.end)) return true
+  return false
+}
+
 const checkoutFormValid = computed(() => {
   if (!checkoutForm.resolved) {
     return true
@@ -285,7 +311,22 @@ onMounted(loadAll)
               <el-input-number v-model="checkoutForm.initialCounterValue" :min="0" style="width: 100%" />
             </el-form-item>
             <el-form-item label="Fecha de la lectura (opcional, hoy por defecto)">
-              <el-date-picker v-model="checkoutForm.initialCounterDate" type="date" style="width: 100%" value-format="YYYY-MM-DD" />
+              <el-date-picker
+                v-model="checkoutForm.initialCounterDate"
+                type="date"
+                style="width: 100%"
+                value-format="YYYY-MM-DD"
+                :disabled-date="isCounterDateDisabled"
+              />
+              <div v-if="counterDateBounds" class="hint" style="margin: 0.35rem 0 0">
+                Debe estar
+                {{
+                  counterDateBounds.end
+                    ? `entre ${counterDateBounds.start.toLocaleDateString()} y ${counterDateBounds.end.toLocaleDateString()}`
+                    : `a partir del ${counterDateBounds.start.toLocaleDateString()}`
+                }}
+                (vigencia del contrato).
+              </div>
             </el-form-item>
           </template>
 

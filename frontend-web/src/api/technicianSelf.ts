@@ -47,6 +47,10 @@ export interface PendingInstallationDto {
   clientLocationName: string
   cityName: string | null
   contractId: string | null
+  // Vigencia del contrato activo del activo (null si no tiene contrato vinculado) — solo para
+  // restringir el selector de fecha del check-out en la UI; la validación real vive en el backend.
+  contractStartDate: string | null
+  contractEndDate: string | null
   takenByAnotherTechnician: boolean
 }
 

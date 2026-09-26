@@ -449,6 +449,12 @@ public class AssetService : IAssetService
 
         var contractByAsset = activeContractLinks.ToDictionary(l => l.AssetId, l => l.ContractId);
 
+        var contractIds = activeContractLinks.Select(l => l.ContractId).Distinct().ToList();
+        var contractDatesById = await _db.Contracts
+            .Where(c => contractIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.StartDate, c.EndDate })
+            .ToDictionaryAsync(c => c.Id, cancellationToken);
+
         // Un check-in abierto de CUALQUIER técnico (no solo el que consulta) marca el activo como tomado —
         // evita que un segundo técnico intente el check-in y solo se entere del conflicto al fallar.
         var takenAssetIds = await _db.TimeLogs
@@ -460,6 +466,11 @@ public class AssetService : IAssetService
         foreach (var item in pending)
         {
             item.ContractId = contractByAsset.TryGetValue(item.AssetId, out var contractId) ? contractId : null;
+            if (item.ContractId.HasValue && contractDatesById.TryGetValue(item.ContractId.Value, out var contractDates))
+            {
+                item.ContractStartDate = contractDates.StartDate;
+                item.ContractEndDate = contractDates.EndDate;
+            }
             item.TakenByAnotherTechnician = takenSet.Contains(item.AssetId);
         }
 
