@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/current_user.dart';
 import 'api_client.dart';
 
@@ -12,7 +14,8 @@ class AuthApi {
         'password': password,
       });
       return LoginResult.fromJson(response.data as Map<String, dynamic>);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('AuthApi.login failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -21,7 +24,8 @@ class AuthApi {
     try {
       final response = await _client.dio.get('/auth/me');
       return CurrentUser.fromJson(response.data as Map<String, dynamic>);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('AuthApi.me failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -32,7 +36,8 @@ class AuthApi {
         'currentPassword': currentPassword,
         'newPassword': newPassword,
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('AuthApi.changePassword failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

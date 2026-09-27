@@ -5,13 +5,14 @@ import '../state/my_work_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/animated_gradient_border.dart';
 import '../widgets/checkout_sheet.dart';
+import '../widgets/clay_surface.dart';
 import '../widgets/installation_card.dart';
 import '../widgets/order_card.dart';
 import '../widgets/ticket_card.dart';
 
-/// Contenido de "Mi trabajo" — sin Scaffold/AppBar propios, porque ahora
-/// vive como una de las tres pestañas del shell con barra lateral
-/// (ver MainShell). El AppBar y el logout son compartidos entre pestañas.
+/// Contenido de "/my-work" — sin Scaffold/AppBar propios, porque vive como
+/// el `child` de AppShell (ver screens/app_shell.dart), que provee AppBar,
+/// Drawer y logout comunes a todas las rutas.
 class MyWorkScreen extends StatefulWidget {
   const MyWorkScreen({super.key});
 
@@ -74,10 +75,11 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               if (state.error != null)
-                Card(
-                  color: AppColors.signalRedWash,
-                  shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.signalRed)),
-                  child: Padding(
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClaySurface(
+                    color: AppColors.signalRedWash,
+                    borderColor: AppColors.signalRed,
                     padding: const EdgeInsets.all(12),
                     child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed)),
                   ),
@@ -142,12 +144,10 @@ class _ActiveVisitCard extends StatelessWidget {
     final ticket = state.activeTicket;
     final order = state.activeOrder;
     final installation = state.activeInstallation;
-    return Card(
+    return ClaySurface(
       color: AppColors.signalBlueWash,
-      shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.signalBlueBright)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      borderColor: AppColors.signalBlueBright,
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Visita en curso', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.signalBlueBright)),
@@ -171,7 +171,6 @@ class _ActiveVisitCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

@@ -12,10 +12,30 @@ expone todo eso — solo falta la pantalla.
 
 ## Requisitos
 
-- Flutter SDK (el mismo que ya usas para GesGan).
+- **Flutter SDK.** Si `flutter doctor` no es un comando reconocido, no está
+  instalado — en macOS la forma más simple es `brew install --cask flutter`
+  (o seguir https://docs.flutter.dev/get-started/install). Después de
+  instalar, corre `flutter doctor` y resuelve lo que marque en rojo antes de
+  seguir (es normal que Android/iOS marquen cosas la primera vez — ver
+  abajo).
+- **Un dispositivo o emulador ya abierto** antes de `flutter run` — la app no
+  se instala sola en ninguno:
+  - *Android*: abre Android Studio → **Device Manager**, crea un dispositivo
+    virtual si no tienes uno, y dale ▶ para que arranque. Si `flutter doctor`
+    marca el Android toolchain en amarillo/rojo (cmdline-tools faltante,
+    licencias sin aceptar), corre `flutter doctor --android-licenses` y
+    acepta, o abre Android Studio → SDK Manager → SDK Tools e instala
+    "Android SDK Command-line Tools".
+  - *iOS* (solo Mac): necesitas Xcode completo (no solo las Command Line
+    Tools) instalado desde la App Store, y abrir un simulador desde
+    Xcode → Open Developer Tool → Simulator.
+  - Corre `flutter devices` para confirmar que el emulador/simulador
+    aparece en la lista antes de `flutter run`.
 - La API de Toner corriendo localmente (`docker compose up -d` + `dotnet run
   --project backend/src/Toner.Api` desde la raíz del repo, ver README
-  principal).
+  principal). El `frontend-web` (`npm run dev` en esa carpeta) no hace falta
+  para la app móvil, pero sirve para crear un usuario **Técnico** de prueba
+  si aún no tienes uno (Admin → Personal/Usuarios → rol Técnico).
 
 ## Configurar la URL de la API
 
@@ -51,6 +71,23 @@ lib/
 ├── screens/       # LoginScreen, MyWorkScreen, ServerSettingsScreen
 └── widgets/       # TicketCard, OrderCard, CheckoutSheet
 ```
+
+## Firma de release (Android)
+
+Sin `android/key.properties`, el build `release` firma con la clave de
+debug (Gradle avisa esto en su salida) — sirve para `flutter run --release`
+en desarrollo, pero **no debe distribuirse así**. Para firmar con una clave
+real:
+
+```bash
+keytool -genkey -v -keystore ~/release-key.jks -keyalg RSA -keysize 2048 \
+  -validity 10000 -alias toner_tecnico
+```
+
+Guarda esa clave y su contraseña en un lugar seguro (no en el repo). Luego
+copia `android/key.properties.example` a `android/key.properties` (ya está
+en `.gitignore`) y completa `storePassword`, `keyPassword`, `keyAlias` y
+`storeFile` con los datos reales.
 
 ## Notas de diseño
 

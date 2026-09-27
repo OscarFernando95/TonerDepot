@@ -4,4 +4,10 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Solo en debug: la API local corre en http:// (10.0.2.2 en el emulador,
+         o la IP LAN de tu PC en un celular físico). El manifest de release NO
+         tiene esta excepción, así que un build de release bloquea cleartext
+         por defecto (ver AndroidManifest.xml de main). -->
+    <application android:usesCleartextTraffic="true" />
 </manifest>

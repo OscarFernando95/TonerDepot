@@ -42,7 +42,8 @@ class MeterReadingState extends ChangeNotifier {
     notifyListeners();
     try {
       assets = await _api.listAssets();
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('MeterReadingState.load failed: $e\n$st');
       error = e is ApiException ? e.message : 'No se pudieron cargar los equipos.';
     } finally {
       loading = false;
@@ -61,7 +62,8 @@ class MeterReadingState extends ChangeNotifier {
       await _api.register(asset.assetId, counterValue: counterValue, readingDate: readingDate);
       await load();
       return null;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('MeterReadingState.register failed: $e\n$st');
       return e is ApiException ? e.message : 'No se pudo registrar el contador.';
     } finally {
       saving = false;

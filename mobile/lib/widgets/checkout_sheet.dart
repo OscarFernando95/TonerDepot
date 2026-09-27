@@ -31,6 +31,13 @@ class CheckoutSheet extends StatefulWidget {
     return showModalBottomSheet<CheckOutRequest>(
       context: context,
       isScrollControlled: true,
+      // Opaco (clay), no glass: es un formulario de datos de cierre de
+      // visita, no chrome decorativo — la regla del sistema es que texto
+      // crítico nunca vive sobre una superficie translúcida.
+      backgroundColor: AppColors.claySurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+      ),
       builder: (_) => CheckoutSheet(
         activeTicket: activeTicket,
         activeOrder: activeOrder,
@@ -185,12 +192,12 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                                 '${_firstCounterDate.toIso8601String().split('T').first} a '
                                 '${_lastCounterDate.toIso8601String().split('T').first}'
                             : 'Debe ser a partir del ${_firstCounterDate.toIso8601String().split('T').first} (inicio del contrato)',
-                        style: const TextStyle(color: AppColors.flapInkDim, fontSize: 12),
+                        style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
                       ),
                     ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.boardSeamSoft)),
+                    shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.neutralSoft)),
                     title: Text(_counterDate == null
                         ? 'Fecha de la lectura (opcional)'
                         : 'Fecha: ${_counterDate!.toIso8601String().split('T').first}'),
@@ -212,7 +219,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                   ),
                 ],
                 if (_hasInstallation) ...[
-                  const Divider(height: 24, color: AppColors.boardSeamSoft),
+                  const Divider(height: 24, color: AppColors.neutralSoft),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('¿Mantenimiento general realizado?'),
@@ -260,7 +267,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                   ],
                 ],
                 if (_isExternalTicket) ...[
-                  const Divider(height: 24, color: AppColors.boardSeamSoft),
+                  const Divider(height: 24, color: AppColors.neutralSoft),
                   const Text('Equipo del cliente (no catalogado) — opcional', style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   TextField(

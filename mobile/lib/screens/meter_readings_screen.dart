@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/meter_reading_asset.dart';
 import '../state/meter_reading_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/clay_surface.dart';
 
 class MeterReadingsScreen extends StatefulWidget {
   const MeterReadingsScreen({super.key});
@@ -27,7 +28,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.boardPanel,
+      backgroundColor: AppColors.claySurface,
       shape: const RoundedRectangleBorder(),
       builder: (sheetContext) {
         return StatefulBuilder(
@@ -46,13 +47,13 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('${asset.assetBrandName} ${asset.model}', style: Theme.of(sheetContext).textTheme.titleMedium),
-                    Text('Serie: ${asset.serialNumber}', style: const TextStyle(color: AppColors.flapInkDim)),
+                    Text('Serie: ${asset.serialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
                     if (asset.lastMeterReading != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Último contador registrado: ${asset.lastMeterReading!.toStringAsFixed(0)}',
-                          style: const TextStyle(color: AppColors.flapInkDim),
+                          style: const TextStyle(color: AppColors.inkSecondary).merge(AppTextStyles.tabularNumber),
                         ),
                       ),
                     const SizedBox(height: 16),
@@ -60,6 +61,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                       controller: counterController,
                       autofocus: true,
                       keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      style: AppTextStyles.tabularNumber,
                       decoration: const InputDecoration(labelText: 'Nuevo valor del contador'),
                       validator: (v) {
                         final value = double.tryParse(v ?? '');
@@ -73,7 +75,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     const SizedBox(height: 12),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.boardSeamSoft)),
+                      shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.neutralSoft)),
                       title: const Text('Fecha de lectura'),
                       subtitle: Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
                       trailing: const Icon(Icons.calendar_today_outlined, size: 18),
@@ -153,16 +155,16 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     ),
                     children: [
                       for (final asset in group.assets)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(border: Border.all(color: AppColors.boardSeamSoft)),
+                        ClayCard(
+                          padding: EdgeInsets.zero,
                           child: ListTile(
                             title: Text('${asset.assetBrandName} ${asset.model}'),
                             subtitle: Text(
                               '${asset.clientName ?? 'Sin cliente'}${asset.clientLocationName != null ? ' — ${asset.clientLocationName}' : ''}\n'
                               'Serie: ${asset.serialNumber}'
                               '${asset.lastMeterReading != null ? ' · Último: ${asset.lastMeterReading!.toStringAsFixed(0)}' : ' · Sin lecturas'}',
-                              style: const TextStyle(color: AppColors.flapInkDim, fontSize: 12),
+                              style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)
+                                  .merge(AppTextStyles.tabularNumber),
                             ),
                             isThreeLine: true,
                             trailing: FilledButton(

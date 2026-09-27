@@ -3,10 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/clay_surface.dart';
 
 /// Pantalla forzosa de cambio de contraseña — equivalente a
 /// ChangePasswordView.vue + el guard en router/index.ts del frontend web.
-/// AuthGate (main.dart) la muestra en vez de MainShell mientras
+/// El `redirect` de app_router.dart la muestra en vez de AppShell mientras
 /// currentUser.mustChangePassword sea true; el backend refuerza lo mismo del
 /// lado servidor (MustChangePasswordMiddleware), esto es solo la parte de UX.
 class ChangePasswordScreen extends StatefulWidget {
@@ -62,7 +63,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       setState(() => _error = error);
     }
     // Si no hay error, AuthState ya puso mustChangePassword en false y
-    // notificó — AuthGate reconstruye solo y muestra MainShell.
+    // notificó — el `redirect` de app_router.dart reacciona solo y navega a
+    // /dashboard dentro de AppShell.
   }
 
   @override
@@ -83,13 +85,23 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: ClaySurface(
+              radius: 26,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+              child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.lock_outline, size: 56, color: AppColors.signalAmber),
-                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.signalAmberWash),
+                    child: const Icon(Icons.lock_outline, size: 32, color: AppColors.signalAmber),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Text(
                   'Debes cambiar tu contraseña antes de continuar.',
                   textAlign: TextAlign.center,
@@ -99,12 +111,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: Container(
+                    child: ClaySurface(
+                      color: AppColors.signalRedWash,
+                      borderColor: AppColors.signalRed,
+                      radius: 16,
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.signalRedWash,
-                        border: Border.all(color: AppColors.signalRed),
-                      ),
                       child: Text(_error!, style: const TextStyle(color: AppColors.signalRed)),
                     ),
                   ),
@@ -157,6 +168,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
               ],
             ),
+            ),
           ),
         ),
       ),
@@ -172,7 +184,7 @@ class _RuleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = met ? AppColors.signalBlueBright : AppColors.flapInkDim;
+    final color = met ? AppColors.signalBlueBright : AppColors.inkSecondary;
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Row(

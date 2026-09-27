@@ -31,7 +31,8 @@ class AuthState extends ChangeNotifier {
     try {
       currentUser = await _authApi.me();
       status = AuthStatus.authenticated;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('AuthState.bootstrap failed: $e\n$st');
       await _client.setToken(null);
       status = AuthStatus.unauthenticated;
     }
@@ -47,22 +48,25 @@ class AuthState extends ChangeNotifier {
         notifyListeners();
         return false;
       }
-      if (result.user!.role != 'Tecnico') {
-        lastError = 'Esta app es solo para técnicos. Tu usuario tiene rol "${result.user!.role}".';
-        notifyListeners();
-        return false;
-      }
       await _client.setToken(result.token);
       currentUser = result.user;
       status = AuthStatus.authenticated;
       notifyListeners();
       return true;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('AuthState.login failed: $e\n$st');
       lastError = e is ApiException ? e.message : 'No se pudo iniciar sesión.';
       notifyListeners();
       return false;
     }
   }
+
+  /// Equivalente a hasRole(...roles) en frontend-web/src/stores/auth.ts —
+  /// el router (app_router.dart) y AppShell la usan para decidir qué rutas y
+  /// destinos de navegación mostrar por rol.
+  bool hasRole(String role) => currentUser?.role == role;
+
+  bool hasAnyRole(List<String> roles) => currentUser != null && roles.contains(currentUser!.role);
 
   Future<void> logout() async {
     await _client.setToken(null);
@@ -72,9 +76,9 @@ class AuthState extends ChangeNotifier {
   }
 
   /// Espejo de setMustChangePassword(false) en el store de auth del frontend
-  /// web tras un cambio de contraseña exitoso: aquí no hay router guard, así
-  /// que es este notifyListeners() el que hace que AuthGate deje de mostrar
-  /// ChangePasswordScreen y pase a MainShell.
+  /// web tras un cambio de contraseña exitoso: este notifyListeners() es lo
+  /// que dispara el `redirect` de app_router.dart (vía refreshListenable) y
+  /// hace que deje de mostrar ChangePasswordScreen y pase a AppShell.
   Future<String?> changePassword(String currentPassword, String newPassword) async {
     try {
       await _authApi.changePassword(currentPassword, newPassword);
@@ -83,7 +87,8 @@ class AuthState extends ChangeNotifier {
       }
       notifyListeners();
       return null;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('AuthState.changePassword failed: $e\n$st');
       return e is ApiException ? e.message : 'No se pudo cambiar la contraseña.';
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/service_ticket.dart';
 import '../theme/app_theme.dart';
+import 'clay_surface.dart';
 import 'status_chip.dart';
 import 'animated_gradient_border.dart';
 
@@ -23,12 +24,10 @@ class TicketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: isActive ? AppColors.boardPanelRaised : null,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+    return ClayCard(
+      color: isActive ? AppColors.claySurfaceRaised : null,
+      padding: const EdgeInsets.all(12),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -42,8 +41,8 @@ class TicketCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text(ticket.clientLocationName, style: const TextStyle(color: AppColors.flapInkDim)),
-            if (ticket.cityName != null) Text(ticket.cityName!, style: const TextStyle(color: AppColors.flapInkDim, fontSize: 12)),
+            Text(ticket.clientLocationName, style: const TextStyle(color: AppColors.inkSecondary)),
+            if (ticket.cityName != null) Text(ticket.cityName!, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
             const SizedBox(height: 6),
             Text(ticket.description),
             if (ticket.isExternal) ...[
@@ -59,7 +58,7 @@ class TicketCard extends StatelessWidget {
               Align(
                 alignment: Alignment.centerRight,
                 child: AnimatedGradientBorder(
-                  backgroundColor: isActive ? AppColors.boardPanelRaised : AppColors.boardPanel,
+                  backgroundColor: isActive ? AppColors.claySurfaceRaised : AppColors.claySurface,
                   child: FilledButton.icon(
                     onPressed: checkingIn ? null : onCheckIn,
                     icon: checkingIn
@@ -79,7 +78,6 @@ class TicketCard extends StatelessWidget {
             ],
           ],
         ),
-      ),
     );
   }
 }

@@ -81,14 +81,15 @@ class MyWorkState extends ChangeNotifier {
       final results = await Future.wait([
         _technicianApi.getMyStatus(),
         _ticketApi.listMine(),
-        _orderApi.listMine(),
+        _orderApi.list(),
         _technicianApi.listPendingInstallations(),
       ]);
       status = results[0] as TechnicianSelfStatus;
       tickets = results[1] as List<ServiceTicket>;
       orders = results[2] as List<MaintenanceOrder>;
       installations = results[3] as List<PendingInstallation>;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('MyWorkState.loadAll failed: $e\n$st');
       error = e is ApiException ? e.message : 'No se pudo cargar tu trabajo.';
     } finally {
       loading = false;
@@ -122,7 +123,8 @@ class MyWorkState extends ChangeNotifier {
       await action();
       await loadAll();
       return null;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('MyWorkState._runAction failed: $e\n$st');
       return e is ApiException ? e.message : 'No se pudo completar la acción.';
     } finally {
       // `finally` (no solo el `catch`) para que el botón de check-in/check-out se reactive también

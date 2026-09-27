@@ -9,6 +9,6 @@ Aqui quiero expresar ideas que tengo para el proyecto
 7. Wiki base de casos mas comunes de errores y como se solucionan como base de conocimiento
 8. Base de drivers, backups de configuraciones, usuarios, etc.
 9. Ir revisando el desarrollo de la app movil con flutter
-10. Revisiones de seguridad (Request limit, sql injection, IP limiting, RLS, Encripcion de datos, RLS, Server Side Validation, Input Sanity, Autenticacion con expiracion de sesion, CORS, CI/CD para despliegues automaticos, manejo de excepciones, manejo de errores, controles de fallo)
+10. Revisiones de seguridad (Request limit, sql injection, IP limiting, RLS, Encripcion de datos, RLS, Server Side Validation, Input Sanity, Autenticacion con expiracion de sesion, CORS, CI/CD para despliegues automaticos, manejo de excepciones, manejo de errores, controles de fallo) - En progreso (80%)
 11. Aprovechamiento del espacio de Inicio de los tecnicos
 12. calculo de horas en horario laboral para los sla y demas, tambien tener en cuenta festivos y fines de semana

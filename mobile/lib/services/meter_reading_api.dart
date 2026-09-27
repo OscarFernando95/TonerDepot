@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/meter_reading_asset.dart';
 import '../models/paged_result.dart';
 import 'api_client.dart';
@@ -18,7 +20,8 @@ class MeterReadingApi {
         MeterReadingAsset.fromJson,
       );
       return page.items;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('MeterReadingApi.listAssets failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -29,7 +32,8 @@ class MeterReadingApi {
         'counterValue': counterValue,
         'readingDate': readingDate?.toUtc().toIso8601String(),
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('MeterReadingApi.register failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

@@ -1,13 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- usesCleartextTraffic=true: necesario en desarrollo porque la API local corre
-         en http:// (10.0.2.2 en el emulador, o la IP LAN de tu PC en un celular físico).
-         Antes de publicar la app, la API de producción debe ser https:// y esta línea
-         se puede quitar (o restringir con un network_security_config.xml). -->
     <application
-        android:label="toner_tecnico"
+        android:label="Toner"
         android:name="${applicationName}"
-        android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../models/paged_result.dart';
 import '../models/pending_installation.dart';
 import '../models/technician_status.dart';
@@ -72,7 +74,8 @@ class TechnicianApi {
     try {
       final response = await _client.dio.get('/technicians/me/status');
       return TechnicianSelfStatus.fromJson(response.data as Map<String, dynamic>);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('TechnicianApi.getMyStatus failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -85,7 +88,8 @@ class TechnicianApi {
         PendingInstallation.fromJson,
       );
       return page.items;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('TechnicianApi.listPendingInstallations failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -94,7 +98,8 @@ class TechnicianApi {
     try {
       final response = await _client.dio.post('/technicians/me/check-in', data: request.toJson());
       return TechnicianSelfStatus.fromJson(response.data as Map<String, dynamic>);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('TechnicianApi.checkIn failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -103,7 +108,8 @@ class TechnicianApi {
     try {
       final response = await _client.dio.post('/technicians/me/check-out', data: request.toJson());
       return TechnicianSelfStatus.fromJson(response.data as Map<String, dynamic>);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('TechnicianApi.checkOut failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

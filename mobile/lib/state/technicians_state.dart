@@ -1,0 +1,30 @@
+import 'package:flutter/foundation.dart';
+
+import '../models/technician.dart';
+import '../services/api_client.dart';
+import '../services/technician_management_api.dart';
+
+class TechniciansState extends ChangeNotifier {
+  TechniciansState(ApiClient client) : _api = TechnicianManagementApi(client);
+
+  final TechnicianManagementApi _api;
+
+  bool loading = false;
+  String? error;
+  List<Technician> technicians = [];
+
+  Future<void> load() async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      technicians = await _api.list();
+    } catch (e, st) {
+      debugPrint('TechniciansState.load failed: $e\n$st');
+      error = e is ApiException ? e.message : 'No se pudieron cargar los técnicos.';
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+}

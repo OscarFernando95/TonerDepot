@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/maintenance_order.dart';
 import '../theme/app_theme.dart';
+import 'clay_surface.dart';
 import 'status_chip.dart';
 import 'animated_gradient_border.dart';
 
@@ -23,12 +24,10 @@ class OrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: isActive ? AppColors.boardPanelRaised : null,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+    return ClayCard(
+      color: isActive ? AppColors.claySurfaceRaised : null,
+      padding: const EdgeInsets.all(12),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -41,9 +40,9 @@ class OrderCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text('Serie: ${order.assetSerialNumber}', style: const TextStyle(color: AppColors.flapInkDim)),
-            if (order.clientLocationName != null) Text(order.clientLocationName!, style: const TextStyle(color: AppColors.flapInkDim)),
-            if (order.cityName != null) Text(order.cityName!, style: const TextStyle(color: AppColors.flapInkDim, fontSize: 12)),
+            Text('Serie: ${order.assetSerialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
+            if (order.clientLocationName != null) Text(order.clientLocationName!, style: const TextStyle(color: AppColors.inkSecondary)),
+            if (order.cityName != null) Text(order.cityName!, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
             const SizedBox(height: 4),
             Text('Programada: ${order.scheduledDate.split('T').first}', style: const TextStyle(fontSize: 12)),
             if (canCheckIn && !isActive) ...[
@@ -51,7 +50,7 @@ class OrderCard extends StatelessWidget {
               Align(
                 alignment: Alignment.centerRight,
                 child: AnimatedGradientBorder(
-                  backgroundColor: isActive ? AppColors.boardPanelRaised : AppColors.boardPanel,
+                  backgroundColor: isActive ? AppColors.claySurfaceRaised : AppColors.claySurface,
                   child: FilledButton.icon(
                     onPressed: checkingIn ? null : onCheckIn,
                     icon: checkingIn
@@ -71,7 +70,6 @@ class OrderCard extends StatelessWidget {
             ],
           ],
         ),
-      ),
     );
   }
 }

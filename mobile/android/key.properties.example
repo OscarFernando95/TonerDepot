@@ -1,0 +1,9 @@
+# Copia este archivo a android/key.properties (NO lo versiones — ya está en
+# .gitignore) y completa con los datos reales del keystore de release.
+# Ver la sección "Firma de release" en mobile/README.md para generar el
+# keystore con keytool.
+
+storePassword=CAMBIAR
+keyPassword=CAMBIAR
+keyAlias=CAMBIAR
+storeFile=/ruta/absoluta/o/relativa/a/release-key.jks

@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
 import '../state/my_work_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/clay_surface.dart';
 
-/// Pantalla "Inicio" — no tiene equivalente directo en el frontend web (ahí
-/// el dashboard es de Admin/Coordinador); aquí es un saludo + resumen rápido
-/// para el técnico, con el mismo lenguaje visual del tablero.
+/// Contenido de "/dashboard" para el rol Tecnico (ver DashboardHomeScreen) —
+/// no tiene equivalente directo en el frontend web (ahí el dashboard es de
+/// Admin/Coordinador); aquí es un saludo + resumen rápido para el técnico,
+/// con el mismo lenguaje visual del tablero.
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.onNavigate});
-
-  final void Function(int index) onNavigate;
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -37,18 +38,19 @@ class HomeScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('Hola,', style: TextStyle(color: AppColors.flapInkDim, fontSize: 14)),
+          Text('Hola,', style: TextStyle(color: AppColors.inkSecondary, fontSize: 14)),
           Text(
             auth.currentUser?.fullName ?? '',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          const Text('TÉCNICO', style: TextStyle(color: AppColors.flapInkDim, letterSpacing: 1, fontSize: 12)),
+          Text(
+            (auth.currentUser?.role ?? '').toUpperCase(),
+            style: const TextStyle(color: AppColors.inkSecondary, letterSpacing: 1, fontSize: 12),
+          ),
           const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+          ClaySurface(
+            child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -56,7 +58,7 @@ class HomeScreen extends StatelessWidget {
                       if (hasPending)
                         const _StatusDot(color: AppColors.signalAmber, blink: true)
                       else
-                        Container(width: 12, height: 12, color: AppColors.boardSeam),
+                        Container(width: 12, height: 12, color: AppColors.neutral),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -68,7 +70,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                   if (inProgress) ...[
                     const SizedBox(height: 12),
-                    const Divider(height: 1, color: AppColors.boardSeamSoft),
+                    const Divider(height: 1, color: AppColors.neutralSoft),
                     const SizedBox(height: 12),
                     const Row(
                       children: [
@@ -85,7 +87,6 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ],
               ),
-            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -99,16 +100,16 @@ class HomeScreen extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           FilledButton.icon(
-            onPressed: () => onNavigate(2),
+            onPressed: () => context.push('/my-work'),
             icon: const Icon(Icons.work_outline),
             label: const Text('Ir a Mi trabajo'),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () => onNavigate(1),
+            onPressed: () => context.push('/meter-readings'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.flapInk,
-              side: const BorderSide(color: AppColors.boardSeam),
+              foregroundColor: AppColors.inkPrimary,
+              side: const BorderSide(color: AppColors.neutral),
               shape: const RoundedRectangleBorder(),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -128,17 +129,22 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label.toUpperCase(), style: const TextStyle(color: AppColors.flapInkDim, fontSize: 10, letterSpacing: 0.5)),
-            const SizedBox(height: 6),
-            Text('$value', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-          ],
-        ),
+    return ClaySurface(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label.toUpperCase(), style: const TextStyle(color: AppColors.inkSecondary, fontSize: 10, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Text(
+            '$value',
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold)
+                .merge(AppTextStyles.tabularNumber),
+          ),
+        ],
       ),
     );
   }

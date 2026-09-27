@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/pending_installation.dart';
 import '../theme/app_theme.dart';
 import 'animated_gradient_border.dart';
+import 'clay_surface.dart';
 
 class InstallationCard extends StatelessWidget {
   const InstallationCard({
@@ -22,12 +23,10 @@ class InstallationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: isActive ? AppColors.boardPanelRaised : null,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
+    return ClayCard(
+      color: isActive ? AppColors.claySurfaceRaised : null,
+      padding: const EdgeInsets.all(12),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -40,7 +39,7 @@ class InstallationCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.boardPanelRaised,
+                      color: AppColors.claySurfaceRaised,
                       border: Border.all(color: AppColors.signalAmber.withValues(alpha: 0.6)),
                     ),
                     child: const Text(
@@ -51,11 +50,11 @@ class InstallationCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text('Serie: ${installation.serialNumber}', style: const TextStyle(color: AppColors.flapInkDim)),
+            Text('Serie: ${installation.serialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
             Text('${installation.clientName} — ${installation.clientLocationName}',
-                style: const TextStyle(color: AppColors.flapInkDim)),
+                style: const TextStyle(color: AppColors.inkSecondary)),
             if (installation.cityName != null)
-              Text(installation.cityName!, style: const TextStyle(color: AppColors.flapInkDim, fontSize: 12)),
+              Text(installation.cityName!, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
             if (canCheckIn && !isActive && !installation.takenByAnotherTechnician) ...[
               const SizedBox(height: 8),
               Align(
@@ -74,7 +73,7 @@ class InstallationCard extends StatelessWidget {
             if (installation.takenByAnotherTechnician && !isActive) ...[
               const SizedBox(height: 6),
               const Text('Otro técnico ya la está atendiendo.',
-                  style: TextStyle(color: AppColors.flapInkDim, fontSize: 12, fontStyle: FontStyle.italic)),
+                  style: TextStyle(color: AppColors.inkSecondary, fontSize: 12, fontStyle: FontStyle.italic)),
             ],
             if (isActive) ...[
               const SizedBox(height: 8),
@@ -85,7 +84,6 @@ class InstallationCard extends StatelessWidget {
             ],
           ],
         ),
-      ),
     );
   }
 }
