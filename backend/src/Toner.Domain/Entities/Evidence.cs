@@ -1,3 +1,4 @@
+using Toner.Domain.Enums;
 using Toner.Domain.Common;
 
 namespace Toner.Domain.Entities;
@@ -5,6 +6,16 @@ namespace Toner.Domain.Entities;
 // Evidencia fotográfica subida por el técnico. Exactamente uno de ServiceTicketId / MaintenanceOrderId debe estar presente.
 public class Evidence : BaseEntity
 {
+    // Denormalizado para la política RLS (mismo patrón que TimeLog): se CAPTURA AL ESCRIBIR desde el
+    // ticket u orden. NOT NULL: toda evidencia nace de un padre que siempre tiene cliente.
+    public Guid ClientId { get; set; }
+
+    public EvidenceKind Kind { get; set; }
+    public long SizeBytes { get; set; }
+
+    // El check-in/out al que quedó atada la foto (null mientras solo está subida).
+    public Guid? TimeLogId { get; set; }
+
     public Guid? ServiceTicketId { get; set; }
     public ServiceTicket? ServiceTicket { get; set; }
 

@@ -32,6 +32,8 @@ public class ClientLocationService : IClientLocationService
             Address = request.Address.Trim(),
             ContactName = request.ContactName?.Trim(),
             ContactPhone = request.ContactPhone?.Trim(),
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
             IsActive = true
         };
 
@@ -64,6 +66,8 @@ public class ClientLocationService : IClientLocationService
         location.Address = request.Address.Trim();
         location.ContactName = request.ContactName?.Trim();
         location.ContactPhone = request.ContactPhone?.Trim();
+        location.Latitude = request.Latitude;
+        location.Longitude = request.Longitude;
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -98,6 +102,8 @@ public class ClientLocationService : IClientLocationService
             Address = l.Address,
             ContactName = l.ContactName,
             ContactPhone = l.ContactPhone,
+            Latitude = l.Latitude,
+            Longitude = l.Longitude,
             IsActive = l.IsActive,
             CreatedAt = l.CreatedAt
         });

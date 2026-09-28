@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
+import EvidenceGallery from '../../components/EvidenceGallery.vue'
 import * as techniciansApi from '../../api/technicians'
 import { useAuthStore } from '../../stores/auth'
 import {
@@ -99,6 +101,11 @@ function statusLabel(status: string) {
 }
 
 onMounted(loadAll)
+
+// Reasignación, check-in/out o cierre desde otra pantalla actualizan este detalle solos.
+useRealtimeUpdates(['Ticket'], (event) => {
+  if (event.id === ticketId) loadAll()
+})
 </script>
 
 <template>
@@ -159,6 +166,11 @@ onMounted(loadAll)
             <el-option v-for="s in availableTransitions" :key="s" :label="statusLabel(s)" :value="s" />
           </el-select>
         </div>
+      </el-card>
+
+      <el-card v-if="isStaff" class="section-card">
+        <template #header>Evidencia fotográfica</template>
+        <EvidenceGallery :ticket-id="ticketId" />
       </el-card>
 
       <el-card v-if="isStaff" class="section-card">

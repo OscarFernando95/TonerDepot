@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Toner usa la cámara para tomar la foto de evidencia de la falla y del trabajo terminado.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Toner necesita acceso a tus fotos para adjuntar la evidencia de la visita.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Toner usa tu ubicación al hacer check-in y check-out para verificar que llegaste al sitio del servicio.</string>
 </dict>
 </plist>

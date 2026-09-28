@@ -20,9 +20,12 @@ async function handleSubmit() {
     await auth.login(form.cedula, form.password)
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
-  } catch {
-    loginError.value = 'Cédula o contraseña incorrectos.'
-    ElMessage.error('Cédula o contraseña incorrectos.')
+  } catch (err: any) {
+    // 409 = técnico con sesión activa en otro dispositivo: el servidor dice dónde.
+    const message =
+      err?.response?.status === 409 ? err.response.data?.title : 'Cédula o contraseña incorrectos.'
+    loginError.value = message
+    ElMessage.error(message)
   } finally {
     loading.value = false
   }

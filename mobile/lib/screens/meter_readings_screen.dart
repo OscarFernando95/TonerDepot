@@ -17,7 +17,9 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<MeterReadingState>().load());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<MeterReadingState>().load(),
+    );
   }
 
   Future<void> _openRegisterSheet(MeterReadingAsset asset) async {
@@ -38,7 +40,9 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                 20,
                 20,
                 20,
-                MediaQuery.of(sheetContext).viewInsets.bottom + MediaQuery.of(sheetContext).padding.bottom + 20,
+                MediaQuery.of(sheetContext).viewInsets.bottom +
+                    MediaQuery.of(sheetContext).padding.bottom +
+                    20,
               ),
               child: Form(
                 key: formKey,
@@ -46,27 +50,39 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${asset.assetBrandName} ${asset.model}', style: Theme.of(sheetContext).textTheme.titleMedium),
-                    Text('Serie: ${asset.serialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
+                    Text(
+                      '${asset.assetBrandName} ${asset.model}',
+                      style: Theme.of(sheetContext).textTheme.titleMedium,
+                    ),
+                    Text(
+                      'Serie: ${asset.serialNumber}',
+                      style: const TextStyle(color: AppColors.inkSecondary),
+                    ),
                     if (asset.lastMeterReading != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           'Último contador registrado: ${asset.lastMeterReading!.toStringAsFixed(0)}',
-                          style: const TextStyle(color: AppColors.inkSecondary).merge(AppTextStyles.tabularNumber),
+                          style: const TextStyle(color: AppColors.inkSecondary)
+                              .merge(AppTextStyles.tabularNumber),
                         ),
                       ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: counterController,
                       autofocus: true,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: false),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: false,
+                      ),
                       style: AppTextStyles.tabularNumber,
-                      decoration: const InputDecoration(labelText: 'Nuevo valor del contador'),
+                      decoration: const InputDecoration(
+                        labelText: 'Nuevo valor del contador',
+                      ),
                       validator: (v) {
                         final value = double.tryParse(v ?? '');
                         if (value == null) return 'Ingresa un número válido.';
-                        if (asset.lastMeterReading != null && value < asset.lastMeterReading!) {
+                        if (asset.lastMeterReading != null &&
+                            value < asset.lastMeterReading!) {
                           return 'No puede ser menor al último registrado.';
                         }
                         return null;
@@ -75,10 +91,17 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     const SizedBox(height: 12),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.neutralSoft)),
+                      shape: const RoundedRectangleBorder(
+                        side: BorderSide(color: AppColors.neutralSoft),
+                      ),
                       title: const Text('Fecha de lectura'),
-                      subtitle: Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
-                      trailing: const Icon(Icons.calendar_today_outlined, size: 18),
+                      subtitle: Text(
+                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                      ),
+                      trailing: const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 18,
+                      ),
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: sheetContext,
@@ -86,7 +109,9 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                           firstDate: DateTime(2020),
                           lastDate: DateTime.now(),
                         );
-                        if (picked != null) setSheetState(() => selectedDate = picked);
+                        if (picked != null) {
+                          setSheetState(() => selectedDate = picked);
+                        }
                       },
                     ),
                     const SizedBox(height: 20),
@@ -112,11 +137,15 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
 
     if (confirmed == true && mounted) {
       final value = double.parse(counterController.text);
-      final error = await context.read<MeterReadingState>().register(asset, value, selectedDate);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error ?? 'Contador registrado.')),
+      final error = await context.read<MeterReadingState>().register(
+        asset,
+        value,
+        selectedDate,
       );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error ?? 'Contador registrado.')));
     }
   }
 
@@ -131,13 +160,19 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
         final groups = state.groupedByCity;
         if (groups.isEmpty) {
-          return const Center(child: Text('No hay equipos instalados para registrar contadores.'));
+          return const Center(
+            child: Text('No hay equipos instalados para registrar contadores.'),
+          );
         }
         return RefreshIndicator(
           onRefresh: state.load,
@@ -146,25 +181,34 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
             children: [
               for (final group in groups)
                 Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  data: Theme.of(context)
+                      .copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     initiallyExpanded: groups.length == 1,
                     title: Text(
                       group.city.toUpperCase(),
-                      style: const TextStyle(letterSpacing: 0.6, fontWeight: FontWeight.w600, fontSize: 13),
+                      style: const TextStyle(
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
                     children: [
                       for (final asset in group.assets)
                         ClayCard(
                           padding: EdgeInsets.zero,
                           child: ListTile(
-                            title: Text('${asset.assetBrandName} ${asset.model}'),
+                            title: Text(
+                              '${asset.assetBrandName} ${asset.model}',
+                            ),
                             subtitle: Text(
                               '${asset.clientName ?? 'Sin cliente'}${asset.clientLocationName != null ? ' — ${asset.clientLocationName}' : ''}\n'
                               'Serie: ${asset.serialNumber}'
                               '${asset.lastMeterReading != null ? ' · Último: ${asset.lastMeterReading!.toStringAsFixed(0)}' : ' · Sin lecturas'}',
-                              style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)
-                                  .merge(AppTextStyles.tabularNumber),
+                              style: const TextStyle(
+                                color: AppColors.inkSecondary,
+                                fontSize: 12,
+                              ).merge(AppTextStyles.tabularNumber),
                             ),
                             isThreeLine: true,
                             trailing: FilledButton(

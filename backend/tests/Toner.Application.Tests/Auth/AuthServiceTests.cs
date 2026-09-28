@@ -21,7 +21,7 @@ public class AuthServiceTests
             Audience = "test-audience",
             SigningKey = "test-signing-key-at-least-32-characters-long",
             ExpiryMinutes = 60
-        })), logger ?? NullLogger<AuthService>.Instance);
+        })), logger ?? NullLogger<AuthService>.Instance, TestSessions.Create(db));
 
     [Fact]
     public async Task LoginAsync_ValidCedulaAndPassword_Succeeds()

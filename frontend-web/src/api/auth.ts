@@ -5,6 +5,10 @@ export function login(cedula: string, password: string) {
   return http.post<LoginResult>('/auth/login', { cedula, password })
 }
 
+export function logout() {
+  return http.post('/auth/logout')
+}
+
 export function me() {
   return http.get<CurrentUser>('/auth/me')
 }

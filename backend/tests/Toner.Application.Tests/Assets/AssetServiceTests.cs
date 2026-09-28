@@ -27,7 +27,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => service.ChangeStatusAsync(
             asset.Id,
@@ -52,7 +52,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
         var changedBy = Guid.NewGuid();
 
         var result = await service.ChangeStatusAsync(
@@ -86,7 +86,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await service.ChangeStatusAsync(
             asset.Id,
@@ -112,7 +112,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await service.ChangeStatusAsync(
             asset.Id,
@@ -140,7 +140,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await service.ChangeStatusAsync(asset.Id, new ChangeAssetStatusRequest { NewStatus = nameof(AssetLifecycleStatus.EnBodega) }, Guid.NewGuid());
 
@@ -161,7 +161,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => service.ChangeStatusAsync(
             asset.Id,
@@ -189,7 +189,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await service.ChangeStatusAsync(
             asset.Id,
@@ -217,7 +217,7 @@ public class AssetServiceTests
 
         using (var missingAreaDb = TonerTestDb.CreateContext(dbName))
         {
-            var missingAreaService = new AssetService(missingAreaDb, new MaintenanceScheduleEngine(missingAreaDb), new AssignmentEngine(missingAreaDb));
+            var missingAreaService = new AssetService(missingAreaDb, new MaintenanceScheduleEngine(missingAreaDb), TestAssignment.Create(missingAreaDb));
             var ex = await Assert.ThrowsAsync<ConflictException>(() => missingAreaService.ChangeStatusAsync(
                 asset.Id,
                 new ChangeAssetStatusRequest { NewStatus = nameof(AssetLifecycleStatus.Instalado) },
@@ -226,7 +226,7 @@ public class AssetServiceTests
         }
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         // No se especifica ClientLocationId de nuevo: debe reusar la sede que ya quedó asociada al
         // pasar por PendienteInstalacion, igual que la reinstalación tras mantenimiento.
@@ -254,7 +254,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var prepared = await service.PrepareStatusChangeAsync(
             asset.Id,
@@ -295,7 +295,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() => service.ChangeStatusAsync(
             asset.Id,
@@ -316,12 +316,12 @@ public class AssetServiceTests
 
         using (var seedReadingDb = TonerTestDb.CreateContext(dbName))
         {
-            var service = new AssetService(seedReadingDb, new MaintenanceScheduleEngine(seedReadingDb), new AssignmentEngine(seedReadingDb));
+            var service = new AssetService(seedReadingDb, new MaintenanceScheduleEngine(seedReadingDb), TestAssignment.Create(seedReadingDb));
             await service.AddMeterReadingAsync(asset.Id, new CreateMeterReadingRequest { CounterValue = 1000 }, StaffUser());
         }
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var actService = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var actService = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() => actService.AddMeterReadingAsync(
             asset.Id,
@@ -342,12 +342,12 @@ public class AssetServiceTests
 
         using (var seedReadingDb = TonerTestDb.CreateContext(dbName))
         {
-            var service = new AssetService(seedReadingDb, new MaintenanceScheduleEngine(seedReadingDb), new AssignmentEngine(seedReadingDb));
+            var service = new AssetService(seedReadingDb, new MaintenanceScheduleEngine(seedReadingDb), TestAssignment.Create(seedReadingDb));
             await service.AddMeterReadingAsync(asset.Id, new CreateMeterReadingRequest { CounterValue = 1000 }, StaffUser());
         }
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var actService = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var actService = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await actService.AddMeterReadingAsync(
             asset.Id,
@@ -387,7 +387,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = (await service.ListPendingInstallationsAsync(technician.Id, null, null)).Items;
 
@@ -415,7 +415,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = (await service.ListPendingInstallationsAsync(technician.Id, null, null)).Items;
 
@@ -440,7 +440,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await service.ChangeStatusAsync(
             asset.Id,
@@ -475,7 +475,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await service.GetByIdAsync(new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null), asset.Id);
 
@@ -494,7 +494,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await service.GetByIdAsync(new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null), asset.Id);
 
@@ -519,7 +519,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
         var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetByIdAsync(malformedClientUser, asset.Id));
@@ -530,7 +530,7 @@ public class AssetServiceTests
     {
         var dbName = Guid.NewGuid().ToString();
         using var db = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(db, new MaintenanceScheduleEngine(db), new AssignmentEngine(db));
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
         var malformedClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, null, null);
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.ListAsync(malformedClientUser, null, null));
@@ -549,7 +549,7 @@ public class AssetServiceTests
         db.AddRange(brand, model);
         await db.SaveChangesAsync();
 
-        var service = new AssetService(db, new MaintenanceScheduleEngine(db), new AssignmentEngine(db));
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
 
         await Assert.ThrowsAsync<FluentValidation.ValidationException>(() => service.CreateAsync(
             new CreateAssetRequest { AssetModelId = model.Id, SerialNumber = "SN-000123", Type = "NoExiste" }));
@@ -567,7 +567,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<FluentValidation.ValidationException>(() => service.ChangeStatusAsync(
             asset.Id,
@@ -593,7 +593,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
         var owningClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, client.Id, null);
 
         var result = await service.GetByIdAsync(owningClientUser, asset.Id);
@@ -617,7 +617,7 @@ public class AssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
         var otherClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, otherClient.Id, null);
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetByIdAsync(otherClientUser, asset.Id));

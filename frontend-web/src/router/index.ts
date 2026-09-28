@@ -81,6 +81,12 @@ const router = createRouter({
           meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
         },
         {
+          path: 'holidays',
+          name: 'holidays',
+          component: () => import('../views/maintenance/HolidaysView.vue'),
+          meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
+        },
+        {
           path: 'meter-readings',
           name: 'meter-readings',
           component: () => import('../views/assets/MeterReadingsView.vue'),

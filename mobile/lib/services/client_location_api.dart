@@ -15,7 +15,9 @@ class ClientLocationApi {
     try {
       final response = await _client.dio.get('/clients/$clientId/locations');
       final items = response.data as List<dynamic>;
-      return items.map((e) => ClientLocation.fromJson(e as Map<String, dynamic>)).toList();
+      return items
+          .map((e) => ClientLocation.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e, st) {
       debugPrint('ClientLocationApi.listForClient failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -29,15 +31,22 @@ class ClientLocationApi {
     required String address,
     String? contactName,
     String? contactPhone,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
-      final response = await _client.dio.post('/clients/$clientId/locations', data: {
-        'cityId': cityId,
-        'name': name,
-        'address': address,
-        'contactName': ?contactName,
-        'contactPhone': ?contactPhone,
-      });
+      final response = await _client.dio.post(
+        '/clients/$clientId/locations',
+        data: {
+          'cityId': cityId,
+          'name': name,
+          'address': address,
+          'contactName': ?contactName,
+          'contactPhone': ?contactPhone,
+          'latitude': ?latitude,
+          'longitude': ?longitude,
+        },
+      );
       return ClientLocation.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ClientLocationApi.create failed: $e\n$st');
@@ -53,15 +62,22 @@ class ClientLocationApi {
     required String address,
     String? contactName,
     String? contactPhone,
+    double? latitude,
+    double? longitude,
   }) async {
     try {
-      final response = await _client.dio.put('/clients/$clientId/locations/$id', data: {
-        'cityId': cityId,
-        'name': name,
-        'address': address,
-        'contactName': ?contactName,
-        'contactPhone': ?contactPhone,
-      });
+      final response = await _client.dio.put(
+        '/clients/$clientId/locations/$id',
+        data: {
+          'cityId': cityId,
+          'name': name,
+          'address': address,
+          'contactName': ?contactName,
+          'contactPhone': ?contactPhone,
+          'latitude': ?latitude,
+          'longitude': ?longitude,
+        },
+      );
       return ClientLocation.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ClientLocationApi.update failed: $e\n$st');
@@ -69,9 +85,16 @@ class ClientLocationApi {
     }
   }
 
-  Future<ClientLocation> setStatus(String clientId, String id, bool isActive) async {
+  Future<ClientLocation> setStatus(
+    String clientId,
+    String id,
+    bool isActive,
+  ) async {
     try {
-      final response = await _client.dio.patch('/clients/$clientId/locations/$id/status', data: {'isActive': isActive});
+      final response = await _client.dio.patch(
+        '/clients/$clientId/locations/$id/status',
+        data: {'isActive': isActive},
+      );
       return ClientLocation.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ClientLocationApi.setStatus failed: $e\n$st');

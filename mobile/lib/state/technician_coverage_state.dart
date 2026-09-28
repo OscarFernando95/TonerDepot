@@ -8,8 +8,8 @@ import '../services/technician_management_api.dart';
 
 class TechnicianCoverageState extends ChangeNotifier {
   TechnicianCoverageState(ApiClient client, this.technicianId)
-      : _api = TechnicianManagementApi(client),
-        _cityApi = CityApi(client);
+    : _api = TechnicianManagementApi(client),
+      _cityApi = CityApi(client);
 
   final TechnicianManagementApi _api;
   final CityApi _cityApi;
@@ -21,15 +21,19 @@ class TechnicianCoverageState extends ChangeNotifier {
   List<TechnicianCoverage> coverage = [];
   List<City> allCities = [];
 
-  List<City> get availableCities =>
-      allCities.where((c) => !coverage.any((cov) => cov.cityId == c.id)).toList();
+  List<City> get availableCities => allCities
+      .where((c) => !coverage.any((cov) => cov.cityId == c.id))
+      .toList();
 
   Future<void> load() async {
     loading = true;
     error = null;
     notifyListeners();
     try {
-      final results = await Future.wait([_api.getCoverage(technicianId), _cityApi.list()]);
+      final results = await Future.wait([
+        _api.getCoverage(technicianId),
+        _cityApi.list(),
+      ]);
       coverage = results[0] as List<TechnicianCoverage>;
       allCities = results[1] as List<City>;
     } catch (e, st) {

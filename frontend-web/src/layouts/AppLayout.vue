@@ -23,6 +23,7 @@ import {
   Close
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import * as authApi from '../api/auth'
 import { RoleNames } from '../api/types'
 
 const auth = useAuthStore()
@@ -58,6 +59,7 @@ const menuItems: MenuItem[] = [
   { index: 'asset-brands', route: 'asset-brands', icon: PriceTag, label: 'Marcas', description: 'Marcas de equipos disponibles', visible: () => canSeeClients.value },
   { index: 'contracts', route: 'contracts', icon: Document, label: 'Contratos', description: 'Alquileres y condiciones por cliente', visible: () => canSeeClients.value },
   { index: 'maintenance-schedules', route: 'maintenance-schedules', icon: Calendar, label: 'Cronogramas', description: 'Programación de mantenimiento preventivo', visible: () => canSeeClients.value },
+  { index: 'holidays', route: 'holidays', icon: Calendar, label: 'Festivos', description: 'Festivos de Colombia y días no laborables', visible: () => canSeeClients.value },
   { index: 'maintenance-orders', route: 'maintenance-orders', icon: Tools, label: 'Órdenes de mantenimiento', description: 'Visitas de mantenimiento generadas y su estado', visible: () => canSeeClients.value },
   { index: 'meter-readings', route: 'meter-readings', icon: Odometer, label: 'Lectura de contadores', description: 'Registra el contador de cualquier activo instalado', visible: () => canSeeMeterReadings.value },
   { index: 'my-assets', route: 'my-assets', icon: Monitor, label: 'Mis activos', description: 'Equipos instalados en tus sedes', visible: () => canSeeClientPortal.value },
@@ -104,7 +106,14 @@ const railWidth = computed(() => {
 })
 const showLabels = computed(() => isNarrow.value || !collapsed.value)
 
-function handleLogout() {
+async function handleLogout() {
+  // El logout revoca la sesión en el servidor (clave para la sesión única del técnico); si falla la
+  // red igual se cierra localmente — la sesión vence sola o la cierra un administrador.
+  try {
+    await authApi.logout()
+  } catch (err) {
+    console.error('No se pudo revocar la sesión en el servidor:', err)
+  }
   auth.logout()
   router.push({ name: 'login' })
 }

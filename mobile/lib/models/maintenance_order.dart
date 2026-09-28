@@ -42,7 +42,8 @@ class MaintenanceOrder {
   /// gate de UI para paridad exacta — ver MaintenanceOrderDetailView.vue).
   bool get canManage => status == 'Pendiente' || status == 'Asignada';
 
-  factory MaintenanceOrder.fromJson(Map<String, dynamic> json) => MaintenanceOrder(
+  factory MaintenanceOrder.fromJson(Map<String, dynamic> json) =>
+      MaintenanceOrder(
         id: json['id'] as String,
         maintenanceScheduleId: json['maintenanceScheduleId'] as String,
         assetId: json['assetId'] as String,

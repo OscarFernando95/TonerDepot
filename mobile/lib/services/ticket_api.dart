@@ -46,12 +46,15 @@ class TicketApi {
     String? priority,
   }) async {
     try {
-      final response = await _client.dio.post('/tickets', data: {
-        'clientLocationId': clientLocationId,
-        'assetId': ?assetId,
-        'description': description,
-        'priority': ?priority,
-      });
+      final response = await _client.dio.post(
+        '/tickets',
+        data: {
+          'clientLocationId': clientLocationId,
+          'assetId': ?assetId,
+          'description': description,
+          'priority': ?priority,
+        },
+      );
       return ServiceTicket.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('TicketApi.create failed: $e\n$st');

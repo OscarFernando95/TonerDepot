@@ -30,7 +30,7 @@ public class AssignmentEngineTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var engine = new AssignmentEngine(actDb);
+        var engine = TestAssignment.Create(actDb);
 
         // El motor ya no guarda: recibe la entidad trackeada y el caller decide cuándo persistir.
         var tracked = await actDb.ServiceTickets.SingleAsync(t => t.Id == ticket.Id);
@@ -69,7 +69,7 @@ public class AssignmentEngineTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var engine = new AssignmentEngine(actDb);
+        var engine = TestAssignment.Create(actDb);
 
         var tracked = await actDb.ServiceTickets.SingleAsync(t => t.Id == ticket.Id);
         var result = await engine.AssignServiceTicketAsync(tracked);
@@ -111,7 +111,7 @@ public class AssignmentEngineTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var engine = new AssignmentEngine(actDb);
+        var engine = TestAssignment.Create(actDb);
 
         var tracked = await actDb.ServiceTickets.SingleAsync(t => t.Id == newTicket.Id);
         var result = await engine.AssignServiceTicketAsync(tracked);
@@ -136,7 +136,7 @@ public class AssignmentEngineTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var engine = new AssignmentEngine(actDb);
+        var engine = TestAssignment.Create(actDb);
 
         var tracked = await actDb.MaintenanceOrders.SingleAsync(o => o.Id == order.Id);
         var result = await engine.AssignMaintenanceOrderAsync(tracked);
@@ -173,7 +173,7 @@ public class AssignmentEngineTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var engine = new AssignmentEngine(actDb);
+        var engine = TestAssignment.Create(actDb);
 
         var tracked = await actDb.MaintenanceOrders.SingleAsync(o => o.Id == order.Id);
         var result = await engine.AssignMaintenanceOrderAsync(tracked);

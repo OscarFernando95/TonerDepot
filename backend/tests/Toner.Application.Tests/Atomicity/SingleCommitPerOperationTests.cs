@@ -31,18 +31,7 @@ namespace Toner.Application.Tests.Atomicity;
 // Cada test afirma además SaveCount == 1, que es la propiedad de forma directa.
 public class SingleCommitPerOperationTests
 {
-    private static TechnicianCheckInService BuildCheckInService(TonerDbContext db)
-    {
-        var scheduleEngine = new MaintenanceScheduleEngine(db);
-        var assignmentEngine = new AssignmentEngine(db);
-        return new(
-            db,
-            new ServiceTicketService(db, assignmentEngine),
-            new MaintenanceOrderService(db, scheduleEngine),
-            new AssetService(db, scheduleEngine, assignmentEngine),
-            scheduleEngine,
-            assignmentEngine);
-    }
+    private static TechnicianCheckInService BuildCheckInService(TonerDbContext db) => TestCheckIn.Create(db);
 
     // ── Caso 1 (severidad 🔴): TechnicianCheckInService.CheckOutAsync ────────────────────────────
     // Antes eran hasta 3 commits. Si el último fallaba, la visita quedaba CERRADA (TimeLog con
@@ -151,7 +140,7 @@ public class SingleCommitPerOperationTests
         var job = new MaintenanceScheduleEvaluationJob(
             actDb,
             new MaintenanceScheduleEngine(actDb),
-            new AssignmentEngine(actDb),
+            TestAssignment.Create(actDb),
             new NoOpExceptionLogger(),
             NullLogger<MaintenanceScheduleEvaluationJob>.Instance,
             new TenantContextAccessor());
@@ -207,7 +196,7 @@ public class SingleCommitPerOperationTests
         var spy = new SaveChangesSpyInterceptor { FailOnSaveNumber = 2 };
         using var actDb = TonerTestDb.CreateContext(dbName, spy);
         var scheduleEngine = new MaintenanceScheduleEngine(actDb);
-        var service = new AssetService(actDb, scheduleEngine, new AssignmentEngine(actDb));
+        var service = new AssetService(actDb, scheduleEngine, TestAssignment.Create(actDb));
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
 
         await service.AddMeterReadingAsync(assetId, new CreateMeterReadingRequest { CounterValue = 28_000 }, staff);
@@ -252,7 +241,7 @@ public class SingleCommitPerOperationTests
 
         var spy = new SaveChangesSpyInterceptor { FailOnSaveNumber = 2 };
         using var actDb = TonerTestDb.CreateContext(dbName, spy);
-        var service = new ServiceTicketService(actDb, new AssignmentEngine(actDb));
+        var service = new ServiceTicketService(actDb, TestAssignment.Create(actDb));
         var staff = new RequestingUser(reporterId, RoleNames.Administrador, null, null);
 
         var created = await service.CreateAsync(staff, new CreateServiceTicketRequest

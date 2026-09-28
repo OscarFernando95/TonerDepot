@@ -36,12 +36,16 @@ class MaintenanceOrderApi {
   }
 
   /// Staff únicamente. Válido solo si la orden está Pendiente o Asignada.
-  Future<MaintenanceOrder> assign(String id, {required String technicianId, String? reason}) async {
+  Future<MaintenanceOrder> assign(
+    String id, {
+    required String technicianId,
+    String? reason,
+  }) async {
     try {
-      final response = await _client.dio.post('/maintenance-orders/$id/assign', data: {
-        'technicianId': technicianId,
-        'reason': ?reason,
-      });
+      final response = await _client.dio.post(
+        '/maintenance-orders/$id/assign',
+        data: {'technicianId': technicianId, 'reason': ?reason},
+      );
       return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('MaintenanceOrderApi.assign failed: $e\n$st');
@@ -50,12 +54,19 @@ class MaintenanceOrderApi {
   }
 
   /// Staff únicamente. `counterValue` debe ser >= la última lectura registrada.
-  Future<MaintenanceOrder> complete(String id, {required int counterValue, DateTime? readingDate}) async {
+  Future<MaintenanceOrder> complete(
+    String id, {
+    required int counterValue,
+    DateTime? readingDate,
+  }) async {
     try {
-      final response = await _client.dio.post('/maintenance-orders/$id/complete', data: {
-        'counterValue': counterValue,
-        'readingDate': readingDate?.toUtc().toIso8601String(),
-      });
+      final response = await _client.dio.post(
+        '/maintenance-orders/$id/complete',
+        data: {
+          'counterValue': counterValue,
+          'readingDate': readingDate?.toUtc().toIso8601String(),
+        },
+      );
       return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('MaintenanceOrderApi.complete failed: $e\n$st');

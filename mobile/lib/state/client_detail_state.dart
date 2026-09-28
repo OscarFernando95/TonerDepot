@@ -13,9 +13,9 @@ import '../services/client_location_api.dart';
 /// sedes embebidas.
 class ClientDetailState extends ChangeNotifier {
   ClientDetailState(ApiClient client, this.clientId)
-      : _clientApi = ClientApi(client),
-        _locationApi = ClientLocationApi(client),
-        _cityApi = CityApi(client);
+    : _clientApi = ClientApi(client),
+      _locationApi = ClientLocationApi(client),
+      _cityApi = CityApi(client);
 
   final ClientApi _clientApi;
   final ClientLocationApi _locationApi;
@@ -58,22 +58,23 @@ class ClientDetailState extends ChangeNotifier {
     String? contactEmail,
     String? contactPhone,
     required bool isContractClient,
-  }) =>
-      _runAction(() async {
-        client = await _clientApi.update(
-          clientId,
-          name: name,
-          taxId: taxId,
-          contactName: contactName,
-          contactEmail: contactEmail,
-          contactPhone: contactPhone,
-          isContractClient: isContractClient,
-        );
-      });
+    String supportCoverage = 'HorarioOficina',
+  }) => _runAction(() async {
+    client = await _clientApi.update(
+      clientId,
+      name: name,
+      taxId: taxId,
+      contactName: contactName,
+      contactEmail: contactEmail,
+      contactPhone: contactPhone,
+      isContractClient: isContractClient,
+      supportCoverage: supportCoverage,
+    );
+  });
 
   Future<String?> setClientStatus(bool isActive) => _runAction(() async {
-        client = await _clientApi.setStatus(clientId, isActive);
-      });
+    client = await _clientApi.setStatus(clientId, isActive);
+  });
 
   Future<String?> addLocation({
     required String cityId,
@@ -81,18 +82,21 @@ class ClientDetailState extends ChangeNotifier {
     required String address,
     String? contactName,
     String? contactPhone,
-  }) =>
-      _runAction(() async {
-        final created = await _locationApi.create(
-          clientId,
-          cityId: cityId,
-          name: name,
-          address: address,
-          contactName: contactName,
-          contactPhone: contactPhone,
-        );
-        locations = [...locations, created];
-      });
+    double? latitude,
+    double? longitude,
+  }) => _runAction(() async {
+    final created = await _locationApi.create(
+      clientId,
+      cityId: cityId,
+      name: name,
+      address: address,
+      contactName: contactName,
+      contactPhone: contactPhone,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    locations = [...locations, created];
+  });
 
   Future<String?> updateLocation(
     String locationId, {
@@ -101,24 +105,32 @@ class ClientDetailState extends ChangeNotifier {
     required String address,
     String? contactName,
     String? contactPhone,
-  }) =>
+    double? latitude,
+    double? longitude,
+  }) => _runAction(() async {
+    final updated = await _locationApi.update(
+      clientId,
+      locationId,
+      cityId: cityId,
+      name: name,
+      address: address,
+      contactName: contactName,
+      contactPhone: contactPhone,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    locations = [
+      for (final loc in locations) loc.id == locationId ? updated : loc,
+    ];
+  });
+
+  Future<String?> setLocationStatus(String locationId, bool isActive) =>
       _runAction(() async {
-        final updated = await _locationApi.update(
+        final updated = await _locationApi.setStatus(
           clientId,
           locationId,
-          cityId: cityId,
-          name: name,
-          address: address,
-          contactName: contactName,
-          contactPhone: contactPhone,
+          isActive,
         );
-        locations = [
-          for (final loc in locations) loc.id == locationId ? updated : loc,
-        ];
-      });
-
-  Future<String?> setLocationStatus(String locationId, bool isActive) => _runAction(() async {
-        final updated = await _locationApi.setStatus(clientId, locationId, isActive);
         locations = [
           for (final loc in locations) loc.id == locationId ? updated : loc,
         ];

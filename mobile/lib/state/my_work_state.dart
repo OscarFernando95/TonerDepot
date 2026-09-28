@@ -4,8 +4,13 @@ import '../models/maintenance_order.dart';
 import '../models/pending_installation.dart';
 import '../models/service_ticket.dart';
 import '../models/technician_status.dart';
+
+import 'package:image_picker/image_picker.dart';
+
 import '../services/api_client.dart';
+import '../services/device_capture.dart';
 import '../services/maintenance_order_api.dart';
+import '../services/realtime_service.dart';
 import '../services/technician_api.dart';
 import '../services/ticket_api.dart';
 
@@ -14,13 +19,26 @@ import '../services/ticket_api.dart';
 /// Coverage (trabajo de otros técnicos) queda para una siguiente iteración.
 class MyWorkState extends ChangeNotifier {
   MyWorkState(ApiClient client)
-      : _technicianApi = TechnicianApi(client),
-        _ticketApi = TicketApi(client),
-        _orderApi = MaintenanceOrderApi(client);
+    : _technicianApi = TechnicianApi(client),
+      _ticketApi = TicketApi(client),
+      _orderApi = MaintenanceOrderApi(client) {
+    // Un ticket/orden asignado o quitado desde la web actualiza esta pantalla sola. No mientras hay una
+    // acción de check-in/out en curso (busyWithAction): eso ya recarga todo al terminar.
+    _unsubscribe = RealtimeService.instance.subscribe(['Ticket', 'MaintenanceOrder'], (_) {
+      if (!busyWithAction) loadAll();
+    });
+  }
 
   final TechnicianApi _technicianApi;
   final TicketApi _ticketApi;
   final MaintenanceOrderApi _orderApi;
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -60,11 +78,13 @@ class MyWorkState extends ChangeNotifier {
 
   bool get isBusy => status?.isBusy ?? false;
 
-  List<ServiceTicket> get checkInableTickets =>
-      tickets.where((t) => t.status == 'Asignado' || t.status == 'EnProceso').toList();
+  List<ServiceTicket> get checkInableTickets => tickets
+      .where((t) => t.status == 'Asignado' || t.status == 'EnProceso')
+      .toList();
 
-  List<MaintenanceOrder> get checkInableOrders =>
-      orders.where((o) => o.status == 'Asignada' || o.status == 'EnProceso').toList();
+  List<MaintenanceOrder> get checkInableOrders => orders
+      .where((o) => o.status == 'Asignada' || o.status == 'EnProceso')
+      .toList();
 
   /// A diferencia de tickets/órdenes, una instalación "tomada por otro
   /// técnico" (takenByAnotherTechnician) sigue apareciendo en la lista — el
@@ -97,26 +117,91 @@ class MyWorkState extends ChangeNotifier {
     }
   }
 
-  Future<String?> checkInTicket(ServiceTicket ticket) => _runAction(
-        () => _technicianApi.checkIn(CheckInRequest(serviceTicketId: ticket.id)),
-      );
+  /// Tickets y órdenes exigen la foto "antes" (ya tomada por quien llama). Se sube primero, y su id viaja en el
+  /// check-in junto con la ubicación (se registra y se alerta si falta o está lejos; nunca bloquea).
+  Future<String?> checkInTicket(ServiceTicket ticket, XFile photo) =>
+      _runAction(() async {
+        final (evidenceId, position) = await _uploadAndLocate(
+          photo,
+          'Antes',
+          ticketId: ticket.id,
+        );
+        return _technicianApi.checkIn(
+          CheckInRequest(
+            serviceTicketId: ticket.id,
+            beforeEvidenceId: evidenceId,
+            position: position,
+          ),
+        );
+      });
 
-  Future<String?> checkInOrder(MaintenanceOrder order) => _runAction(
-        () => _technicianApi.checkIn(CheckInRequest(maintenanceOrderId: order.id)),
-      );
+  Future<String?> checkInOrder(MaintenanceOrder order, XFile photo) =>
+      _runAction(() async {
+        final (evidenceId, position) = await _uploadAndLocate(
+          photo,
+          'Antes',
+          orderId: order.id,
+        );
+        return _technicianApi.checkIn(
+          CheckInRequest(
+            maintenanceOrderId: order.id,
+            beforeEvidenceId: evidenceId,
+            position: position,
+          ),
+        );
+      });
 
-  Future<String?> checkInInstallation(PendingInstallation installation) => _runAction(
-        () => _technicianApi.checkIn(CheckInRequest(assetId: installation.assetId)),
-      );
+  /// Las instalaciones no llevan foto (no hay ticket/orden al que atarla), pero sí ubicación.
+  Future<String?> checkInInstallation(PendingInstallation installation) =>
+      _runAction(() async {
+        final position = await DeviceCapture.currentPosition();
+        return _technicianApi.checkIn(
+          CheckInRequest(assetId: installation.assetId, position: position),
+        );
+      });
 
-  Future<String?> checkOut(CheckOutRequest request) => _runAction(
-        () => _technicianApi.checkOut(request),
-      );
+  /// `photo` es la foto "después": obligatoria al resolver un ticket u orden (la hoja de check-out lo exige).
+  Future<String?> checkOut(CheckOutRequest request, {XFile? photo}) =>
+      _runAction(() async {
+        if (photo != null) {
+          final (evidenceId, position) = await _uploadAndLocate(
+            photo,
+            'Despues',
+            ticketId: activeTicket?.id,
+            orderId: activeTicket == null ? activeOrder?.id : null,
+          );
+          request.afterEvidenceId = evidenceId;
+          request.position = position;
+        } else {
+          request.position = await DeviceCapture.currentPosition();
+        }
+        return _technicianApi.checkOut(request);
+      });
+
+  Future<(String, PositionFix?)> _uploadAndLocate(
+    XFile photo,
+    String kind, {
+    String? ticketId,
+    String? orderId,
+  }) async {
+    final results = await Future.wait<Object?>([
+      _technicianApi.uploadEvidence(
+        photo,
+        kind: kind,
+        ticketId: ticketId,
+        orderId: orderId,
+      ),
+      DeviceCapture.currentPosition(),
+    ]);
+    return (results[0] as String, results[1] as PositionFix?);
+  }
 
   /// Corre una acción de check-in/check-out, recarga todo al terminar (igual
   /// que loadAll() tras cada acción en MyWorkView.vue) y devuelve un mensaje
   /// de error para mostrar en un SnackBar, o null si salió bien.
-  Future<String?> _runAction(Future<TechnicianSelfStatus> Function() action) async {
+  Future<String?> _runAction(
+    Future<TechnicianSelfStatus> Function() action,
+  ) async {
     busyWithAction = true;
     notifyListeners();
     try {

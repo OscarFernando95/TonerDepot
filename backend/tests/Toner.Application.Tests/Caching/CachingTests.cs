@@ -201,7 +201,7 @@ public class CachingTests
         var cache = TestCache.New();
 
         using var db1 = TonerTestDb.CreateContext(dbName);
-        var first = await new DashboardService(db1, cache, TestCache.StaffTenant()).GetSummaryAsync(30);
+        var first = await new DashboardService(db1, cache, TestCache.StaffTenant(), TestCalendar.For(db1)).GetSummaryAsync(30);
         Assert.Equal(1, first.Mttr.ResolvedTicketCount);
 
         using (var wipe = TonerTestDb.CreateContext(dbName))
@@ -211,7 +211,7 @@ public class CachingTests
         }
 
         using var db2 = TonerTestDb.CreateContext(dbName);
-        var second = await new DashboardService(db2, cache, TestCache.StaffTenant()).GetSummaryAsync(30);
+        var second = await new DashboardService(db2, cache, TestCache.StaffTenant(), TestCalendar.For(db2)).GetSummaryAsync(30);
         Assert.Equal(1, second.Mttr.ResolvedTicketCount); // de la caché
     }
 
@@ -222,7 +222,7 @@ public class CachingTests
         var cache = TestCache.New();
 
         using var db1 = TonerTestDb.CreateContext(dbName);
-        await new DashboardService(db1, cache, TestCache.StaffTenant()).GetSummaryAsync(0); // -> 30
+        await new DashboardService(db1, cache, TestCache.StaffTenant(), TestCalendar.For(db1)).GetSummaryAsync(0); // -> 30
 
         await using (var wipe = TonerTestDb.CreateContext(dbName))
         {
@@ -233,7 +233,7 @@ public class CachingTests
         // 0, -5 y 30 deben caer en la MISMA entrada: si no, cada variante recalcularía y vería la
         // base ya vacía.
         using var db2 = TonerTestDb.CreateContext(dbName);
-        var service = new DashboardService(db2, cache, TestCache.StaffTenant());
+        var service = new DashboardService(db2, cache, TestCache.StaffTenant(), TestCalendar.For(db2));
         Assert.Equal(1, (await service.GetSummaryAsync(-5)).Mttr.ResolvedTicketCount);
         Assert.Equal(1, (await service.GetSummaryAsync(30)).Mttr.ResolvedTicketCount);
     }
@@ -246,7 +246,7 @@ public class CachingTests
         var cache = TestCache.New();
 
         using var db1 = TonerTestDb.CreateContext(dbName);
-        Assert.Equal(1, (await new DashboardService(db1, cache, TestCache.StaffTenant()).GetSummaryAsync(30)).Mttr.ResolvedTicketCount);
+        Assert.Equal(1, (await new DashboardService(db1, cache, TestCache.StaffTenant(), TestCalendar.For(db1)).GetSummaryAsync(30)).Mttr.ResolvedTicketCount);
 
         using (var wipe = TonerTestDb.CreateContext(dbName))
         {
@@ -258,7 +258,7 @@ public class CachingTests
         // recalcula y ve la base (vacía). Si compartieran clave, devolvería el 1 del staff — que es
         // justamente la fuga entre tenants que la clave con tenant previene.
         using var db2 = TonerTestDb.CreateContext(dbName);
-        var asClient = new DashboardService(db2, cache, TestCache.ClientTenant(Guid.NewGuid()));
+        var asClient = new DashboardService(db2, cache, TestCache.ClientTenant(Guid.NewGuid()), TestCalendar.For(db2));
         Assert.Equal(0, (await asClient.GetSummaryAsync(30)).Mttr.ResolvedTicketCount);
     }
 

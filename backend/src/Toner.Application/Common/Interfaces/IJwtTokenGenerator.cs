@@ -4,5 +4,5 @@ namespace Toner.Application.Common.Interfaces;
 
 public interface IJwtTokenGenerator
 {
-    (string Token, DateTime ExpiresAtUtc) GenerateToken(User user);
+    (string Token, DateTime ExpiresAtUtc) GenerateToken(User user, Guid sessionId);
 }

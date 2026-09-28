@@ -4,3 +4,10 @@
 /// hora y van con `.toUtc().toIso8601String()` (ver meter_reading_api.dart).
 String formatDateOnly(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+/// "28/09 14:30" — fecha y hora locales, para mostrar instantes en listados.
+String formatDateTimeShort(DateTime value) {
+  final local = value.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
+}

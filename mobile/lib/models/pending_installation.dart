@@ -35,7 +35,8 @@ class PendingInstallation {
     required this.takenByAnotherTechnician,
   });
 
-  factory PendingInstallation.fromJson(Map<String, dynamic> json) => PendingInstallation(
+  factory PendingInstallation.fromJson(Map<String, dynamic> json) =>
+      PendingInstallation(
         assetId: json['assetId'] as String,
         assetBrandName: json['assetBrandName'] as String? ?? '',
         model: json['model'] as String? ?? '',
@@ -46,8 +47,13 @@ class PendingInstallation {
         clientLocationName: json['clientLocationName'] as String? ?? '',
         cityName: json['cityName'] as String?,
         contractId: json['contractId'] as String?,
-        contractStartDate: json['contractStartDate'] != null ? DateTime.parse(json['contractStartDate'] as String) : null,
-        contractEndDate: json['contractEndDate'] != null ? DateTime.parse(json['contractEndDate'] as String) : null,
-        takenByAnotherTechnician: json['takenByAnotherTechnician'] as bool? ?? false,
+        contractStartDate: json['contractStartDate'] != null
+            ? DateTime.parse(json['contractStartDate'] as String)
+            : null,
+        contractEndDate: json['contractEndDate'] != null
+            ? DateTime.parse(json['contractEndDate'] as String)
+            : null,
+        takenByAnotherTechnician:
+            json['takenByAnotherTechnician'] as bool? ?? false,
       );
 }

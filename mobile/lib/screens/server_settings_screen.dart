@@ -22,7 +22,9 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
   void initState() {
     super.initState();
     _controller = TextEditingController();
-    ApiClient.instance.baseUrl.then((url) => setState(() => _controller.text = url));
+    ApiClient.instance.baseUrl.then(
+      (url) => setState(() => _controller.text = url),
+    );
   }
 
   @override
@@ -34,20 +36,24 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
   Future<void> _save() async {
     final url = _controller.text.trim();
     final uri = Uri.tryParse(url);
-    final isValid = url.isNotEmpty &&
+    final isValid =
+        url.isNotEmpty &&
         uri != null &&
         uri.isAbsolute &&
         (uri.scheme == 'http' || uri.scheme == 'https') &&
         uri.host.isNotEmpty;
     if (!isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('URL inválida. Debe empezar con http:// o https://')),
+        const SnackBar(
+          content: Text('URL inválida. Debe empezar con http:// o https://'),
+        ),
       );
       return;
     }
     await ApiClient.instance.setBaseUrl(url);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('URL guardada.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('URL guardada.')));
       Navigator.of(context).pop();
     }
   }
@@ -71,8 +77,15 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
                     child: Container(
                       width: 60,
                       height: 60,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.signalBlueWash),
-                      child: const Icon(Icons.dns_outlined, size: 28, color: AppColors.signalBlue),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.signalBlueWash,
+                      ),
+                      child: const Icon(
+                        Icons.dns_outlined,
+                        size: 28,
+                        color: AppColors.signalBlue,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -96,7 +109,10 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
                     height: 52,
                     child: FilledButton(
                       onPressed: _save,
-                      child: const Text('Guardar', style: TextStyle(fontWeight: FontWeight.w700)),
+                      child: const Text(
+                        'Guardar',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
                 ],

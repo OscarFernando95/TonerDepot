@@ -21,7 +21,9 @@ class ClientsListState extends ChangeNotifier {
       clients = await _api.list();
     } catch (e, st) {
       debugPrint('ClientsListState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los clientes.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los clientes.';
     } finally {
       loading = false;
       notifyListeners();

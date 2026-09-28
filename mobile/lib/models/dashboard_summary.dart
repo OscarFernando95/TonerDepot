@@ -19,17 +19,26 @@ class DashboardSummary {
     required this.slaCompliance,
   });
 
-  factory DashboardSummary.fromJson(Map<String, dynamic> json) => DashboardSummary(
+  factory DashboardSummary.fromJson(Map<String, dynamic> json) =>
+      DashboardSummary(
         periodDays: json['periodDays'] as int,
         mttr: Mttr.fromJson(json['mttr'] as Map<String, dynamic>),
-        maintenanceCompliance: MaintenanceCompliance.fromJson(json['maintenanceCompliance'] as Map<String, dynamic>),
+        maintenanceCompliance: MaintenanceCompliance.fromJson(
+          json['maintenanceCompliance'] as Map<String, dynamic>,
+        ),
         ticketsByCity: (json['ticketsByCity'] as List<dynamic>? ?? [])
             .map((e) => CityTicketBacklog.fromJson(e as Map<String, dynamic>))
             .toList(),
-        technicianUtilization: (json['technicianUtilization'] as List<dynamic>? ?? [])
-            .map((e) => TechnicianUtilization.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        slaCompliance: SlaCompliance.fromJson(json['slaCompliance'] as Map<String, dynamic>),
+        technicianUtilization:
+            (json['technicianUtilization'] as List<dynamic>? ?? [])
+                .map(
+                  (e) =>
+                      TechnicianUtilization.fromJson(e as Map<String, dynamic>),
+                )
+                .toList(),
+        slaCompliance: SlaCompliance.fromJson(
+          json['slaCompliance'] as Map<String, dynamic>,
+        ),
       );
 }
 
@@ -37,12 +46,16 @@ class Mttr {
   final double? averageResolutionHours;
   final int resolvedTicketCount;
 
-  Mttr({required this.averageResolutionHours, required this.resolvedTicketCount});
+  Mttr({
+    required this.averageResolutionHours,
+    required this.resolvedTicketCount,
+  });
 
   factory Mttr.fromJson(Map<String, dynamic> json) => Mttr(
-        averageResolutionHours: (json['averageResolutionHours'] as num?)?.toDouble(),
-        resolvedTicketCount: json['resolvedTicketCount'] as int? ?? 0,
-      );
+    averageResolutionHours: (json['averageResolutionHours'] as num?)
+        ?.toDouble(),
+    resolvedTicketCount: json['resolvedTicketCount'] as int? ?? 0,
+  );
 }
 
 class MaintenanceCompliance {
@@ -58,7 +71,8 @@ class MaintenanceCompliance {
     required this.onTimeCount,
   });
 
-  factory MaintenanceCompliance.fromJson(Map<String, dynamic> json) => MaintenanceCompliance(
+  factory MaintenanceCompliance.fromJson(Map<String, dynamic> json) =>
+      MaintenanceCompliance(
         windowDays: json['windowDays'] as int? ?? 0,
         onTimePercentage: (json['onTimePercentage'] as num?)?.toDouble(),
         completedCount: json['completedCount'] as int? ?? 0,
@@ -79,7 +93,8 @@ class CityTicketBacklog {
     required this.unassignedCount,
   });
 
-  factory CityTicketBacklog.fromJson(Map<String, dynamic> json) => CityTicketBacklog(
+  factory CityTicketBacklog.fromJson(Map<String, dynamic> json) =>
+      CityTicketBacklog(
         cityId: json['cityId'] as String,
         cityName: json['cityName'] as String,
         openCount: json['openCount'] as int? ?? 0,
@@ -100,11 +115,13 @@ class TechnicianUtilization {
     required this.utilizationPercentage,
   });
 
-  factory TechnicianUtilization.fromJson(Map<String, dynamic> json) => TechnicianUtilization(
+  factory TechnicianUtilization.fromJson(Map<String, dynamic> json) =>
+      TechnicianUtilization(
         technicianId: json['technicianId'] as String,
         technicianName: json['technicianName'] as String,
         hoursLogged: (json['hoursLogged'] as num?)?.toDouble() ?? 0,
-        utilizationPercentage: (json['utilizationPercentage'] as num?)?.toDouble() ?? 0,
+        utilizationPercentage:
+            (json['utilizationPercentage'] as num?)?.toDouble() ?? 0,
       );
 }
 
@@ -112,14 +129,18 @@ class SlaCompliance {
   final double? overallCompliancePercentage;
   final List<SlaPriorityCompliance> byPriority;
 
-  SlaCompliance({required this.overallCompliancePercentage, required this.byPriority});
+  SlaCompliance({
+    required this.overallCompliancePercentage,
+    required this.byPriority,
+  });
 
   factory SlaCompliance.fromJson(Map<String, dynamic> json) => SlaCompliance(
-        overallCompliancePercentage: (json['overallCompliancePercentage'] as num?)?.toDouble(),
-        byPriority: (json['byPriority'] as List<dynamic>? ?? [])
-            .map((e) => SlaPriorityCompliance.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    overallCompliancePercentage: (json['overallCompliancePercentage'] as num?)
+        ?.toDouble(),
+    byPriority: (json['byPriority'] as List<dynamic>? ?? [])
+        .map((e) => SlaPriorityCompliance.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 class SlaPriorityCompliance {
@@ -137,11 +158,13 @@ class SlaPriorityCompliance {
     required this.compliancePercentage,
   });
 
-  factory SlaPriorityCompliance.fromJson(Map<String, dynamic> json) => SlaPriorityCompliance(
+  factory SlaPriorityCompliance.fromJson(Map<String, dynamic> json) =>
+      SlaPriorityCompliance(
         priority: json['priority'] as String,
         targetHours: json['targetHours'] as int? ?? 0,
         resolvedCount: json['resolvedCount'] as int? ?? 0,
         withinSlaCount: json['withinSlaCount'] as int? ?? 0,
-        compliancePercentage: (json['compliancePercentage'] as num?)?.toDouble(),
+        compliancePercentage: (json['compliancePercentage'] as num?)
+            ?.toDouble(),
       );
 }

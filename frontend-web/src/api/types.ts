@@ -76,6 +76,13 @@ export interface CityDto {
   stateOrProvince: string
 }
 
+export type SupportCoverage = 'HorarioOficina' | 'Continuo24x7'
+
+export const SupportCoverageLabels: Record<SupportCoverage, string> = {
+  HorarioOficina: 'Horario de oficina',
+  Continuo24x7: '24/7'
+}
+
 export interface ClientDto {
   id: string
   name: string
@@ -87,6 +94,9 @@ export interface ClientDto {
   // true: cliente con contrato de alquiler (sus tickets se ligan a un Asset real). false: cliente
   // externo que pide servicio sobre equipos propios, a veces ni catalogados.
   isContractClient: boolean
+  // HorarioOficina: SLA en horas hábiles y solo técnicos en horario. Continuo24x7: horas corridas y
+  // asignación sin importar el horario del técnico (sí sus permisos).
+  supportCoverage: SupportCoverage
   locationCount: number
   cityNames: string[]
   createdAt: string
@@ -99,6 +109,7 @@ export interface CreateClientRequest {
   contactEmail?: string | null
   contactPhone?: string | null
   isContractClient: boolean
+  supportCoverage: SupportCoverage
   // Al menos una sede es obligatoria — garantiza que todo cliente nace con dónde prestarle servicio.
   locations: CreateClientLocationRequest[]
 }
@@ -112,6 +123,7 @@ export interface UpdateClientRequest {
   contactEmail?: string | null
   contactPhone?: string | null
   isContractClient: boolean
+  supportCoverage: SupportCoverage
 }
 
 export interface ClientLocationDto {
@@ -124,6 +136,9 @@ export interface ClientLocationDto {
   address: string
   contactName: string | null
   contactPhone: string | null
+  // Coordenadas WGS84 de la sede (para verificar que el técnico llegó); null si aún no se cargaron.
+  latitude: number | null
+  longitude: number | null
   isActive: boolean
   createdAt: string
 }
@@ -134,6 +149,8 @@ export interface CreateClientLocationRequest {
   address: string
   contactName?: string | null
   contactPhone?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export type UpdateClientLocationRequest = CreateClientLocationRequest

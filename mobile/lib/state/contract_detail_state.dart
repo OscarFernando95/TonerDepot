@@ -8,8 +8,8 @@ import '../services/contract_asset_api.dart';
 
 class ContractDetailState extends ChangeNotifier {
   ContractDetailState(ApiClient client, this.contractId)
-      : _contractApi = ContractApi(client),
-        _contractAssetApi = ContractAssetApi(client);
+    : _contractApi = ContractApi(client),
+      _contractAssetApi = ContractAssetApi(client);
 
   final ContractApi _contractApi;
   final ContractAssetApi _contractAssetApi;
@@ -26,7 +26,10 @@ class ContractDetailState extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final results = await Future.wait([_contractApi.getById(contractId), _contractAssetApi.list(contractId)]);
+      final results = await Future.wait([
+        _contractApi.getById(contractId),
+        _contractAssetApi.list(contractId),
+      ]);
       contract = results[0] as Contract;
       contractAssets = results[1] as List<ContractAsset>;
     } catch (e, st) {
@@ -44,30 +47,38 @@ class ContractDetailState extends ChangeNotifier {
     int? includedPrintsPerMonth,
     double? pricePerExtraPage,
     String? notes,
-  }) =>
-      _runAction(() async {
-        contract = await _contractApi.update(
-          contractId,
-          startDate: startDate,
-          endDate: endDate,
-          includedPrintsPerMonth: includedPrintsPerMonth,
-          pricePerExtraPage: pricePerExtraPage,
-          notes: notes,
-        );
-      });
+  }) => _runAction(() async {
+    contract = await _contractApi.update(
+      contractId,
+      startDate: startDate,
+      endDate: endDate,
+      includedPrintsPerMonth: includedPrintsPerMonth,
+      pricePerExtraPage: pricePerExtraPage,
+      notes: notes,
+    );
+  });
 
   Future<String?> setStatus(String status) => _runAction(() async {
-        contract = await _contractApi.setStatus(contractId, status);
-      });
+    contract = await _contractApi.setStatus(contractId, status);
+  });
 
-  Future<String?> addAsset({required String assetId, required String clientLocationId, String? startDate}) =>
+  Future<String?> addAsset({
+    required String assetId,
+    required String clientLocationId,
+    String? startDate,
+  }) => _runAction(() async {
+    final added = await _contractAssetApi.add(
+      contractId,
+      assetId: assetId,
+      clientLocationId: clientLocationId,
+      startDate: startDate,
+    );
+    contractAssets = [...contractAssets, added];
+    contract = await _contractApi.getById(contractId);
+  });
+
+  Future<String?> endAssetAssociation(String contractAssetId) =>
       _runAction(() async {
-        final added = await _contractAssetApi.add(contractId, assetId: assetId, clientLocationId: clientLocationId, startDate: startDate);
-        contractAssets = [...contractAssets, added];
-        contract = await _contractApi.getById(contractId);
-      });
-
-  Future<String?> endAssetAssociation(String contractAssetId) => _runAction(() async {
         await _contractAssetApi.endAssociation(contractId, contractAssetId);
         contractAssets = await _contractAssetApi.list(contractId);
         contract = await _contractApi.getById(contractId);

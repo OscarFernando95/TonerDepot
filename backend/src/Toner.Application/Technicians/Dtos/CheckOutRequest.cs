@@ -8,6 +8,14 @@ public class CheckOutRequest
 
     public string? Notes { get; set; }
 
+    // Ubicación del técnico al cerrar (ver CheckInRequest).
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public double? AccuracyMeters { get; set; }
+
+    // Foto "después" ya subida. Obligatoria cuando se resuelve un ticket u orden (Resolved = true).
+    public Guid? AfterEvidenceId { get; set; }
+
     // InitialCounterValue/InitialCounterDate: el contador registrado al cerrar la visita. Obligatorios
     // cuando se cierra una instalación de activo o una orden de mantenimiento (Resolved = true) — es el
     // dato que mantiene actualizado el cronograma. Opcionales al cerrar un ticket de soporte (no toda

@@ -21,7 +21,9 @@ class MyContractsState extends ChangeNotifier {
       contracts = await _api.listMine();
     } catch (e, st) {
       debugPrint('MyContractsState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar tus contratos.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar tus contratos.';
     } finally {
       loading = false;
       notifyListeners();

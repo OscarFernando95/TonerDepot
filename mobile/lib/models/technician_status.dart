@@ -17,7 +17,8 @@ class TechnicianSelfStatus {
 
   bool get isBusy => status == 'Ocupado';
 
-  factory TechnicianSelfStatus.fromJson(Map<String, dynamic> json) => TechnicianSelfStatus(
+  factory TechnicianSelfStatus.fromJson(Map<String, dynamic> json) =>
+      TechnicianSelfStatus(
         technicianId: json['technicianId'] as String,
         status: json['status'] as String,
         activeServiceTicketId: json['activeServiceTicketId'] as String?,

@@ -16,7 +16,13 @@ import '../common/placeholder_screen.dart';
 class MaintenanceOrdersListScreen extends StatelessWidget {
   const MaintenanceOrdersListScreen({super.key});
 
-  static const _statuses = ['Pendiente', 'Asignada', 'EnProceso', 'Completada', 'Cancelada'];
+  static const _statuses = [
+    'Pendiente',
+    'Asignada',
+    'EnProceso',
+    'Completada',
+    'Cancelada',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -60,20 +66,28 @@ class MaintenanceOrdersListScreen extends StatelessWidget {
                       return Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
-                          child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+                          child: Text(
+                            state.error!,
+                            style: const TextStyle(color: AppColors.signalRed),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                       );
                     }
                     final orders = state.filtered;
                     if (orders.isEmpty) {
-                      return const PlaceholderScreen(title: 'Sin órdenes', message: 'No hay órdenes que coincidan con el filtro.');
+                      return const PlaceholderScreen(
+                        title: 'Sin órdenes',
+                        message: 'No hay órdenes que coincidan con el filtro.',
+                      );
                     }
                     return RefreshIndicator(
                       onRefresh: state.load,
                       child: ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                         itemCount: orders.length,
-                        itemBuilder: (context, index) => _OrderListItem(order: orders[index]),
+                        itemBuilder: (context, index) =>
+                            _OrderListItem(order: orders[index]),
                       ),
                     );
                   },
@@ -102,22 +116,40 @@ class _OrderListItem extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('${order.assetBrandName} ${order.assetModel}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                child: Text(
+                  '${order.assetBrandName} ${order.assetModel}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
               ),
               StatusChip(value: order.status),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Serie: ${order.assetSerialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
+          Text(
+            'Serie: ${order.assetSerialNumber}',
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
           if (order.clientLocationName != null)
             Text(
               '${order.clientLocationName}${order.cityName != null ? ' — ${order.cityName}' : ''}',
               style: const TextStyle(color: AppColors.inkSecondary),
             ),
           const SizedBox(height: 4),
-          Text('Programada: ${order.scheduledDate.split('T').first}', style: const TextStyle(fontSize: 12)),
+          Text(
+            'Programada: ${order.scheduledDate.split('T').first}',
+            style: const TextStyle(fontSize: 12),
+          ),
           if (order.technicianName != null)
-            Text('Técnico: ${order.technicianName}', style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
+            Text(
+              'Técnico: ${order.technicianName}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
+            ),
         ],
       ),
     );

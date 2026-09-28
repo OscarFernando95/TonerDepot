@@ -23,13 +23,13 @@ class AssetModel {
   });
 
   factory AssetModel.fromJson(Map<String, dynamic> json) => AssetModel(
-        id: json['id'] as String,
-        assetBrandId: json['assetBrandId'] as String,
-        name: json['name'] as String,
-        generalPrintThreshold: json['generalPrintThreshold'] as int,
-        generalMonthsInterval: json['generalMonthsInterval'] as int,
-        unitsPrintThreshold: json['unitsPrintThreshold'] as int,
-        unitsMonthsInterval: json['unitsMonthsInterval'] as int,
-        consumablesPrintThreshold: json['consumablesPrintThreshold'] as int,
-      );
+    id: json['id'] as String,
+    assetBrandId: json['assetBrandId'] as String,
+    name: json['name'] as String,
+    generalPrintThreshold: json['generalPrintThreshold'] as int,
+    generalMonthsInterval: json['generalMonthsInterval'] as int,
+    unitsPrintThreshold: json['unitsPrintThreshold'] as int,
+    unitsMonthsInterval: json['unitsMonthsInterval'] as int,
+    consumablesPrintThreshold: json['consumablesPrintThreshold'] as int,
+  );
 }

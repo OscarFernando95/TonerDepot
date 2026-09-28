@@ -9,8 +9,8 @@ import '../services/user_api.dart';
 /// (pasado por `extra` de go_router) en vez de volver a pedirlo.
 class UserDetailState extends ChangeNotifier {
   UserDetailState(ApiClient client, ManagedUser initialUser)
-      : _api = UserApi(client),
-        user = initialUser;
+    : _api = UserApi(client),
+      user = initialUser;
 
   final UserApi _api;
 
@@ -24,14 +24,21 @@ class UserDetailState extends ChangeNotifier {
     required String phone,
     required String address,
     required String cityId,
-  }) =>
-      _runAction(() async {
-        user = await _api.update(user.id, cedula: cedula, email: email, fullName: fullName, phone: phone, address: address, cityId: cityId);
-      });
+  }) => _runAction(() async {
+    user = await _api.update(
+      user.id,
+      cedula: cedula,
+      email: email,
+      fullName: fullName,
+      phone: phone,
+      address: address,
+      cityId: cityId,
+    );
+  });
 
   Future<String?> setStatus(bool isActive) => _runAction(() async {
-        user = await _api.setStatus(user.id, isActive);
-      });
+    user = await _api.setStatus(user.id, isActive);
+  });
 
   /// Devuelve la contraseña generada para mostrarla una vez, o null si falló
   /// (en cuyo caso el mensaje de error ya quedó en el resultado normal).
@@ -44,7 +51,32 @@ class UserDetailState extends ChangeNotifier {
       return (password: result.generatedPassword, error: null);
     } catch (e, st) {
       debugPrint('UserDetailState.resetPassword failed: $e\n$st');
-      return (password: null, error: e is ApiException ? e.message : 'No se pudo restablecer la contraseña.');
+      return (
+        password: null,
+        error: e is ApiException
+            ? e.message
+            : 'No se pudo restablecer la contraseña.',
+      );
+    } finally {
+      busyWithAction = false;
+      notifyListeners();
+    }
+  }
+
+  /// Devuelve cuántas sesiones cerró, o el mensaje de error.
+  Future<({int? revoked, String? error})> revokeSessions() async {
+    busyWithAction = true;
+    notifyListeners();
+    try {
+      return (revoked: await _api.revokeSessions(user.id), error: null);
+    } catch (e, st) {
+      debugPrint('UserDetailState.revokeSessions failed: $e\n$st');
+      return (
+        revoked: null,
+        error: e is ApiException
+            ? e.message
+            : 'No se pudieron cerrar las sesiones.',
+      );
     } finally {
       busyWithAction = false;
       notifyListeners();

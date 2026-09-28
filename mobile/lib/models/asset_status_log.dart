@@ -16,11 +16,11 @@ class AssetStatusLog {
   });
 
   factory AssetStatusLog.fromJson(Map<String, dynamic> json) => AssetStatusLog(
-        id: json['id'] as String,
-        previousStatus: json['previousStatus'] as String,
-        newStatus: json['newStatus'] as String,
-        changedAt: json['changedAt'] as String,
-        changedByUserName: json['changedByUserName'] as String?,
-        notes: json['notes'] as String?,
-      );
+    id: json['id'] as String,
+    previousStatus: json['previousStatus'] as String,
+    newStatus: json['newStatus'] as String,
+    changedAt: json['changedAt'] as String,
+    changedByUserName: json['changedByUserName'] as String?,
+    notes: json['notes'] as String?,
+  );
 }

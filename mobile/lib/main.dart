@@ -39,9 +39,12 @@ class _TonerAppState extends State<TonerApp> {
           // MyWorkState no necesita reconstruirse con el AuthState — solo lo
           // usamos como disparador para recargar "Mi trabajo" justo después
           // de un login exitoso (ver AppShell.initState).
-          update: (_, _, previous) => previous ?? MyWorkState(ApiClient.instance),
+          update: (_, _, previous) =>
+              previous ?? MyWorkState(ApiClient.instance),
         ),
-        ChangeNotifierProvider(create: (_) => MeterReadingState(ApiClient.instance)),
+        ChangeNotifierProvider(
+          create: (_) => MeterReadingState(ApiClient.instance),
+        ),
       ],
       child: MaterialApp.router(
         title: 'Toner',

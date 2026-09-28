@@ -14,7 +14,9 @@ class CityApi {
     try {
       final response = await _client.dio.get('/cities');
       final items = response.data as List<dynamic>;
-      return items.map((e) => City.fromJson(e as Map<String, dynamic>)).toList();
+      return items
+          .map((e) => City.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e, st) {
       debugPrint('CityApi.list failed: $e\n$st');
       throw ApiClient.translate(e);

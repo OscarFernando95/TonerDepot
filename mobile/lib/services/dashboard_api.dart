@@ -12,7 +12,10 @@ class DashboardApi {
 
   Future<DashboardSummary> getSummary(int periodDays) async {
     try {
-      final response = await _client.dio.get('/dashboard/summary', queryParameters: {'days': periodDays});
+      final response = await _client.dio.get(
+        '/dashboard/summary',
+        queryParameters: {'days': periodDays},
+      );
       return DashboardSummary.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('DashboardApi.getSummary failed: $e\n$st');

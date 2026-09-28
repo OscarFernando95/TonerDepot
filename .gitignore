@@ -35,3 +35,6 @@ docker/postgres/server.key
 
 # OS
 .DS_Store
+
+# Claves privadas (cuenta de servicio de Firebase, etc.): nunca se versionan.
+secrets/

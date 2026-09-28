@@ -14,7 +14,11 @@ import '../screens/contracts/contract_create_screen.dart';
 import '../screens/contracts/contract_detail_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/maintenance/maintenance_order_detail_screen.dart';
+import '../screens/maintenance/maintenance_schedule_detail_screen.dart';
 import '../screens/technicians/technician_coverage_screen.dart';
+import '../screens/technicians/technician_schedule_screen.dart';
+import '../screens/technicians/technician_time_off_screen.dart';
+import '../screens/technicians/technician_visits_screen.dart';
 import '../screens/tickets/ticket_detail_screen.dart';
 import '../screens/users/user_create_screen.dart';
 import '../screens/users/user_detail_screen.dart';
@@ -32,7 +36,11 @@ const _defaultAuthenticatedPath = '/dashboard';
 const _extraRouteRoles = {
   'ticket-detail': RoleNames.staffAndClientRoles,
   'maintenance-order-detail': RoleNames.staffRoles,
+  'maintenance-schedule-detail': RoleNames.staffRoles,
   'technician-coverage': RoleNames.staffRoles,
+  'technician-schedule': RoleNames.staffRoles,
+  'technician-visits': RoleNames.staffRoles,
+  'technician-time-off': RoleNames.staffRoles,
   'client-create': RoleNames.staffRoles,
   'client-detail': RoleNames.staffRoles,
   'asset-create': RoleNames.staffRoles,
@@ -69,7 +77,9 @@ GoRouter buildAppRouter(AuthState auth) {
       if (auth.currentUser?.mustChangePassword ?? false) {
         return loc == _changePasswordPath ? null : _changePasswordPath;
       }
-      if (loc == _splashPath || loc == _loginPath || loc == _changePasswordPath) {
+      if (loc == _splashPath ||
+          loc == _loginPath ||
+          loc == _changePasswordPath) {
         return _defaultAuthenticatedPath;
       }
       final allowedRoles = rolesByRouteName[state.name];
@@ -79,8 +89,16 @@ GoRouter buildAppRouter(AuthState auth) {
       return null;
     },
     routes: [
-      GoRoute(path: _splashPath, name: 'splash', builder: (context, state) => const _SplashScreen()),
-      GoRoute(path: _loginPath, name: 'login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: _splashPath,
+        name: 'splash',
+        builder: (context, state) => const _SplashScreen(),
+      ),
+      GoRoute(
+        path: _loginPath,
+        name: 'login',
+        builder: (context, state) => const LoginScreen(),
+      ),
       GoRoute(
         path: _changePasswordPath,
         name: 'change-password',
@@ -89,12 +107,45 @@ GoRouter buildAppRouter(AuthState auth) {
       GoRoute(
         path: '/tickets/:id',
         name: 'ticket-detail',
-        builder: (context, state) => TicketDetailScreen(ticketId: state.pathParameters['id']!),
+        builder: (context, state) =>
+            TicketDetailScreen(ticketId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/maintenance-orders/:id',
         name: 'maintenance-order-detail',
-        builder: (context, state) => MaintenanceOrderDetailScreen(orderId: state.pathParameters['id']!),
+        builder: (context, state) =>
+            MaintenanceOrderDetailScreen(orderId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: '/maintenance-schedules/:id',
+        name: 'maintenance-schedule-detail',
+        builder: (context, state) => MaintenanceScheduleDetailScreen(
+          scheduleId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '/technicians/:id/schedule',
+        name: 'technician-schedule',
+        builder: (context, state) => TechnicianScheduleScreen(
+          technicianId: state.pathParameters['id']!,
+          technicianName: state.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: '/technicians/:id/visits',
+        name: 'technician-visits',
+        builder: (context, state) => TechnicianVisitsScreen(
+          technicianId: state.pathParameters['id']!,
+          technicianName: state.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: '/technicians/:id/time-off',
+        name: 'technician-time-off',
+        builder: (context, state) => TechnicianTimeOffScreen(
+          technicianId: state.pathParameters['id']!,
+          technicianName: state.extra as String?,
+        ),
       ),
       GoRoute(
         path: '/technicians/:id',
@@ -112,7 +163,8 @@ GoRouter buildAppRouter(AuthState auth) {
       GoRoute(
         path: '/clients/:id',
         name: 'client-detail',
-        builder: (context, state) => ClientDetailScreen(clientId: state.pathParameters['id']!),
+        builder: (context, state) =>
+            ClientDetailScreen(clientId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/assets/new',
@@ -122,7 +174,8 @@ GoRouter buildAppRouter(AuthState auth) {
       GoRoute(
         path: '/assets/:id',
         name: 'asset-detail',
-        builder: (context, state) => AssetDetailScreen(assetId: state.pathParameters['id']!),
+        builder: (context, state) =>
+            AssetDetailScreen(assetId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/contracts/new',
@@ -132,7 +185,8 @@ GoRouter buildAppRouter(AuthState auth) {
       GoRoute(
         path: '/contracts/:id',
         name: 'contract-detail',
-        builder: (context, state) => ContractDetailScreen(contractId: state.pathParameters['id']!),
+        builder: (context, state) =>
+            ContractDetailScreen(contractId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: '/users/new',
@@ -142,7 +196,8 @@ GoRouter buildAppRouter(AuthState auth) {
       GoRoute(
         path: '/users/:id',
         name: 'user-detail',
-        builder: (context, state) => UserDetailScreen(user: state.extra as ManagedUser),
+        builder: (context, state) =>
+            UserDetailScreen(user: state.extra as ManagedUser),
       ),
       GoRoute(
         path: '/asset-brands/:id',
@@ -156,7 +211,11 @@ GoRouter buildAppRouter(AuthState auth) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           for (final destination in kAppDestinations)
-            GoRoute(path: destination.path, name: destination.name, builder: destination.builder),
+            GoRoute(
+              path: destination.path,
+              name: destination.name,
+              builder: destination.builder,
+            ),
         ],
       ),
     ],

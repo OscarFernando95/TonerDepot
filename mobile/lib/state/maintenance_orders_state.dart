@@ -17,8 +17,9 @@ class MaintenanceOrdersState extends ChangeNotifier {
   List<MaintenanceOrder> orders = [];
   String? statusFilter;
 
-  List<MaintenanceOrder> get filtered =>
-      statusFilter == null ? orders : orders.where((o) => o.status == statusFilter).toList();
+  List<MaintenanceOrder> get filtered => statusFilter == null
+      ? orders
+      : orders.where((o) => o.status == statusFilter).toList();
 
   Future<void> load() async {
     loading = true;
@@ -28,7 +29,9 @@ class MaintenanceOrdersState extends ChangeNotifier {
       orders = await _api.list();
     } catch (e, st) {
       debugPrint('MaintenanceOrdersState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar las órdenes.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar las órdenes.';
     } finally {
       loading = false;
       notifyListeners();

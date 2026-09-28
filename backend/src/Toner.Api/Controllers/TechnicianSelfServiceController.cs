@@ -1,3 +1,6 @@
+using Toner.Domain.Enums;
+using Toner.Application.Evidences.Dtos;
+using Toner.Application.Evidences;
 using System.Security.Claims;
 using Toner.Application.Common.Paging;
 using FluentValidation;
@@ -30,6 +33,7 @@ public class TechnicianSelfServiceController : ControllerBase
     private readonly IMaintenanceOrderService _maintenanceOrderService;
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
     private readonly IServiceTicketService _serviceTicketService;
+    private readonly IEvidenceService _evidenceService;
 
     public TechnicianSelfServiceController(
         ITechnicianCheckInService checkInService,
@@ -37,8 +41,10 @@ public class TechnicianSelfServiceController : ControllerBase
         IAssetService assetService,
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
-        IServiceTicketService serviceTicketService)
+        IServiceTicketService serviceTicketService,
+        IEvidenceService evidenceService)
     {
+        _evidenceService = evidenceService;
         _checkInService = checkInService;
         _checkInValidator = checkInValidator;
         _assetService = assetService;
@@ -96,6 +102,23 @@ public class TechnicianSelfServiceController : ControllerBase
     public async Task<ActionResult<ServiceTicketDto>> ClaimTicket(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _serviceTicketService.ClaimAsync(id, CurrentTechnicianId, cancellationToken));
+    }
+
+    // Foto de evidencia (antes / después). Se sube ANTES del check-in/out y su id viaja en esa petición.
+    // multipart/form-data: file + kind (Antes|Despues) + exactamente uno de ticketId / orderId.
+    [HttpPost("evidence")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 12 * 1024 * 1024)]
+    public async Task<ActionResult<EvidenceDto>> UploadEvidence(
+        IFormFile file, [FromForm] string kind, [FromForm] Guid? ticketId, [FromForm] Guid? orderId, CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<EvidenceKind>(kind, out var parsedKind) || !Enum.IsDefined(parsedKind))
+        {
+            throw new ValidationException($"kind debe ser uno de: {string.Join(", ", Enum.GetNames<EvidenceKind>())}.");
+        }
+
+        await using var stream = file.OpenReadStream();
+        return Ok(await _evidenceService.UploadAsync(CurrentTechnicianId, parsedKind, ticketId, orderId, stream, cancellationToken));
     }
 
     [HttpPost("check-in")]

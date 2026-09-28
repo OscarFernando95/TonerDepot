@@ -12,7 +12,7 @@ namespace Toner.Application.Tests.Tickets;
 public class ServiceTicketServiceTests
 {
     private static ServiceTicketService BuildService(Infrastructure.Persistence.TonerDbContext db) =>
-        new(db, new AssignmentEngine(db));
+        new(db, TestAssignment.Create(db));
 
     [Fact]
     public async Task SetStatusAsync_Abierto_ToAsignado_ThrowsBecauseOnlyAssignCanDoThat()

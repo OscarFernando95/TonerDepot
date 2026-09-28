@@ -32,7 +32,9 @@ public class OpenDbConnectionMiddleware
 
     public async Task InvokeAsync(HttpContext context, TonerDbContext db)
     {
-        if (!context.Request.Path.StartsWithSegments("/health"))
+        // /hubs también se salta: un WebSocket vive horas, y abrir aquí la conexión a Postgres la retendría todo ese
+        // tiempo por cliente conectado (agotaría el pool). El hub no consulta la base de datos.
+        if (!context.Request.Path.StartsWithSegments("/health") && !context.Request.Path.StartsWithSegments("/hubs"))
         {
             await db.Database.OpenConnectionAsync(context.RequestAborted);
         }

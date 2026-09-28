@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Toner.Api.Auth;
+using Toner.Application.Auth;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
 using Toner.Infrastructure.Auth;
@@ -46,6 +47,9 @@ public class SecurityStampValidationTests
                     services.AddRouting();
                     services.AddDbContext<TonerDbContext>(o => o.UseInMemoryDatabase(dbName));
                     services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
+                    services.AddLogging();
+                    services.Configure<UserSessionOptions>(o => { o.IdleTimeoutMinutes = 30; o.TouchIntervalSeconds = 60; });
+                    services.AddScoped<ISessionService, SessionService>();
 
                     services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                         .AddJwtBearer(options =>
@@ -104,7 +108,17 @@ public class SecurityStampValidationTests
             .Users.Include(u => u.Role).SingleAsync();
 
         var tokenGenerator = new JwtTokenGenerator(Options.Create(Settings));
-        var (token, _) = tokenGenerator.GenerateToken(seededUser);
+        var sessionId = Guid.NewGuid();
+        var (token, expiresAtUtc) = tokenGenerator.GenerateToken(seededUser, sessionId);
+
+        // Igual que AuthService.LoginAsync: cada token emitido tiene su fila de sesión (jti).
+        using (var sessionScope = host.Services.CreateScope())
+        {
+            var sessionDb = sessionScope.ServiceProvider.GetRequiredService<TonerDbContext>();
+            var sessions = sessionScope.ServiceProvider.GetRequiredService<ISessionService>();
+            await sessions.StartAsync(seededUser, sessionId, expiresAtUtc, "web", "127.0.0.1", "test");
+            await sessionDb.SaveChangesAsync();
+        }
 
         return (server, seededUser, token);
     }
@@ -168,5 +182,62 @@ public class SecurityStampValidationTests
         var response = await client.GetAsync("/protegido");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private static async Task<HttpResponseMessage> GetProtegidoAsync(TestServer server, string token)
+    {
+        using var client = server.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return await client.GetAsync("/protegido");
+    }
+
+    [Fact]
+    public async Task Request_ConSesionRevocada_DevuelveUnauthorized()
+    {
+        var (server, user, token) = await CreateServerWithUserAsync(Guid.NewGuid().ToString());
+
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TonerDbContext>();
+            var session = await db.UserSessions.SingleAsync(s => s.UserId == user.Id);
+            session.RevokedAt = DateTime.UtcNow;
+            session.RevokedReason = "Logout";
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetProtegidoAsync(server, token)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Request_ConSesionInactivaMasDelLimite_DevuelveUnauthorized_YLaCierra()
+    {
+        var (server, user, token) = await CreateServerWithUserAsync(Guid.NewGuid().ToString());
+
+        using (var scope = server.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TonerDbContext>();
+            var session = await db.UserSessions.SingleAsync(s => s.UserId == user.Id);
+            session.LastSeenAt = DateTime.UtcNow.AddMinutes(-31);
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetProtegidoAsync(server, token)).StatusCode);
+
+        using var checkScope = server.Services.CreateScope();
+        var stored = await checkScope.ServiceProvider.GetRequiredService<TonerDbContext>().UserSessions.SingleAsync();
+        Assert.Equal("Inactividad", stored.RevokedReason);
+    }
+
+    [Fact]
+    public async Task Request_SinFilaDeSesionParaElJti_DevuelveUnauthorized()
+    {
+        var (server, user, _) = await CreateServerWithUserAsync(Guid.NewGuid().ToString());
+
+        using var scope = server.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<TonerDbContext>();
+        var storedUser = await db.Users.Include(u => u.Role).SingleAsync(u => u.Id == user.Id);
+        var (orphanToken, _) = new JwtTokenGenerator(Options.Create(Settings)).GenerateToken(storedUser, Guid.NewGuid());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetProtegidoAsync(server, orphanToken)).StatusCode);
     }
 }

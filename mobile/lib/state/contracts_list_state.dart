@@ -18,8 +18,9 @@ class ContractsListState extends ChangeNotifier {
   int _page = 1;
   String? statusFilter;
 
-  List<Contract> get filtered =>
-      statusFilter == null ? contracts : contracts.where((c) => c.status == statusFilter).toList();
+  List<Contract> get filtered => statusFilter == null
+      ? contracts
+      : contracts.where((c) => c.status == statusFilter).toList();
 
   Future<void> load() async {
     loading = true;
@@ -32,7 +33,9 @@ class ContractsListState extends ChangeNotifier {
       hasMore = page.hasMore;
     } catch (e, st) {
       debugPrint('ContractsListState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los contratos.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los contratos.';
     } finally {
       loading = false;
       notifyListeners();

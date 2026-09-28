@@ -41,7 +41,9 @@ class AppTextStyles {
 
   /// Cifras de ancho fijo (lecturas de contador, contadores en vivo) — sin
   /// esto, los dígitos saltan de ancho en cada refresh y el texto "tiembla".
-  static const tabularNumber = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
+  static const tabularNumber = TextStyle(
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
 }
 
 /// Tema único (claro, sin alternativa oscura) — ver nota en app_theme sobre
@@ -94,14 +96,20 @@ class AppTheme {
           side: BorderSide(color: AppColors.neutralSoft),
         ),
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.neutralSoft, thickness: 1),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.neutralSoft,
+        thickness: 1,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.claySurface,
         border: fieldBorder,
         enabledBorder: fieldBorder,
         focusedBorder: fieldBorder.copyWith(
-          borderSide: const BorderSide(color: AppColors.signalBlueBright, width: 2),
+          borderSide: const BorderSide(
+            color: AppColors.signalBlueBright,
+            width: 2,
+          ),
         ),
         labelStyle: const TextStyle(color: AppColors.inkSecondary),
         hintStyle: const TextStyle(color: AppColors.inkSecondary),
@@ -144,15 +152,22 @@ class AppTheme {
         shape: const RoundedRectangleBorder(borderRadius: _radius),
         behavior: SnackBarBehavior.floating,
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.signalBlueBright),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.signalBlueBright,
+      ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.claySurface,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(22))),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(22)),
+        ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
         ),
       ),
       dividerColor: AppColors.neutralSoft,

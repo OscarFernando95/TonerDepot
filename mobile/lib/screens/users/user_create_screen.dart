@@ -44,7 +44,10 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
 
   Future<void> _loadOptions() async {
     try {
-      final results = await Future.wait([CityApi(ApiClient.instance).list(), ClientApi(ApiClient.instance).list()]);
+      final results = await Future.wait([
+        CityApi(ApiClient.instance).list(),
+        ClientApi(ApiClient.instance).list(),
+      ]);
       setState(() {
         _cities = results[0] as List<City>;
         _clients = results[1] as List<Client>;
@@ -53,7 +56,9 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
     } catch (e) {
       setState(() {
         _loading = false;
-        _loadError = e is ApiException ? e.message : 'No se pudieron cargar las opciones.';
+        _loadError = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar las opciones.';
       });
     }
   }
@@ -86,20 +91,33 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Ya se envió por correo, pero esta es la única vez que se muestra en pantalla:'),
+            const Text(
+              'Ya se envió por correo, pero esta es la única vez que se muestra en pantalla:',
+            ),
             const SizedBox(height: 12),
-            SelectableText(password, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18).merge(AppTextStyles.tabularNumber)),
+            SelectableText(
+              password,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ).merge(AppTextStyles.tabularNumber),
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: password));
-              ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Contraseña copiada.')));
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(content: Text('Contraseña copiada.')),
+              );
             },
             child: const Text('Copiar'),
           ),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Listo')),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Listo'),
+          ),
         ],
       ),
     );
@@ -111,7 +129,9 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
     try {
       final result = await UserApi(ApiClient.instance).create(
         cedula: _cedulaController.text.trim(),
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        email: _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
         fullName: _fullNameController.text.trim(),
         phone: _phoneController.text.trim(),
         address: _addressController.text.trim(),
@@ -124,7 +144,11 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is ApiException ? e.message : 'No se pudo crear el usuario.')),
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'No se pudo crear el usuario.',
+            ),
+          ),
         );
       }
     } finally {
@@ -139,88 +163,128 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _loadError != null
-              ? Center(child: Text(_loadError!, style: const TextStyle(color: AppColors.signalRed)))
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    TextField(
-                      controller: _cedulaController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(labelText: 'Cédula *'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _fullNameController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(labelText: 'Nombre completo *'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Correo (opcional)'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(labelText: 'Teléfono *'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _addressController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(labelText: 'Dirección *'),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _cityId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Ciudad *'),
-                      items: [for (final c in _cities) DropdownMenuItem(value: c.id, child: Text('${c.name} — ${c.stateOrProvince}', overflow: TextOverflow.ellipsis))],
-                      onChanged: (value) => setState(() => _cityId = value),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _roleName,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Rol'),
-                      items: [for (final r in RoleNames.all) DropdownMenuItem(value: r, child: Text(r))],
-                      onChanged: (value) => setState(() {
-                        _roleName = value ?? RoleNames.tecnico;
-                        if (_roleName != RoleNames.cliente) _clientId = null;
-                      }),
-                    ),
-                    if (_roleName == RoleNames.cliente) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _clientId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Cliente *'),
-                        items: [for (final c in _clients) DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))],
-                        onChanged: (value) => setState(() => _clientId = value),
-                      ),
-                    ],
-                    if (_roleName == RoleNames.tecnico)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text('Se crea también su registro de técnico, disponible desde el día 1.', style: TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
-                      ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: FilledButton(
-                        onPressed: _isValid && !_submitting ? _submit : null,
-                        child: _submitting
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Crear usuario', style: TextStyle(fontWeight: FontWeight.w700)),
-                      ),
-                    ),
-                  ],
+          ? Center(
+              child: Text(
+                _loadError!,
+                style: const TextStyle(color: AppColors.signalRed),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                TextField(
+                  controller: _cedulaController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Cédula *'),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _fullNameController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre completo *',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Correo (opcional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Teléfono *'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _addressController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(labelText: 'Dirección *'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _cityId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Ciudad *'),
+                  items: [
+                    for (final c in _cities)
+                      DropdownMenuItem(
+                        value: c.id,
+                        child: Text(
+                          '${c.name} — ${c.stateOrProvince}',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _cityId = value),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _roleName,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Rol'),
+                  items: [
+                    for (final r in RoleNames.all)
+                      DropdownMenuItem(value: r, child: Text(r)),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _roleName = value ?? RoleNames.tecnico;
+                    if (_roleName != RoleNames.cliente) _clientId = null;
+                  }),
+                ),
+                if (_roleName == RoleNames.cliente) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _clientId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Cliente *'),
+                    items: [
+                      for (final c in _clients)
+                        DropdownMenuItem(
+                          value: c.id,
+                          child: Text(c.name, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (value) => setState(() => _clientId = value),
+                  ),
+                ],
+                if (_roleName == RoleNames.tecnico)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Se crea también su registro de técnico, disponible desde el día 1.',
+                      style: TextStyle(
+                        color: AppColors.inkSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _isValid && !_submitting ? _submit : null,
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Crear usuario',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

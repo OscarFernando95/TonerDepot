@@ -26,12 +26,19 @@ class MeterReadingApi {
     }
   }
 
-  Future<void> register(String assetId, {required double counterValue, DateTime? readingDate}) async {
+  Future<void> register(
+    String assetId, {
+    required double counterValue,
+    DateTime? readingDate,
+  }) async {
     try {
-      await _client.dio.post('/meter-readings/$assetId', data: {
-        'counterValue': counterValue,
-        'readingDate': readingDate?.toUtc().toIso8601String(),
-      });
+      await _client.dio.post(
+        '/meter-readings/$assetId',
+        data: {
+          'counterValue': counterValue,
+          'readingDate': readingDate?.toUtc().toIso8601String(),
+        },
+      );
     } catch (e, st) {
       debugPrint('MeterReadingApi.register failed: $e\n$st');
       throw ApiClient.translate(e);

@@ -347,4 +347,30 @@ public class RowLevelSecurityTests
 
         Assert.True(await CountAsync(connection, "ClientLocations") > 0);
     }
+
+    [PostgresFact]
+    public async Task Evidencias_ClienteSoloVeLasSuyas_ElStaffVeTodas_YNoSePuedeEscribirEnNombreDeOtro()
+    {
+        // Las fotos de un ticket pertenecen a un cliente: Evidences lleva su propio ClientId y política
+        // (antes no tenía ninguna porque no había camino de escritura; ver SECURITY_AUDIT_V2.md N11 / #23).
+        await _fixture.EnsureSeededAsync();
+
+        await using var asClientA = await OpenAsAsync(isStaff: false, RlsFixture.ClientA);
+        Assert.Equal(1, await CountAsync(asClientA, "Evidences"));
+
+        await using var asClientB = await OpenAsAsync(isStaff: false, RlsFixture.ClientB);
+        Assert.Equal(0, await CountAsync(asClientB, "Evidences"));
+
+        await using var asStaff = await OpenAsAsync(isStaff: true, clientId: null);
+        Assert.True(await CountAsync(asStaff, "Evidences") >= 1);
+
+        // WITH CHECK: el cliente B no puede insertar una evidencia que diga ser del cliente A.
+        await using var insert = asClientB.CreateCommand();
+        insert.CommandText = @"
+            INSERT INTO ""Evidences"" (""Id"",""ClientId"",""Kind"",""SizeBytes"",""ServiceTicketId"",""FileUrl"",""FileName"",""ContentType"",""UploadedByUserId"",""UploadedAt"",""CreatedAt"")
+            SELECT gen_random_uuid(), @clientA, 'Antes', 1, @ticketA, 'x', 'x', 'image/jpeg', u.""Id"", now(), now() FROM ""Users"" u LIMIT 1";
+        insert.Parameters.AddWithValue("clientA", RlsFixture.ClientA);
+        insert.Parameters.AddWithValue("ticketA", Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"));
+        await Assert.ThrowsAsync<PostgresException>(() => insert.ExecuteNonQueryAsync());
+    }
 }

@@ -30,16 +30,16 @@ class ContractAsset {
   bool get isActive => endDate == null;
 
   factory ContractAsset.fromJson(Map<String, dynamic> json) => ContractAsset(
-        id: json['id'] as String,
-        contractId: json['contractId'] as String,
-        assetId: json['assetId'] as String,
-        assetBrandName: json['assetBrandName'] as String,
-        assetModel: json['assetModel'] as String,
-        assetSerialNumber: json['assetSerialNumber'] as String,
-        startDate: json['startDate'] as String,
-        endDate: json['endDate'] as String?,
-        area: json['area'] as String?,
-        lastMeterReading: json['lastMeterReading'] as int?,
-        averageMonthlyPrints: (json['averageMonthlyPrints'] as num?)?.toDouble(),
-      );
+    id: json['id'] as String,
+    contractId: json['contractId'] as String,
+    assetId: json['assetId'] as String,
+    assetBrandName: json['assetBrandName'] as String,
+    assetModel: json['assetModel'] as String,
+    assetSerialNumber: json['assetSerialNumber'] as String,
+    startDate: json['startDate'] as String,
+    endDate: json['endDate'] as String?,
+    area: json['area'] as String?,
+    lastMeterReading: json['lastMeterReading'] as int?,
+    averageMonthlyPrints: (json['averageMonthlyPrints'] as num?)?.toDouble(),
+  );
 }

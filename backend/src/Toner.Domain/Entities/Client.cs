@@ -1,3 +1,4 @@
+using Toner.Domain.Enums;
 using Toner.Domain.Common;
 
 namespace Toner.Domain.Entities;
@@ -15,6 +16,9 @@ public class Client : BaseEntity
     // false: cliente externo que solo pide servicio sobre equipos propios, a veces ni catalogados — el
     // ticket puede quedar sin Asset y el técnico registra marca/modelo/contador de forma opcional.
     public bool IsContractClient { get; set; } = true;
+
+    // Ver SupportCoverage: cómo se cuenta su SLA y a quién se le puede asignar.
+    public SupportCoverage SupportCoverage { get; set; } = SupportCoverage.HorarioOficina;
 
     public ICollection<ClientLocation> Locations { get; set; } = new List<ClientLocation>();
     public ICollection<Contract> Contracts { get; set; } = new List<Contract>();

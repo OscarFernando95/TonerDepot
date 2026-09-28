@@ -17,7 +17,10 @@ class AssetApi {
   Future<List<Asset>> listMine() async {
     try {
       final response = await _client.dio.get('/assets');
-      final page = PagedResult<Asset>.fromJson(response.data as Map<String, dynamic>, Asset.fromJson);
+      final page = PagedResult<Asset>.fromJson(
+        response.data as Map<String, dynamic>,
+        Asset.fromJson,
+      );
       return page.items;
     } catch (e, st) {
       debugPrint('AssetApi.listMine failed: $e\n$st');
@@ -25,10 +28,19 @@ class AssetApi {
     }
   }
 
-  Future<PagedResult<Asset>> listCatalog({required int page, int pageSize = 50}) async {
+  Future<PagedResult<Asset>> listCatalog({
+    required int page,
+    int pageSize = 50,
+  }) async {
     try {
-      final response = await _client.dio.get('/assets', queryParameters: {'page': page, 'pageSize': pageSize});
-      return PagedResult<Asset>.fromJson(response.data as Map<String, dynamic>, Asset.fromJson);
+      final response = await _client.dio.get(
+        '/assets',
+        queryParameters: {'page': page, 'pageSize': pageSize},
+      );
+      return PagedResult<Asset>.fromJson(
+        response.data as Map<String, dynamic>,
+        Asset.fromJson,
+      );
     } catch (e, st) {
       debugPrint('AssetApi.listCatalog failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -47,13 +59,20 @@ class AssetApi {
 
   /// Se crea referenciando un AssetModel ya existente — no hay marca/modelo
   /// libres. Arranca siempre en EnBodega.
-  Future<Asset> create({required String assetModelId, required String serialNumber, required String type}) async {
+  Future<Asset> create({
+    required String assetModelId,
+    required String serialNumber,
+    required String type,
+  }) async {
     try {
-      final response = await _client.dio.post('/assets', data: {
-        'assetModelId': assetModelId,
-        'serialNumber': serialNumber,
-        'type': type,
-      });
+      final response = await _client.dio.post(
+        '/assets',
+        data: {
+          'assetModelId': assetModelId,
+          'serialNumber': serialNumber,
+          'type': type,
+        },
+      );
       return Asset.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AssetApi.create failed: $e\n$st');
@@ -61,13 +80,21 @@ class AssetApi {
     }
   }
 
-  Future<Asset> update(String id, {required String assetModelId, required String serialNumber, required String type}) async {
+  Future<Asset> update(
+    String id, {
+    required String assetModelId,
+    required String serialNumber,
+    required String type,
+  }) async {
     try {
-      final response = await _client.dio.put('/assets/$id', data: {
-        'assetModelId': assetModelId,
-        'serialNumber': serialNumber,
-        'type': type,
-      });
+      final response = await _client.dio.put(
+        '/assets/$id',
+        data: {
+          'assetModelId': assetModelId,
+          'serialNumber': serialNumber,
+          'type': type,
+        },
+      );
       return Asset.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AssetApi.update failed: $e\n$st');
@@ -87,12 +114,15 @@ class AssetApi {
     String? notes,
   }) async {
     try {
-      final response = await _client.dio.post('/assets/$id/status', data: {
-        'newStatus': newStatus,
-        'clientLocationId': ?clientLocationId,
-        'area': ?area,
-        'notes': ?notes,
-      });
+      final response = await _client.dio.post(
+        '/assets/$id/status',
+        data: {
+          'newStatus': newStatus,
+          'clientLocationId': ?clientLocationId,
+          'area': ?area,
+          'notes': ?notes,
+        },
+      );
       return Asset.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AssetApi.setStatus failed: $e\n$st');
@@ -103,7 +133,10 @@ class AssetApi {
   Future<List<AssetStatusLog>> getStatusHistory(String id) async {
     try {
       final response = await _client.dio.get('/assets/$id/status-history');
-      final page = PagedResult<AssetStatusLog>.fromJson(response.data as Map<String, dynamic>, AssetStatusLog.fromJson);
+      final page = PagedResult<AssetStatusLog>.fromJson(
+        response.data as Map<String, dynamic>,
+        AssetStatusLog.fromJson,
+      );
       return page.items;
     } catch (e, st) {
       debugPrint('AssetApi.getStatusHistory failed: $e\n$st');

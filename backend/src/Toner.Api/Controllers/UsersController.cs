@@ -3,6 +3,7 @@ using Toner.Application.Common.Paging;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Toner.Application.Auth.Dtos;
 using Toner.Application.Users;
 using Toner.Application.Users.Dtos;
 using Toner.Domain.Common;
@@ -64,6 +65,19 @@ public class UsersController : ControllerBase
     {
         var user = await _userService.ResetPasswordAsync(id, CurrentUserId, cancellationToken);
         return Ok(user);
+    }
+
+    [HttpGet("{id:guid}/sessions")]
+    public async Task<ActionResult<IReadOnlyList<UserSessionDto>>> ListSessions(Guid id, CancellationToken cancellationToken)
+    {
+        return Ok(await _userService.ListSessionsAsync(id, cancellationToken));
+    }
+
+    [HttpPost("{id:guid}/sessions/revoke")]
+    public async Task<ActionResult<object>> RevokeSessions(Guid id, CancellationToken cancellationToken)
+    {
+        var revoked = await _userService.RevokeSessionsAsync(id, CurrentUserId, cancellationToken);
+        return Ok(new { revoked });
     }
 
     private Guid CurrentUserId =>

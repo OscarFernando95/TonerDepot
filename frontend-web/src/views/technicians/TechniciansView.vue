@@ -2,9 +2,26 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as techniciansApi from '../../api/technicians'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import * as citiesApi from '../../api/cities'
 import type { TechnicianDto, TechnicianCoverageDto } from '../../api/technicians'
 import type { CityDto } from '../../api/types'
+import TechnicianScheduleDialog from '../../components/technicians/TechnicianScheduleDialog.vue'
+import TechnicianTimeOffDialog from '../../components/technicians/TechnicianTimeOffDialog.vue'
+import TechnicianVisitsDialog from '../../components/technicians/TechnicianVisitsDialog.vue'
+
+const visitsDialogRef = ref<InstanceType<typeof TechnicianVisitsDialog> | null>(null)
+
+const scheduleDialogRef = ref<InstanceType<typeof TechnicianScheduleDialog> | null>(null)
+const timeOffDialogRef = ref<InstanceType<typeof TechnicianTimeOffDialog> | null>(null)
+
+const dateTimeFormatter = new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
+
+// Disponibilidad calculada por el servidor: horario laboral + festivos + fuera de la oficina.
+function availability(t: TechnicianDto): { label: string; type: 'success' | 'warning' | 'info' } {
+  if (t.timeOffUntil) return { label: `Fuera de la oficina hasta ${dateTimeFormatter.format(new Date(t.timeOffUntil))}`, type: 'warning' }
+  return t.isWorkingNow ? { label: 'En horario', type: 'success' } : { label: 'Fuera de horario', type: 'info' }
+}
 
 const technicians = ref<TechnicianDto[]>([])
 const cities = ref<CityDto[]>([])
@@ -86,14 +103,18 @@ async function removeCoverage(item: TechnicianCoverageDto) {
 }
 
 onMounted(loadData)
+
+// Disponibilidad, cobertura y estado del técnico cambian solos (check-in/out, fuera de la oficina).
+useRealtimeUpdates(['Technician'], () => loadData())
 </script>
 
 <template>
   <div>
     <h1>Técnicos</h1>
     <p class="hint">
-      La cobertura por ciudad es lo que usa el motor de asignación para elegir candidatos. El estado
-      (Disponible/Ocupado) lo mueve automáticamente el check-in/check-out del técnico, no se edita aquí.
+      La cobertura por ciudad, el horario laboral y los períodos fuera de la oficina son lo que usa el motor de
+      asignación para elegir candidatos. El estado (Disponible/Ocupado) lo mueve automáticamente el
+      check-in/check-out del técnico, no se edita aquí.
     </p>
 
     <el-table :data="technicians" v-loading="loading" stripe empty-text="No hay técnicos registrados.">
@@ -103,18 +124,30 @@ onMounted(loadData)
           <el-tag :type="statusTagType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="Disponibilidad" width="240">
+        <template #default="{ row }">
+          <el-tag :type="availability(row).type" size="small">{{ availability(row).label }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="Cobertura">
         <template #default="{ row }">
           <span v-if="row.coverageCityNames.length === 0" class="muted">Sin ciudades asignadas</span>
           <el-tag v-for="c in row.coverageCityNames" :key="c" size="small" class="coverage-tag">{{ c }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="" width="160">
+      <el-table-column label="" width="480">
         <template #default="{ row }">
-          <el-button link @click="openCoverageDialog(row)">Gestionar cobertura</el-button>
+          <el-button link @click="openCoverageDialog(row)">Cobertura</el-button>
+          <el-button link @click="scheduleDialogRef?.open(row)">Horario</el-button>
+          <el-button link @click="timeOffDialogRef?.open(row)">Fuera de la oficina</el-button>
+          <el-button link @click="visitsDialogRef?.open(row)">Visitas</el-button>
         </template>
       </el-table-column>
     </el-table>
+
+    <TechnicianScheduleDialog ref="scheduleDialogRef" @saved="loadData" />
+    <TechnicianTimeOffDialog ref="timeOffDialogRef" @changed="loadData" />
+    <TechnicianVisitsDialog ref="visitsDialogRef" />
 
     <el-dialog v-model="coverageDialogVisible" :title="`Cobertura — ${selectedTechnician?.fullName}`" width="440px">
       <div v-loading="loadingCoverage">

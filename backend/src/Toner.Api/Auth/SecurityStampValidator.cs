@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using Toner.Application.Auth;
 using Toner.Application.Common.Interfaces;
 
 namespace Toner.Api.Auth;
@@ -39,6 +41,27 @@ public static class SecurityStampValidator
         if (account is null || !account.IsActive || account.SecurityStamp != tokenStamp)
         {
             context.Fail("La sesión ya no es válida — la contraseña cambió, se reseteó, o la cuenta fue desactivada/reactivada.");
+            return;
+        }
+
+        // Segundo control, independiente del stamp: la sesión (jti) debe existir y seguir viva. Es lo que
+        // hace efectivos el logout, el cierre por administrador, la sesión única del técnico y el
+        // timeout por inactividad. Un token sin jti válido (emitido antes de existir UserSessions) se
+        // rechaza: obliga a iniciar sesión una vez más tras el despliegue.
+        var jtiClaim = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Jti);
+        if (!Guid.TryParse(jtiClaim, out var sessionId))
+        {
+            context.Fail("Token sin sesión asociada.");
+            return;
+        }
+
+        var sessions = context.HttpContext.RequestServices.GetRequiredService<ISessionService>();
+        var result = await sessions.ValidateAsync(sessionId, userId);
+        if (result != SessionValidationResult.Valid)
+        {
+            context.Fail(result == SessionValidationResult.IdleTimeout
+                ? "La sesión se cerró por inactividad."
+                : "La sesión ya no está activa.");
         }
     }
 }

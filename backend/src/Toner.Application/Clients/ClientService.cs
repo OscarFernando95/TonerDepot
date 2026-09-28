@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Domain.Enums;
+using Toner.Application.Common;
 using Toner.Application.Common.Paging;
 using Toner.Application.Clients.Dtos;
 using Toner.Application.Common.Exceptions;
@@ -34,7 +36,8 @@ public class ClientService : IClientService
             ContactEmail = request.ContactEmail?.Trim().ToLowerInvariant(),
             ContactPhone = request.ContactPhone?.Trim(),
             IsActive = true,
-            IsContractClient = request.IsContractClient
+            IsContractClient = request.IsContractClient,
+            SupportCoverage = EnumParsing.ParseOrThrow<SupportCoverage>(request.SupportCoverage, nameof(request.SupportCoverage))
         };
         _db.Clients.Add(client);
 
@@ -48,6 +51,8 @@ public class ClientService : IClientService
                 Address = locationRequest.Address.Trim(),
                 ContactName = locationRequest.ContactName?.Trim(),
                 ContactPhone = locationRequest.ContactPhone?.Trim(),
+                Latitude = locationRequest.Latitude,
+                Longitude = locationRequest.Longitude,
                 IsActive = true
             });
         }
@@ -83,6 +88,7 @@ public class ClientService : IClientService
         client.ContactEmail = request.ContactEmail?.Trim().ToLowerInvariant();
         client.ContactPhone = request.ContactPhone?.Trim();
         client.IsContractClient = request.IsContractClient;
+        client.SupportCoverage = EnumParsing.ParseOrThrow<SupportCoverage>(request.SupportCoverage, nameof(request.SupportCoverage));
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -111,6 +117,7 @@ public class ClientService : IClientService
             ContactPhone = c.ContactPhone,
             IsActive = c.IsActive,
             IsContractClient = c.IsContractClient,
+            SupportCoverage = c.SupportCoverage.ToString(),
             LocationCount = c.Locations.Count,
             CityNames = c.Locations.Select(l => l.City.Name).Distinct().OrderBy(n => n).ToList(),
             CreatedAt = c.CreatedAt

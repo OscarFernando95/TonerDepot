@@ -14,18 +14,7 @@ namespace Toner.Application.Tests.Technicians;
 
 public class TechnicianCheckInServiceTests
 {
-    private static TechnicianCheckInService BuildService(Infrastructure.Persistence.TonerDbContext db)
-    {
-        var scheduleEngine = new MaintenanceScheduleEngine(db);
-        var assignmentEngine = new AssignmentEngine(db);
-        return new(
-            db,
-            new ServiceTicketService(db, assignmentEngine),
-            new MaintenanceOrderService(db, scheduleEngine),
-            new AssetService(db, scheduleEngine, assignmentEngine),
-            scheduleEngine,
-            assignmentEngine);
-    }
+    private static TechnicianCheckInService BuildService(Infrastructure.Persistence.TonerDbContext db) => TestCheckIn.Create(db);
 
     [Fact]
     public async Task CheckInAsync_TicketAssignedToTechnician_MovesTicketAndTechnicianToInProgress()

@@ -27,83 +27,109 @@ class UsersListScreen extends StatelessWidget {
       // (causa real del bug: la lista no se refrescaba tras crear usuario).
       child: Builder(
         builder: (context) => Scaffold(
-        backgroundColor: Colors.transparent,
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () async {
-            final created = await context.push<bool>('/users/new');
-            if (created == true && context.mounted) {
-              context.read<UsersListState>().load();
-            }
-          },
-          icon: const Icon(Icons.add),
-          label: const Text('Usuario'),
-        ),
-        body: Consumer<UsersListState>(
-          builder: (context, state, _) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ChoiceChip(label: const Text('Todos'), selected: state.roleFilter == null, onSelected: (_) => state.setRoleFilter(null)),
-                        for (final role in RoleNames.all)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: ChoiceChip(label: Text(role), selected: state.roleFilter == role, onSelected: (_) => state.setRoleFilter(role)),
+          backgroundColor: Colors.transparent,
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () async {
+              final created = await context.push<bool>('/users/new');
+              if (created == true && context.mounted) {
+                context.read<UsersListState>().load();
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Usuario'),
+          ),
+          body: Consumer<UsersListState>(
+            builder: (context, state, _) {
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Todos'),
+                            selected: state.roleFilter == null,
+                            onSelected: (_) => state.setRoleFilter(null),
                           ),
-                      ],
+                          for (final role in RoleNames.all)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: ChoiceChip(
+                                label: Text(role),
+                                selected: state.roleFilter == role,
+                                onSelected: (_) => state.setRoleFilter(role),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Builder(
-                    builder: (context) {
-                      if (state.loading && state.users.isEmpty) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (state.error != null && state.users.isEmpty) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+                  Expanded(
+                    child: Builder(
+                      builder: (context) {
+                        if (state.loading && state.users.isEmpty) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (state.error != null && state.users.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                state.error!,
+                                style: const TextStyle(
+                                  color: AppColors.signalRed,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
+                        }
+                        final users = state.filtered;
+                        if (users.isEmpty) {
+                          return const PlaceholderScreen(
+                            title: 'Sin usuarios',
+                            message:
+                                'No hay usuarios que coincidan con el filtro.',
+                          );
+                        }
+                        return RefreshIndicator(
+                          onRefresh: state.load,
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              if (notification.metrics.pixels >=
+                                  notification.metrics.maxScrollExtent - 200) {
+                                state.loadMore();
+                              }
+                              return false;
+                            },
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              itemCount: users.length + (state.hasMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index >= users.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                return _UserItem(user: users[index]);
+                              },
+                            ),
                           ),
                         );
-                      }
-                      final users = state.filtered;
-                      if (users.isEmpty) {
-                        return const PlaceholderScreen(title: 'Sin usuarios', message: 'No hay usuarios que coincidan con el filtro.');
-                      }
-                      return RefreshIndicator(
-                        onRefresh: state.load,
-                        child: NotificationListener<ScrollNotification>(
-                          onNotification: (notification) {
-                            if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200) {
-                              state.loadMore();
-                            }
-                            return false;
-                          },
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                            itemCount: users.length + (state.hasMore ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index >= users.length) {
-                                return const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Center(child: CircularProgressIndicator()));
-                              }
-                              return _UserItem(user: users[index]);
-                            },
-                          ),
-                        ),
-                      );
-                    },
+                      },
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -126,13 +152,31 @@ class _UserItem extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text(user.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+              Expanded(
+                child: Text(
+                  user.fullName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
               StatusChip.activeState(user.isActive),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Cédula: ${user.cedula} — ${user.roleName}', style: const TextStyle(color: AppColors.inkSecondary)),
-          if (user.cityName != null) Text(user.cityName!, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
+          Text(
+            'Cédula: ${user.cedula} — ${user.roleName}',
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
+          if (user.cityName != null)
+            Text(
+              user.cityName!,
+              style: const TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
+              ),
+            ),
         ],
       ),
     );

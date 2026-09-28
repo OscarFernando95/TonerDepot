@@ -37,7 +37,11 @@ class _MyContractsBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -62,8 +66,13 @@ class _MyContractsBody extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            contract.cityNames.isEmpty ? 'Contrato' : contract.cityNames.join(', '),
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            contract.cityNames.isEmpty
+                                ? 'Contrato'
+                                : contract.cityNames.join(', '),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                         StatusChip.contract(contract.status),
@@ -75,17 +84,28 @@ class _MyContractsBody extends StatelessWidget {
                       '${contract.endDate != null ? ' a ${_formatDate(contract.endDate!)}' : ' (sin fecha de fin)'}',
                       style: const TextStyle(color: AppColors.inkSecondary),
                     ),
-                    Text('${contract.assetCount} equipo(s) asociados', style: const TextStyle(color: AppColors.inkSecondary)),
+                    Text(
+                      '${contract.assetCount} equipo(s) asociados',
+                      style: const TextStyle(color: AppColors.inkSecondary),
+                    ),
                     if (contract.includedPrintsPerMonth != null)
                       Text(
                         'Impresiones incluidas/mes: ${contract.includedPrintsPerMonth}',
-                        style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)
-                            .merge(AppTextStyles.tabularNumber),
+                        style: const TextStyle(
+                          color: AppColors.inkSecondary,
+                          fontSize: 12,
+                        ).merge(AppTextStyles.tabularNumber),
                       ),
                     if (contract.notes != null && contract.notes!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Text(contract.notes!, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                        child: Text(
+                          contract.notes!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
                       ),
                   ],
                 ),

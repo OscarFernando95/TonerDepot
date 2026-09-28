@@ -22,8 +22,9 @@ class AssetsListState extends ChangeNotifier {
   int _page = 1;
   String? statusFilter;
 
-  List<Asset> get filtered =>
-      statusFilter == null ? assets : assets.where((a) => a.lifecycleStatus == statusFilter).toList();
+  List<Asset> get filtered => statusFilter == null
+      ? assets
+      : assets.where((a) => a.lifecycleStatus == statusFilter).toList();
 
   Future<void> load() async {
     loading = true;
@@ -36,7 +37,9 @@ class AssetsListState extends ChangeNotifier {
       hasMore = page.hasMore;
     } catch (e, st) {
       debugPrint('AssetsListState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los activos.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los activos.';
     } finally {
       loading = false;
       notifyListeners();

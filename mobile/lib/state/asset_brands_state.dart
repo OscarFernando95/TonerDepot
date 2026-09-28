@@ -22,7 +22,9 @@ class AssetBrandsState extends ChangeNotifier {
       brands = await _api.list();
     } catch (e, st) {
       debugPrint('AssetBrandsState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar las marcas.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar las marcas.';
     } finally {
       loading = false;
       notifyListeners();

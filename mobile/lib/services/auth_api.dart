@@ -9,13 +9,22 @@ class AuthApi {
 
   Future<LoginResult> login(String cedula, String password) async {
     try {
-      final response = await _client.dio.post('/auth/login', data: {
-        'cedula': cedula,
-        'password': password,
-      });
+      final response = await _client.dio.post(
+        '/auth/login',
+        data: {'cedula': cedula, 'password': password},
+      );
       return LoginResult.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AuthApi.login failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      await _client.dio.post('/auth/logout');
+    } catch (e, st) {
+      debugPrint('AuthApi.logout failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -30,12 +39,15 @@ class AuthApi {
     }
   }
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     try {
-      await _client.dio.post('/auth/change-password', data: {
-        'currentPassword': currentPassword,
-        'newPassword': newPassword,
-      });
+      await _client.dio.post(
+        '/auth/change-password',
+        data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+      );
     } catch (e, st) {
       debugPrint('AuthApi.changePassword failed: $e\n$st');
       throw ApiClient.translate(e);

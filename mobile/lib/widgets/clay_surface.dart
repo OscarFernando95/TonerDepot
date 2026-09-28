@@ -34,7 +34,9 @@ class ClaySurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? AppColors.claySurface,
         borderRadius: BorderRadius.circular(radius),
-        border: borderColor == null ? null : Border.all(color: borderColor!, width: 1.5),
+        border: borderColor == null
+            ? null
+            : Border.all(color: borderColor!, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.inkPrimary.withValues(alpha: 0.10),

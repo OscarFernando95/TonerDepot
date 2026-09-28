@@ -9,6 +9,11 @@ public interface IApplicationDbContext
 {
     DbSet<Role> Roles { get; }
     DbSet<User> Users { get; }
+    DbSet<UserSession> UserSessions { get; }
+    DbSet<Evidence> Evidences { get; }
+    DbSet<TechnicianWorkInterval> TechnicianWorkIntervals { get; }
+    DbSet<TechnicianTimeOff> TechnicianTimeOffs { get; }
+    DbSet<CompanyHolidayOverride> CompanyHolidayOverrides { get; }
     DbSet<City> Cities { get; }
     DbSet<Client> Clients { get; }
     DbSet<ClientLocation> ClientLocations { get; }

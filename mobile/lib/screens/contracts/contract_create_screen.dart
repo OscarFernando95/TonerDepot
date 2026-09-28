@@ -42,7 +42,9 @@ class _ContractCreateScreenState extends State<ContractCreateScreen> {
     } catch (e) {
       setState(() {
         _loadingClients = false;
-        _loadError = e is ApiException ? e.message : 'No se pudieron cargar los clientes.';
+        _loadError = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los clientes.';
       });
     }
   }
@@ -58,12 +60,22 @@ class _ContractCreateScreenState extends State<ContractCreateScreen> {
   bool get _isValid => _clientId != null;
 
   Future<void> _pickStartDate() async {
-    final picked = await showDatePicker(context: context, initialDate: _startDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
     if (picked != null) setState(() => _startDate = picked);
   }
 
   Future<void> _pickEndDate() async {
-    final picked = await showDatePicker(context: context, initialDate: _endDate ?? _startDate, firstDate: _startDate, lastDate: DateTime(2100));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? _startDate,
+      firstDate: _startDate,
+      lastDate: DateTime(2100),
+    );
     if (picked != null) setState(() => _endDate = picked);
   }
 
@@ -77,13 +89,19 @@ class _ContractCreateScreenState extends State<ContractCreateScreen> {
         endDate: _endDate == null ? null : formatDateOnly(_endDate!),
         includedPrintsPerMonth: int.tryParse(_printsController.text.trim()),
         pricePerExtraPage: double.tryParse(_priceController.text.trim()),
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
       );
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is ApiException ? e.message : 'No se pudo crear el contrato.')),
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'No se pudo crear el contrato.',
+            ),
+          ),
         );
       }
     } finally {
@@ -98,64 +116,106 @@ class _ContractCreateScreenState extends State<ContractCreateScreen> {
       body: _loadingClients
           ? const Center(child: CircularProgressIndicator())
           : _loadError != null
-              ? Center(child: Text(_loadError!, style: const TextStyle(color: AppColors.signalRed)))
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: _clientId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Cliente *'),
-                      items: [for (final c in _clients) DropdownMenuItem(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))],
-                      onChanged: (value) => setState(() => _clientId = value),
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.neutralSoft)),
-                      title: const Text('Fecha de inicio'),
-                      subtitle: Text(formatDateOnly(_startDate)),
-                      trailing: const Icon(Icons.calendar_today_outlined, size: 18),
-                      onTap: _pickStartDate,
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      shape: const RoundedRectangleBorder(side: BorderSide(color: AppColors.neutralSoft)),
-                      title: const Text('Fecha de fin (opcional)'),
-                      subtitle: Text(_endDate == null ? 'Sin definir' : formatDateOnly(_endDate!)),
-                      trailing: _endDate == null
-                          ? const Icon(Icons.calendar_today_outlined, size: 18)
-                          : IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () => setState(() => _endDate = null)),
-                      onTap: _pickEndDate,
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _printsController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Impresiones incluidas / mes (opcional)'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _priceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Precio por página extra (opcional)'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(controller: _notesController, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'Notas (opcional)')),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: FilledButton(
-                        onPressed: _isValid && !_submitting ? _submit : null,
-                        child: _submitting
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Crear contrato', style: TextStyle(fontWeight: FontWeight.w700)),
+          ? Center(
+              child: Text(
+                _loadError!,
+                style: const TextStyle(color: AppColors.signalRed),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _clientId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Cliente *'),
+                  items: [
+                    for (final c in _clients)
+                      DropdownMenuItem(
+                        value: c.id,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis),
                       ),
-                    ),
                   ],
+                  onChanged: (value) => setState(() => _clientId = value),
                 ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  shape: const RoundedRectangleBorder(
+                    side: BorderSide(color: AppColors.neutralSoft),
+                  ),
+                  title: const Text('Fecha de inicio'),
+                  subtitle: Text(formatDateOnly(_startDate)),
+                  trailing: const Icon(Icons.calendar_today_outlined, size: 18),
+                  onTap: _pickStartDate,
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  shape: const RoundedRectangleBorder(
+                    side: BorderSide(color: AppColors.neutralSoft),
+                  ),
+                  title: const Text('Fecha de fin (opcional)'),
+                  subtitle: Text(
+                    _endDate == null
+                        ? 'Sin definir'
+                        : formatDateOnly(_endDate!),
+                  ),
+                  trailing: _endDate == null
+                      ? const Icon(Icons.calendar_today_outlined, size: 18)
+                      : IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () => setState(() => _endDate = null),
+                        ),
+                  onTap: _pickEndDate,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _printsController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Impresiones incluidas / mes (opcional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _priceController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Precio por página extra (opcional)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _notesController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Notas (opcional)',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _isValid && !_submitting ? _submit : null,
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Crear contrato',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

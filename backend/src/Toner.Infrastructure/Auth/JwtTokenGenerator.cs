@@ -17,7 +17,7 @@ public class JwtTokenGenerator : IJwtTokenGenerator
         _settings = options.Value;
     }
 
-    public (string Token, DateTime ExpiresAtUtc) GenerateToken(User user)
+    public (string Token, DateTime ExpiresAtUtc) GenerateToken(User user, Guid sessionId)
     {
         var expiresAtUtc = DateTime.UtcNow.AddMinutes(_settings.ExpiryMinutes);
 
@@ -29,7 +29,8 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new(ClaimTypes.Role, user.Role.Name),
             new("must_change_password", user.MustChangePassword.ToString()),
             new("security_stamp", user.SecurityStamp.ToString()),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            // El jti ES el Id de la sesión en UserSessions (ver ISessionService).
+            new(JwtRegisteredClaimNames.Jti, sessionId.ToString())
         };
 
         // El correo ya es opcional (la credencial de login es la cédula) — solo se agrega el claim si

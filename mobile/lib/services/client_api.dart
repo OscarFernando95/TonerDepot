@@ -13,6 +13,8 @@ typedef NewClientLocation = ({
   String address,
   String? contactName,
   String? contactPhone,
+  double? latitude,
+  double? longitude,
 });
 
 /// Espejo de frontend-web/src/api/clients.ts. Toda la clase es
@@ -24,7 +26,10 @@ class ClientApi {
   Future<List<Client>> list() async {
     try {
       final response = await _client.dio.get('/clients');
-      final page = PagedResult<Client>.fromJson(response.data as Map<String, dynamic>, Client.fromJson);
+      final page = PagedResult<Client>.fromJson(
+        response.data as Map<String, dynamic>,
+        Client.fromJson,
+      );
       return page.items;
     } catch (e, st) {
       debugPrint('ClientApi.list failed: $e\n$st');
@@ -50,27 +55,34 @@ class ClientApi {
     String? contactEmail,
     String? contactPhone,
     required bool isContractClient,
+    String supportCoverage = 'HorarioOficina',
     required List<NewClientLocation> locations,
   }) async {
     try {
-      final response = await _client.dio.post('/clients', data: {
-        'name': name,
-        'taxId': ?taxId,
-        'contactName': ?contactName,
-        'contactEmail': ?contactEmail,
-        'contactPhone': ?contactPhone,
-        'isContractClient': isContractClient,
-        'locations': [
-          for (final loc in locations)
-            {
-              'cityId': loc.cityId,
-              'name': loc.name,
-              'address': loc.address,
-              'contactName': ?loc.contactName,
-              'contactPhone': ?loc.contactPhone,
-            },
-        ],
-      });
+      final response = await _client.dio.post(
+        '/clients',
+        data: {
+          'name': name,
+          'taxId': ?taxId,
+          'contactName': ?contactName,
+          'contactEmail': ?contactEmail,
+          'contactPhone': ?contactPhone,
+          'isContractClient': isContractClient,
+          'supportCoverage': supportCoverage,
+          'locations': [
+            for (final loc in locations)
+              {
+                'cityId': loc.cityId,
+                'name': loc.name,
+                'address': loc.address,
+                'contactName': ?loc.contactName,
+                'contactPhone': ?loc.contactPhone,
+              'latitude': ?loc.latitude,
+              'longitude': ?loc.longitude,
+              },
+          ],
+        },
+      );
       return Client.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ClientApi.create failed: $e\n$st');
@@ -87,16 +99,21 @@ class ClientApi {
     String? contactEmail,
     String? contactPhone,
     required bool isContractClient,
+    String supportCoverage = 'HorarioOficina',
   }) async {
     try {
-      final response = await _client.dio.put('/clients/$id', data: {
-        'name': name,
-        'taxId': ?taxId,
-        'contactName': ?contactName,
-        'contactEmail': ?contactEmail,
-        'contactPhone': ?contactPhone,
-        'isContractClient': isContractClient,
-      });
+      final response = await _client.dio.put(
+        '/clients/$id',
+        data: {
+          'name': name,
+          'taxId': ?taxId,
+          'contactName': ?contactName,
+          'contactEmail': ?contactEmail,
+          'contactPhone': ?contactPhone,
+          'isContractClient': isContractClient,
+          'supportCoverage': supportCoverage,
+        },
+      );
       return Client.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ClientApi.update failed: $e\n$st');
@@ -106,7 +123,10 @@ class ClientApi {
 
   Future<Client> setStatus(String id, bool isActive) async {
     try {
-      final response = await _client.dio.patch('/clients/$id/status', data: {'isActive': isActive});
+      final response = await _client.dio.patch(
+        '/clients/$id/status',
+        data: {'isActive': isActive},
+      );
       return Client.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ClientApi.setStatus failed: $e\n$st');

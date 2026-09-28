@@ -22,7 +22,8 @@ class ContractDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => ContractDetailState(ApiClient.instance, contractId)..load(),
+      create: (_) =>
+          ContractDetailState(ApiClient.instance, contractId)..load(),
       child: Scaffold(
         appBar: AppBar(title: const Text('Contrato')),
         body: const _ContractDetailBody(),
@@ -36,12 +37,21 @@ class _ContractDetailBody extends StatelessWidget {
 
   String _formatDate(String iso) => iso.split('T').first;
 
-  Future<void> _showEditDialog(BuildContext context, ContractDetailState state) async {
+  Future<void> _showEditDialog(
+    BuildContext context,
+    ContractDetailState state,
+  ) async {
     final contract = state.contract!;
     DateTime startDate = DateTime.parse(contract.startDate);
-    DateTime? endDate = contract.endDate == null ? null : DateTime.parse(contract.endDate!);
-    final printsController = TextEditingController(text: contract.includedPrintsPerMonth?.toString() ?? '');
-    final priceController = TextEditingController(text: contract.pricePerExtraPage?.toString() ?? '');
+    DateTime? endDate = contract.endDate == null
+        ? null
+        : DateTime.parse(contract.endDate!);
+    final printsController = TextEditingController(
+      text: contract.includedPrintsPerMonth?.toString() ?? '',
+    );
+    final priceController = TextEditingController(
+      text: contract.pricePerExtraPage?.toString() ?? '',
+    );
     final notesController = TextEditingController(text: contract.notes ?? '');
 
     final result = await showDialog<bool>(
@@ -59,35 +69,84 @@ class _ContractDetailBody extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Fecha de inicio'),
                     subtitle: Text(formatDateOnly(startDate)),
-                    trailing: const Icon(Icons.calendar_today_outlined, size: 18),
+                    trailing: const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 18,
+                    ),
                     onTap: () async {
-                      final picked = await showDatePicker(context: dialogContext, initialDate: startDate, firstDate: DateTime(2020), lastDate: DateTime(2100));
-                      if (picked != null) setDialogState(() => startDate = picked);
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: startDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => startDate = picked);
+                      }
                     },
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Fecha de fin'),
-                    subtitle: Text(endDate == null ? 'Sin definir' : formatDateOnly(endDate!)),
-                    trailing: const Icon(Icons.calendar_today_outlined, size: 18),
+                    subtitle: Text(
+                      endDate == null
+                          ? 'Sin definir'
+                          : formatDateOnly(endDate!),
+                    ),
+                    trailing: const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 18,
+                    ),
                     onTap: () async {
-                      final picked = await showDatePicker(context: dialogContext, initialDate: endDate ?? startDate, firstDate: startDate, lastDate: DateTime(2100));
-                      if (picked != null) setDialogState(() => endDate = picked);
+                      final picked = await showDatePicker(
+                        context: dialogContext,
+                        initialDate: endDate ?? startDate,
+                        firstDate: startDate,
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => endDate = picked);
+                      }
                     },
                   ),
                   const SizedBox(height: 8),
-                  TextField(controller: printsController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Impresiones incluidas / mes')),
+                  TextField(
+                    controller: printsController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Impresiones incluidas / mes',
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: priceController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Precio por página extra')),
+                  TextField(
+                    controller: priceController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Precio por página extra',
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: notesController, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'Notas')),
+                  TextField(
+                    controller: notesController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Notas'),
+                  ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Guardar')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Guardar'),
+            ),
           ],
         ),
       ),
@@ -99,15 +158,22 @@ class _ContractDetailBody extends StatelessWidget {
         endDate: endDate == null ? null : formatDateOnly(endDate!),
         includedPrintsPerMonth: int.tryParse(printsController.text.trim()),
         pricePerExtraPage: double.tryParse(priceController.text.trim()),
-        notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+        notes: notesController.text.trim().isEmpty
+            ? null
+            : notesController.text.trim(),
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Contrato actualizado.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error ?? 'Contrato actualizado.')),
+        );
       }
     }
   }
 
-  Future<void> _showStatusDialog(BuildContext context, ContractDetailState state) async {
+  Future<void> _showStatusDialog(
+    BuildContext context,
+    ContractDetailState state,
+  ) async {
     String status = state.contract!.status;
     final result = await showDialog<String>(
       context: context,
@@ -123,11 +189,18 @@ class _ContractDetailBody extends StatelessWidget {
               DropdownMenuItem(value: 'Vencido', child: Text('Vencido')),
               DropdownMenuItem(value: 'Cancelado', child: Text('Cancelado')),
             ],
-            onChanged: (value) => setDialogState(() => status = value ?? status),
+            onChanged: (value) =>
+                setDialogState(() => status = value ?? status),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.of(dialogContext).pop(status), child: const Text('Guardar')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(status),
+              child: const Text('Guardar'),
+            ),
           ],
         ),
       ),
@@ -135,12 +208,17 @@ class _ContractDetailBody extends StatelessWidget {
     if (result != null && context.mounted) {
       final error = await state.setStatus(result);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Estado actualizado.')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error ?? 'Estado actualizado.')));
       }
     }
   }
 
-  Future<void> _showAddAssetDialog(BuildContext context, ContractDetailState state) async {
+  Future<void> _showAddAssetDialog(
+    BuildContext context,
+    ContractDetailState state,
+  ) async {
     final contract = state.contract!;
     List<Asset> availableAssets = [];
     List<ClientLocation> locations = [];
@@ -155,25 +233,46 @@ class _ContractDetailBody extends StatelessWidget {
         builder: (dialogContext, setDialogState) {
           if (loading) {
             Future.wait([
-              AssetApi(ApiClient.instance).listCatalog(page: 1, pageSize: 200),
-              ClientLocationApi(ApiClient.instance).listForClient(contract.clientId),
-            ]).then((results) {
-              final page = results[0] as PagedResult<Asset>;
-              availableAssets = page.items.where((a) => a.lifecycleStatus == 'EnBodega').toList();
-              locations = results[1] as List<ClientLocation>;
-              setDialogState(() => loading = false);
-            }).catchError((e) {
-              setDialogState(() {
-                loading = false;
-                loadError = e is ApiException ? e.message : 'No se pudo cargar la información.';
-              });
-            });
-            return const AlertDialog(content: SizedBox(height: 120, child: Center(child: CircularProgressIndicator())));
+                  AssetApi(ApiClient.instance)
+                      .listCatalog(page: 1, pageSize: 200),
+                  ClientLocationApi(ApiClient.instance)
+                      .listForClient(contract.clientId),
+                ])
+                .then((results) {
+                  final page = results[0] as PagedResult<Asset>;
+                  availableAssets = page.items
+                      .where((a) => a.lifecycleStatus == 'EnBodega')
+                      .toList();
+                  locations = results[1] as List<ClientLocation>;
+                  setDialogState(() => loading = false);
+                })
+                .catchError((e) {
+                  setDialogState(() {
+                    loading = false;
+                    loadError = e is ApiException
+                        ? e.message
+                        : 'No se pudo cargar la información.';
+                  });
+                });
+            return const AlertDialog(
+              content: SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            );
           }
           if (loadError != null) {
             return AlertDialog(
-              content: Text(loadError!, style: const TextStyle(color: AppColors.signalRed)),
-              actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cerrar'))],
+              content: Text(
+                loadError!,
+                style: const TextStyle(color: AppColors.signalRed),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cerrar'),
+                ),
+              ],
             );
           }
           return AlertDialog(
@@ -187,40 +286,72 @@ class _ContractDetailBody extends StatelessWidget {
                     if (availableAssets.isEmpty)
                       const Padding(
                         padding: EdgeInsets.only(bottom: 8),
-                        child: Text('No hay activos en bodega disponibles.', style: TextStyle(color: AppColors.inkSecondary)),
+                        child: Text(
+                          'No hay activos en bodega disponibles.',
+                          style: TextStyle(color: AppColors.inkSecondary),
+                        ),
                       ),
                     DropdownButtonFormField<String>(
                       initialValue: assetId,
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Activo (en bodega) *'),
+                      decoration: const InputDecoration(
+                        labelText: 'Activo (en bodega) *',
+                      ),
                       items: [
                         for (final a in availableAssets)
-                          DropdownMenuItem(value: a.id, child: Text('${a.assetBrandName} ${a.model} — ${a.serialNumber}', overflow: TextOverflow.ellipsis)),
+                          DropdownMenuItem(
+                            value: a.id,
+                            child: Text(
+                              '${a.assetBrandName} ${a.model} — ${a.serialNumber}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                       ],
-                      onChanged: (value) => setDialogState(() => assetId = value),
+                      onChanged: (value) =>
+                          setDialogState(() => assetId = value),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: clientLocationId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Sede *'),
-                      items: [for (final l in locations) DropdownMenuItem(value: l.id, child: Text('${l.name} — ${l.cityName}', overflow: TextOverflow.ellipsis))],
-                      onChanged: (value) => setDialogState(() => clientLocationId = value),
+                      items: [
+                        for (final l in locations)
+                          DropdownMenuItem(
+                            value: l.id,
+                            child: Text(
+                              '${l.name} — ${l.cityName}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) =>
+                          setDialogState(() => clientLocationId = value),
                     ),
                   ],
                 ),
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
               FilledButton(
                 onPressed: assetId == null || clientLocationId == null
                     ? null
                     : () async {
                         Navigator.of(dialogContext).pop();
-                        final error = await state.addAsset(assetId: assetId!, clientLocationId: clientLocationId!);
+                        final error = await state.addAsset(
+                          assetId: assetId!,
+                          clientLocationId: clientLocationId!,
+                        );
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Activo agregado.')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(error ?? 'Activo agregado.'),
+                            ),
+                          );
                         }
                       },
                 child: const Text('Agregar'),
@@ -232,22 +363,36 @@ class _ContractDetailBody extends StatelessWidget {
     );
   }
 
-  Future<void> _confirmEndAsset(BuildContext context, ContractDetailState state, ContractAsset contractAsset) async {
+  Future<void> _confirmEndAsset(
+    BuildContext context,
+    ContractDetailState state,
+    ContractAsset contractAsset,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('¿Finalizar este vínculo?'),
-        content: Text('${contractAsset.assetBrandName} ${contractAsset.assetModel} dejará de estar asociado a este contrato.'),
+        content: Text(
+          '${contractAsset.assetBrandName} ${contractAsset.assetModel} dejará de estar asociado a este contrato.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('No')),
-          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Sí, finalizar')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sí, finalizar'),
+          ),
         ],
       ),
     );
     if (confirmed == true && context.mounted) {
       final error = await state.endAssetAssociation(contractAsset.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Vínculo finalizado.')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error ?? 'Vínculo finalizado.')));
       }
     }
   }
@@ -263,7 +408,11 @@ class _ContractDetailBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -279,7 +428,12 @@ class _ContractDetailBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text(contract.clientName, style: Theme.of(context).textTheme.titleMedium)),
+                        Expanded(
+                          child: Text(
+                            contract.clientName,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
                         StatusChip.contract(contract.status),
                       ],
                     ),
@@ -288,17 +442,35 @@ class _ContractDetailBody extends StatelessWidget {
                       style: const TextStyle(color: AppColors.inkSecondary),
                     ),
                     if (contract.includedPrintsPerMonth != null)
-                      Text('Impresiones incluidas/mes: ${contract.includedPrintsPerMonth}', style: const TextStyle(color: AppColors.inkSecondary).merge(AppTextStyles.tabularNumber)),
+                      Text(
+                        'Impresiones incluidas/mes: ${contract.includedPrintsPerMonth}',
+                        style: const TextStyle(color: AppColors.inkSecondary)
+                            .merge(AppTextStyles.tabularNumber),
+                      ),
                     if (contract.pricePerExtraPage != null)
-                      Text('Precio por página extra: ${contract.pricePerExtraPage}', style: const TextStyle(color: AppColors.inkSecondary)),
+                      Text(
+                        'Precio por página extra: ${contract.pricePerExtraPage}',
+                        style: const TextStyle(color: AppColors.inkSecondary),
+                      ),
                     if (contract.notes != null && contract.notes!.isNotEmpty)
-                      Padding(padding: const EdgeInsets.only(top: 4), child: Text(contract.notes!, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic))),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          contract.notes!,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: state.busyWithAction ? null : () => _showEditDialog(context, state),
+                            onPressed: state.busyWithAction
+                                ? null
+                                : () => _showEditDialog(context, state),
                             icon: const Icon(Icons.edit_outlined, size: 18),
                             label: const Text('Editar'),
                           ),
@@ -306,7 +478,9 @@ class _ContractDetailBody extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: state.busyWithAction ? null : () => _showStatusDialog(context, state),
+                            onPressed: state.busyWithAction
+                                ? null
+                                : () => _showStatusDialog(context, state),
                             icon: const Icon(Icons.sync_alt, size: 18),
                             label: const Text('Cambiar estado'),
                           ),
@@ -319,16 +493,28 @@ class _ContractDetailBody extends StatelessWidget {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  Expanded(child: Text('Activos asociados', style: Theme.of(context).textTheme.titleSmall)),
+                  Expanded(
+                    child: Text(
+                      'Activos asociados',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
                   TextButton.icon(
-                    onPressed: state.busyWithAction ? null : () => _showAddAssetDialog(context, state),
+                    onPressed: state.busyWithAction
+                        ? null
+                        : () => _showAddAssetDialog(context, state),
                     icon: const Icon(Icons.add, size: 18),
                     label: const Text('Agregar'),
                   ),
                 ],
               ),
               if (state.contractAssets.isEmpty)
-                const ClaySurface(child: Text('Sin activos asociados.', style: TextStyle(color: AppColors.inkSecondary)))
+                const ClaySurface(
+                  child: Text(
+                    'Sin activos asociados.',
+                    style: TextStyle(color: AppColors.inkSecondary),
+                  ),
+                )
               else
                 for (final ca in state.contractAssets)
                   Padding(
@@ -339,23 +525,55 @@ class _ContractDetailBody extends StatelessWidget {
                         children: [
                           Row(
                             children: [
-                              Expanded(child: Text('${ca.assetBrandName} ${ca.assetModel}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                              Expanded(
+                                child: Text(
+                                  '${ca.assetBrandName} ${ca.assetModel}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                               StatusChip.activeState(ca.isActive),
                             ],
                           ),
-                          Text('Serie: ${ca.assetSerialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
+                          Text(
+                            'Serie: ${ca.assetSerialNumber}',
+                            style: const TextStyle(
+                              color: AppColors.inkSecondary,
+                            ),
+                          ),
                           Text(
                             'Vigencia: ${_formatDate(ca.startDate)}${ca.endDate != null ? ' a ${_formatDate(ca.endDate!)}' : ''}',
-                            style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                            style: const TextStyle(
+                              color: AppColors.inkSecondary,
+                              fontSize: 12,
+                            ),
                           ),
-                          if (ca.area != null) Text('Área: ${ca.area}', style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
+                          if (ca.area != null)
+                            Text(
+                              'Área: ${ca.area}',
+                              style: const TextStyle(
+                                color: AppColors.inkSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
                           if (ca.averageMonthlyPrints != null)
-                            Text('Promedio mensual: ${ca.averageMonthlyPrints!.toStringAsFixed(0)} impr.', style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
+                            Text(
+                              'Promedio mensual: ${ca.averageMonthlyPrints!.toStringAsFixed(0)} impr.',
+                              style: const TextStyle(
+                                color: AppColors.inkSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
                           if (ca.isActive) ...[
                             const SizedBox(height: 8),
                             OutlinedButton.icon(
-                              onPressed: state.busyWithAction ? null : () => _confirmEndAsset(context, state, ca),
-                              style: OutlinedButton.styleFrom(foregroundColor: AppColors.signalRed),
+                              onPressed: state.busyWithAction
+                                  ? null
+                                  : () => _confirmEndAsset(context, state, ca),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.signalRed,
+                              ),
                               icon: const Icon(Icons.link_off, size: 16),
                               label: const Text('Finalizar vínculo'),
                             ),

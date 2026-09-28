@@ -24,7 +24,7 @@ public class AuthServiceSecurityLoggingTests
             Audience = "test-audience",
             SigningKey = "test-signing-key-at-least-32-characters-long",
             ExpiryMinutes = 60
-        })), logger);
+        })), logger, TestSessions.Create(db));
 
     [Fact]
     public async Task LoginAsync_CedulaInexistente_RegistraWarningConCedulaIpYReason()

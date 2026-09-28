@@ -1,3 +1,4 @@
+using Toner.Application.Auth.Dtos;
 using Toner.Application.Users.Dtos;
 using Toner.Application.Common.Paging;
 
@@ -18,4 +19,11 @@ public interface IUserService
     // Restablece la contraseña a una nueva generada (SecurePasswordGenerator) y vuelve a exigir
     // cambio en el próximo login. Solo Administrador (ver UsersController).
     Task<UserWithGeneratedPasswordDto> ResetPasswordAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default);
+
+    // Cierra todas las sesiones vivas del usuario (p. ej. un técnico con el celular perdido, que por la
+    // política de sesión única no podría entrar desde otro dispositivo). Devuelve cuántas cerró.
+    Task<int> RevokeSessionsAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default);
+
+    // Últimas sesiones del usuario, para auditoría.
+    Task<IReadOnlyList<UserSessionDto>> ListSessionsAsync(Guid userId, CancellationToken cancellationToken = default);
 }

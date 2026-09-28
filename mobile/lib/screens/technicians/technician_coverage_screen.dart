@@ -11,7 +11,11 @@ import '../../widgets/clay_surface.dart';
 /// push (ver router/app_router.dart) trae el nombre para no tener que
 /// volver a listar técnicos solo para el título del AppBar.
 class TechnicianCoverageScreen extends StatelessWidget {
-  const TechnicianCoverageScreen({super.key, required this.technicianId, this.technicianName});
+  const TechnicianCoverageScreen({
+    super.key,
+    required this.technicianId,
+    this.technicianName,
+  });
 
   final String technicianId;
   final String? technicianName;
@@ -19,7 +23,8 @@ class TechnicianCoverageScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => TechnicianCoverageState(ApiClient.instance, technicianId)..load(),
+      create: (_) =>
+          TechnicianCoverageState(ApiClient.instance, technicianId)..load(),
       child: Scaffold(
         appBar: AppBar(title: Text(technicianName ?? 'Cobertura')),
         body: const _CoverageBody(),
@@ -31,7 +36,10 @@ class TechnicianCoverageScreen extends StatelessWidget {
 class _CoverageBody extends StatelessWidget {
   const _CoverageBody();
 
-  Future<void> _showAddCityDialog(BuildContext context, TechnicianCoverageState state) async {
+  Future<void> _showAddCityDialog(
+    BuildContext context,
+    TechnicianCoverageState state,
+  ) async {
     String? cityId;
     final selected = await showDialog<String>(
       context: context,
@@ -51,16 +59,24 @@ class _CoverageBody extends StatelessWidget {
                 for (final City city in state.availableCities)
                   DropdownMenuItem(
                     value: city.id,
-                    child: Text('${city.name} — ${city.stateOrProvince}', overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      '${city.name} — ${city.stateOrProvince}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
               onChanged: (value) => setDialogState(() => cityId = value),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
-              onPressed: cityId == null ? null : () => Navigator.of(dialogContext).pop(cityId),
+              onPressed: cityId == null
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(cityId),
               child: const Text('Agregar'),
             ),
           ],
@@ -70,7 +86,8 @@ class _CoverageBody extends StatelessWidget {
     if (selected != null && context.mounted) {
       final error = await state.addCity(selected);
       if (error != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error)));
       }
     }
   }
@@ -86,7 +103,11 @@ class _CoverageBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -96,14 +117,21 @@ class _CoverageBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FilledButton.icon(
-                onPressed: state.busyWithAction || state.availableCities.isEmpty ? null : () => _showAddCityDialog(context, state),
+                onPressed: state.busyWithAction || state.availableCities.isEmpty
+                    ? null
+                    : () => _showAddCityDialog(context, state),
                 icon: const Icon(Icons.add_location_alt_outlined, size: 18),
                 label: const Text('Agregar ciudad de cobertura'),
               ),
               const SizedBox(height: 16),
               Expanded(
                 child: state.coverage.isEmpty
-                    ? const Center(child: Text('Sin ciudades de cobertura todavía.', style: TextStyle(color: AppColors.inkSecondary)))
+                    ? const Center(
+                        child: Text(
+                          'Sin ciudades de cobertura todavía.',
+                          style: TextStyle(color: AppColors.inkSecondary),
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: state.coverage.length,
                         itemBuilder: (context, index) {
@@ -111,12 +139,27 @@ class _CoverageBody extends StatelessWidget {
                           return ClayCard(
                             child: Row(
                               children: [
-                                const Icon(Icons.location_city_outlined, color: AppColors.signalBlue),
+                                const Icon(
+                                  Icons.location_city_outlined,
+                                  color: AppColors.signalBlue,
+                                ),
                                 const SizedBox(width: 12),
-                                Expanded(child: Text(item.cityName, style: const TextStyle(fontWeight: FontWeight.w600))),
+                                Expanded(
+                                  child: Text(
+                                    item.cityName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete_outline, color: AppColors.signalRed),
-                                  onPressed: state.busyWithAction ? null : () => state.removeCoverage(item.id),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: AppColors.signalRed,
+                                  ),
+                                  onPressed: state.busyWithAction
+                                      ? null
+                                      : () => state.removeCoverage(item.id),
                                 ),
                               ],
                             ),

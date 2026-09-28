@@ -1,3 +1,6 @@
+import '../services/device_capture.dart';
+
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -30,34 +33,68 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
     _state = context.read<MyWorkState>();
   }
 
-  Future<void> _handleCheckIn(Future<String?> Function() action, String id) async {
+  Future<void> _handleCheckIn(
+    Future<String?> Function() action,
+    String id,
+  ) async {
     setState(() => _actingOnId = id);
     final error = await action();
     if (!mounted) return;
     setState(() => _actingOnId = null);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Check-in registrado.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Check-in registrado.')));
     }
   }
 
+  /// Tickets y órdenes: la foto "antes" es obligatoria, se toma con la cámara antes de llamar al check-in.
+  Future<void> _handleVisitCheckIn(
+    Future<String?> Function(XFile photo) action,
+    String id,
+  ) async {
+    final photo = await DeviceCapture.takePhoto();
+    if (photo == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Necesitas tomar la foto de la falla o del equipo para hacer check-in.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    await _handleCheckIn(() => action(photo), id);
+  }
+
   Future<void> _handleCheckOut(MyWorkState state) async {
-    final request = await CheckoutSheet.show(
+    final submission = await CheckoutSheet.show(
       context,
       activeTicket: state.activeTicket,
       activeOrder: state.activeOrder,
       activeInstallation: state.activeInstallation,
     );
-    if (request == null || !mounted) return;
+    if (submission == null || !mounted) return;
+    final request = submission.request;
 
-    final error = await state.checkOut(request);
+    final error = await state.checkOut(request, photo: submission.photo);
     if (!mounted) return;
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(request.resolved ? 'Check-out registrado. Trabajo resuelto.' : 'Check-out registrado.')),
+        SnackBar(
+          content: Text(
+            request.resolved
+                ? 'Check-out registrado. Trabajo resuelto.'
+                : 'Check-out registrado.',
+          ),
+        ),
       );
     }
   }
@@ -81,47 +118,85 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                     color: AppColors.signalRedWash,
                     borderColor: AppColors.signalRed,
                     padding: const EdgeInsets.all(12),
-                    child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed)),
+                    child: Text(
+                      state.error!,
+                      style: const TextStyle(color: AppColors.signalRed),
+                    ),
                   ),
                 ),
-              if (state.isBusy) _ActiveVisitCard(state: state, onCheckOut: () => _handleCheckOut(state)),
+              if (state.isBusy)
+                _ActiveVisitCard(
+                  state: state,
+                  onCheckOut: () => _handleCheckOut(state),
+                ),
               const SizedBox(height: 16),
-              Text('Mis tickets (${state.checkInableTickets.length})', style: Theme.of(context).textTheme.titleSmall),
-              if (state.tickets.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No tienes tickets asignados.')),
+              Text(
+                'Mis tickets (${state.checkInableTickets.length})',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              if (state.tickets.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text('No tienes tickets asignados.'),
+                ),
               ...state.tickets.map(
                 (t) => TicketCard(
                   ticket: t,
-                  canCheckIn: !state.isBusy && (t.status == 'Asignado' || t.status == 'EnProceso'),
+                  canCheckIn:
+                      !state.isBusy &&
+                      (t.status == 'Asignado' || t.status == 'EnProceso'),
                   isActive: state.activeTicket?.id == t.id,
                   checkingIn: _actingOnId == t.id,
-                  onCheckIn: () => _handleCheckIn(() => _state.checkInTicket(t), t.id),
+                  onCheckIn: () => _handleVisitCheckIn(
+                    (photo) => _state.checkInTicket(t, photo),
+                    t.id,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Mis órdenes de mantenimiento (${state.checkInableOrders.length})',
-                  style: Theme.of(context).textTheme.titleSmall),
-              if (state.orders.isEmpty) const Padding(padding: EdgeInsets.all(8), child: Text('No tienes órdenes asignadas.')),
+              Text(
+                'Mis órdenes de mantenimiento (${state.checkInableOrders.length})',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              if (state.orders.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text('No tienes órdenes asignadas.'),
+                ),
               ...state.orders.map(
                 (o) => OrderCard(
                   order: o,
-                  canCheckIn: !state.isBusy && (o.status == 'Asignada' || o.status == 'EnProceso'),
+                  canCheckIn:
+                      !state.isBusy &&
+                      (o.status == 'Asignada' || o.status == 'EnProceso'),
                   isActive: state.activeOrder?.id == o.id,
                   checkingIn: _actingOnId == o.id,
-                  onCheckIn: () => _handleCheckIn(() => _state.checkInOrder(o), o.id),
+                  onCheckIn: () => _handleVisitCheckIn(
+                    (photo) => _state.checkInOrder(o, photo),
+                    o.id,
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Instalaciones pendientes (${state.pendingInstallations.length})',
-                  style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'Instalaciones pendientes (${state.pendingInstallations.length})',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               if (state.pendingInstallations.isEmpty)
-                const Padding(padding: EdgeInsets.all(8), child: Text('No hay instalaciones pendientes.')),
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text('No hay instalaciones pendientes.'),
+                ),
               ...state.pendingInstallations.map(
                 (i) => InstallationCard(
                   installation: i,
                   canCheckIn: !state.isBusy,
                   isActive: state.activeInstallation?.assetId == i.assetId,
                   checkingIn: _actingOnId == i.assetId,
-                  onCheckIn: () => _handleCheckIn(() => _state.checkInInstallation(i), i.assetId),
+                  onCheckIn: () => _handleCheckIn(
+                    () => _state.checkInInstallation(i),
+                    i.assetId,
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
@@ -148,29 +223,43 @@ class _ActiveVisitCard extends StatelessWidget {
       color: AppColors.signalBlueWash,
       borderColor: AppColors.signalBlueBright,
       child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Visita en curso', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.signalBlueBright)),
-            const SizedBox(height: 8),
-            if (ticket != null) Text('${ticket.clientName} — ${ticket.clientLocationName}\n${ticket.description}'),
-            if (order != null) Text('${order.assetBrandName} ${order.assetModel} — ${order.assetSerialNumber}'),
-            if (installation != null)
-              Text('${installation.clientName} — ${installation.clientLocationName}\n'
-                  '${installation.assetBrandName} ${installation.model} — ${installation.serialNumber}'),
-            const SizedBox(height: 12),
-            AnimatedGradientBorder(
-              backgroundColor: AppColors.signalBlueWash,
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: state.busyWithAction ? null : onCheckOut,
-                  icon: const Icon(Icons.logout, size: 18),
-                  label: const Text('Check-out'),
-                ),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Visita en curso',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.signalBlueBright,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (ticket != null)
+            Text(
+              '${ticket.clientName} — ${ticket.clientLocationName}\n${ticket.description}',
+            ),
+          if (order != null)
+            Text(
+              '${order.assetBrandName} ${order.assetModel} — ${order.assetSerialNumber}',
+            ),
+          if (installation != null)
+            Text(
+              '${installation.clientName} — ${installation.clientLocationName}\n'
+              '${installation.assetBrandName} ${installation.model} — ${installation.serialNumber}',
+            ),
+          const SizedBox(height: 12),
+          AnimatedGradientBorder(
+            backgroundColor: AppColors.signalBlueWash,
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: state.busyWithAction ? null : onCheckOut,
+                icon: const Icon(Icons.logout, size: 18),
+                label: const Text('Check-out'),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }

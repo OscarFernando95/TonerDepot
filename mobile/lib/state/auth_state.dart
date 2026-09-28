@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/current_user.dart';
 import '../services/api_client.dart';
 import '../services/auth_api.dart';
+import '../services/realtime_service.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
@@ -12,6 +13,7 @@ enum AuthStatus { unknown, authenticated, unauthenticated }
 class AuthState extends ChangeNotifier {
   AuthState(this._client) : _authApi = AuthApi(_client) {
     _client.onUnauthorized = _handleUnauthorized;
+    RealtimeService.instance.onSessionRevoked = _handleUnauthorized;
   }
 
   final ApiClient _client;
@@ -31,6 +33,7 @@ class AuthState extends ChangeNotifier {
     try {
       currentUser = await _authApi.me();
       status = AuthStatus.authenticated;
+      RealtimeService.instance.connect();
     } catch (e, st) {
       debugPrint('AuthState.bootstrap failed: $e\n$st');
       await _client.setToken(null);
@@ -51,6 +54,7 @@ class AuthState extends ChangeNotifier {
       await _client.setToken(result.token);
       currentUser = result.user;
       status = AuthStatus.authenticated;
+      RealtimeService.instance.connect();
       notifyListeners();
       return true;
     } catch (e, st) {
@@ -66,9 +70,20 @@ class AuthState extends ChangeNotifier {
   /// destinos de navegación mostrar por rol.
   bool hasRole(String role) => currentUser?.role == role;
 
-  bool hasAnyRole(List<String> roles) => currentUser != null && roles.contains(currentUser!.role);
+  bool hasAnyRole(List<String> roles) =>
+      currentUser != null && roles.contains(currentUser!.role);
 
   Future<void> logout() async {
+    // Revoca la sesión en el servidor (clave para la sesión única del técnico); si falla la red igual
+    // se cierra localmente — la sesión vence sola o la cierra un administrador.
+    try {
+      await _authApi.logout();
+    } catch (e, st) {
+      debugPrint(
+        'AuthState.logout: no se pudo revocar la sesión en el servidor: $e\n$st',
+      );
+    }
+    await RealtimeService.instance.disconnect();
     await _client.setToken(null);
     currentUser = null;
     status = AuthStatus.unauthenticated;
@@ -79,7 +94,10 @@ class AuthState extends ChangeNotifier {
   /// web tras un cambio de contraseña exitoso: este notifyListeners() es lo
   /// que dispara el `redirect` de app_router.dart (vía refreshListenable) y
   /// hace que deje de mostrar ChangePasswordScreen y pase a AppShell.
-  Future<String?> changePassword(String currentPassword, String newPassword) async {
+  Future<String?> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     try {
       await _authApi.changePassword(currentPassword, newPassword);
       if (currentUser != null) {
@@ -89,12 +107,15 @@ class AuthState extends ChangeNotifier {
       return null;
     } catch (e, st) {
       debugPrint('AuthState.changePassword failed: $e\n$st');
-      return e is ApiException ? e.message : 'No se pudo cambiar la contraseña.';
+      return e is ApiException
+          ? e.message
+          : 'No se pudo cambiar la contraseña.';
     }
   }
 
   void _handleUnauthorized() {
     if (status == AuthStatus.authenticated) {
+      RealtimeService.instance.disconnect();
       currentUser = null;
       status = AuthStatus.unauthenticated;
       lastError = 'Tu sesión expiró. Ingresa de nuevo.';

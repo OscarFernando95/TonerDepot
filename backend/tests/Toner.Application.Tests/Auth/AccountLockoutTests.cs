@@ -26,7 +26,7 @@ public class AccountLockoutTests
             Audience = "test-audience",
             SigningKey = "test-signing-key-at-least-32-characters-long",
             ExpiryMinutes = 60
-        })), logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AuthService>.Instance);
+        })), logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<AuthService>.Instance, TestSessions.Create(db));
 
     [Fact]
     public async Task LoginAsync_CincoIntentosFallidosConsecutivos_BloqueaLaCuenta()

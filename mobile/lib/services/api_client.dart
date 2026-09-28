@@ -49,6 +49,8 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          // Informativo para la auditoría y el mensaje de sesión única (nunca una decisión de seguridad).
+          options.headers['X-Client-Type'] = 'mobile';
           if (_token != null) {
             options.headers['Authorization'] = 'Bearer $_token';
           }
@@ -82,6 +84,10 @@ class ApiClient {
 
   bool get hasToken => _token != null;
 
+  /// Solo para el canal en tiempo real (SignalR no puede usar el interceptor de Dio): la API REST sigue
+  /// yendo por el interceptor de arriba, nunca por acceso directo a este campo.
+  String? get currentToken => _token;
+
   /// Traduce cualquier DioException a un mensaje presentable. El backend
   /// devuelve ProblemDetails con "title" (ver ExceptionHandlingMiddleware) —
   /// si además vienen errores de campo (FluentValidation), los concatena.
@@ -97,7 +103,10 @@ class ApiClient {
               .expand((v) => v is List ? v : [v])
               .map((e) => e.toString())
               .join('\n');
-          return ApiException(detail.isNotEmpty ? detail : (title ?? 'Error de validación.'), statusCode: status);
+          return ApiException(
+            detail.isNotEmpty ? detail : (title ?? 'Error de validación.'),
+            statusCode: status,
+          );
         }
         if (title != null && title.isNotEmpty) {
           return ApiException(title, statusCode: status);
@@ -107,11 +116,18 @@ class ApiClient {
         case DioExceptionType.connectionTimeout:
         case DioExceptionType.sendTimeout:
         case DioExceptionType.receiveTimeout:
-          return ApiException('El servidor no respondió a tiempo. Verifica la URL configurada y tu conexión.');
+          return ApiException(
+            'El servidor no respondió a tiempo. Verifica la URL configurada y tu conexión.',
+          );
         case DioExceptionType.connectionError:
-          return ApiException('No se pudo conectar con el servidor. Verifica la URL configurada y que la API esté corriendo.');
+          return ApiException(
+            'No se pudo conectar con el servidor. Verifica la URL configurada y que la API esté corriendo.',
+          );
         default:
-          return ApiException('Ocurrió un error inesperado (${status ?? 's/n'}).', statusCode: status);
+          return ApiException(
+            'Ocurrió un error inesperado (${status ?? 's/n'}).',
+            statusCode: status,
+          );
       }
     }
     return ApiException(error.toString());

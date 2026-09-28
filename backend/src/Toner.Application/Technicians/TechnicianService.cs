@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Calendar;
 using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -10,15 +11,19 @@ namespace Toner.Application.Technicians;
 public class TechnicianService : ITechnicianService
 {
     private readonly IApplicationDbContext _db;
+    private readonly IWorkCalendarService _calendar;
+    private readonly TimeProvider _time;
 
-    public TechnicianService(IApplicationDbContext db)
+    public TechnicianService(IApplicationDbContext db, IWorkCalendarService calendar, TimeProvider time)
     {
         _db = db;
+        _calendar = calendar;
+        _time = time;
     }
 
     public async Task<PagedResult<TechnicianDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        return await _db.Technicians
+        var result = await _db.Technicians
             .OrderBy(t => t.User.FullName)
             .Select(t => new TechnicianDto
             {
@@ -30,6 +35,17 @@ public class TechnicianService : ITechnicianService
                 CoverageCityNames = t.Coverages.Select(c => c.City.Name).ToList()
             })
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
+
+        // Disponibilidad calculada al momento (no se persiste): horario + festivos + fuera de la oficina.
+        var now = _time.GetUtcNow().UtcDateTime;
+        var calendar = await _calendar.LoadAsync(result.Items.Select(t => t.Id), now, now.AddMinutes(1), cancellationToken);
+        foreach (var technician in result.Items)
+        {
+            technician.IsWorkingNow = calendar.IsWorking(technician.Id, now);
+            technician.TimeOffUntil = calendar.TimeOffEnd(technician.Id, now);
+        }
+
+        return result;
     }
 
     public async Task<IReadOnlyList<TechnicianCoverageDto>> ListCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
@@ -108,7 +124,11 @@ public class TechnicianService : ITechnicianService
                 MaintenanceOrderId = tl.MaintenanceOrderId,
                 StartTime = tl.StartTime,
                 EndTime = tl.EndTime,
-                Notes = tl.Notes
+                Notes = tl.Notes,
+                CheckInLocationStatus = tl.CheckInLocationStatus != null ? tl.CheckInLocationStatus.ToString() : null,
+                CheckInDistanceMeters = tl.CheckInDistanceMeters,
+                CheckOutLocationStatus = tl.CheckOutLocationStatus != null ? tl.CheckOutLocationStatus.ToString() : null,
+                CheckOutDistanceMeters = tl.CheckOutDistanceMeters
             })
             .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.StartTime, last.Id), cancellationToken);
     }

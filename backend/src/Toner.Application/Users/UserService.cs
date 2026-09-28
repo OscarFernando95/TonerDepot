@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Toner.Application.Auth;
 using Toner.Application.Common.Paging;
 using Microsoft.Extensions.Logging;
+using Toner.Application.Auth;
+using Toner.Application.Auth.Dtos;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Users.Dtos;
@@ -17,17 +19,20 @@ public class UserService : IUserService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IBackgroundJobScheduler _jobScheduler;
     private readonly ILogger<UserService> _logger;
+    private readonly ISessionService _sessions;
 
     public UserService(
         IApplicationDbContext db,
         IPasswordHasher passwordHasher,
         IBackgroundJobScheduler jobScheduler,
-        ILogger<UserService> logger)
+        ILogger<UserService> logger,
+        ISessionService sessions)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _jobScheduler = jobScheduler;
         _logger = logger;
+        _sessions = sessions;
     }
 
     public async Task<UserWithGeneratedPasswordDto> CreateAsync(CreateUserRequest request, CancellationToken cancellationToken = default)
@@ -127,6 +132,7 @@ public class UserService : IUserService
         // cuenta que estaba inactiva, así que regenerar también al reactivar no invalida nada que
         // debiera seguir vivo (ver SecurityStampValidator).
         user.SecurityStamp = Guid.NewGuid();
+        await _sessions.RevokeAllForUserAsync(userId, isActive ? "CuentaReactivada" : "CuentaDesactivada", cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(userId, cancellationToken);
@@ -143,6 +149,7 @@ public class UserService : IUserService
         user.MustChangePassword = true;
         // Invalida cualquier JWT ya emitido para este usuario (ver SecurityStampValidator).
         user.SecurityStamp = Guid.NewGuid();
+        await _sessions.RevokeAllForUserAsync(userId, "ContraseñaReseteada", cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         _jobScheduler.EnqueueGeneratedPasswordEmail(user.Cedula, generatedPassword);
@@ -155,6 +162,35 @@ public class UserService : IUserService
 
         var dto = await ToDtoAsync(userId, cancellationToken);
         return ToWithGeneratedPassword(dto, generatedPassword);
+    }
+
+    public async Task<int> RevokeSessionsAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default)
+    {
+        var exists = await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+        if (!exists)
+        {
+            throw new NotFoundException(nameof(User), userId);
+        }
+
+        var revoked = await _sessions.RevokeAllForUserAsync(userId, "CerradaPorAdministrador", cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogWarning(
+            "Sesiones cerradas por administrador {PerformedByUserId}: usuario {TargetUserId}, {Count} sesión(es)",
+            performedByUserId?.ToString() ?? "desconocido", userId, revoked);
+
+        return revoked;
+    }
+
+    public async Task<IReadOnlyList<UserSessionDto>> ListSessionsAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var exists = await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+        if (!exists)
+        {
+            throw new NotFoundException(nameof(User), userId);
+        }
+
+        return await _sessions.ListForUserAsync(userId, 20, cancellationToken);
     }
 
     private async Task<UserDto> ToDtoAsync(Guid userId, CancellationToken cancellationToken) =>

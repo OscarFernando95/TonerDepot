@@ -35,13 +35,17 @@ class AnimatedGradientBorder extends StatefulWidget {
   State<AnimatedGradientBorder> createState() => _AnimatedGradientBorderState();
 }
 
-class _AnimatedGradientBorderState extends State<AnimatedGradientBorder> with SingleTickerProviderStateMixin {
+class _AnimatedGradientBorderState extends State<AnimatedGradientBorder>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
   }
 
   @override
@@ -65,7 +69,9 @@ class _AnimatedGradientBorderState extends State<AnimatedGradientBorder> with Si
             ),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(widget.radius - widget.borderWidth),
+            borderRadius: BorderRadius.circular(
+              widget.radius - widget.borderWidth,
+            ),
             child: Container(color: widget.backgroundColor, child: child),
           ),
         );

@@ -15,7 +15,8 @@ class ServiceTicket {
   final String reportedByUserId;
   final String reportedByUserName;
   final String description;
-  final String status; // Abierto|SinAsignar|Asignado|EnProceso|Resuelto|Cerrado|Cancelado
+  final String
+  status; // Abierto|SinAsignar|Asignado|EnProceso|Resuelto|Cerrado|Cancelado
   final String priority; // Baja|Media|Alta|Critica
   final String? technicianId;
   final String? technicianName;
@@ -56,31 +57,34 @@ class ServiceTicket {
   /// El equipo externo puede no tener info todavía (el técnico la captura recién
   /// en el checkout) — tres estados posibles, no un booleano: catalogado, externo
   /// ya documentado, o externo aún sin datos. Espejo de TicketDetailView.vue.
-  bool get hasExternalAssetInfo => externalAssetBrand != null || externalAssetModel != null || externalAssetCounter != null;
+  bool get hasExternalAssetInfo =>
+      externalAssetBrand != null ||
+      externalAssetModel != null ||
+      externalAssetCounter != null;
 
   factory ServiceTicket.fromJson(Map<String, dynamic> json) => ServiceTicket(
-        id: json['id'] as String,
-        clientLocationId: json['clientLocationId'] as String,
-        clientLocationName: json['clientLocationName'] as String,
-        clientId: json['clientId'] as String,
-        clientName: json['clientName'] as String,
-        cityName: json['cityName'] as String?,
-        assetId: json['assetId'] as String?,
-        assetBrandName: json['assetBrandName'] as String?,
-        assetModel: json['assetModel'] as String?,
-        assetSerialNumber: json['assetSerialNumber'] as String?,
-        externalAssetBrand: json['externalAssetBrand'] as String?,
-        externalAssetModel: json['externalAssetModel'] as String?,
-        externalAssetCounter: json['externalAssetCounter'] as num?,
-        reportedByUserId: json['reportedByUserId'] as String,
-        reportedByUserName: json['reportedByUserName'] as String,
-        description: json['description'] as String,
-        status: json['status'] as String,
-        priority: json['priority'] as String,
-        technicianId: json['technicianId'] as String?,
-        technicianName: json['technicianName'] as String?,
-        resolvedAt: json['resolvedAt'] as String?,
-        closedAt: json['closedAt'] as String?,
-        createdAt: json['createdAt'] as String,
-      );
+    id: json['id'] as String,
+    clientLocationId: json['clientLocationId'] as String,
+    clientLocationName: json['clientLocationName'] as String,
+    clientId: json['clientId'] as String,
+    clientName: json['clientName'] as String,
+    cityName: json['cityName'] as String?,
+    assetId: json['assetId'] as String?,
+    assetBrandName: json['assetBrandName'] as String?,
+    assetModel: json['assetModel'] as String?,
+    assetSerialNumber: json['assetSerialNumber'] as String?,
+    externalAssetBrand: json['externalAssetBrand'] as String?,
+    externalAssetModel: json['externalAssetModel'] as String?,
+    externalAssetCounter: json['externalAssetCounter'] as num?,
+    reportedByUserId: json['reportedByUserId'] as String,
+    reportedByUserName: json['reportedByUserName'] as String,
+    description: json['description'] as String,
+    status: json['status'] as String,
+    priority: json['priority'] as String,
+    technicianId: json['technicianId'] as String?,
+    technicianName: json['technicianName'] as String?,
+    resolvedAt: json['resolvedAt'] as String?,
+    closedAt: json['closedAt'] as String?,
+    createdAt: json['createdAt'] as String,
+  );
 }

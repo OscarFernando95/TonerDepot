@@ -89,6 +89,8 @@ function goToDetail(order: MaintenanceOrderDto) {
 }
 
 onMounted(loadOrders)
+
+useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
 </script>
 
 <template>

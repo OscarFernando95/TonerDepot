@@ -46,6 +46,12 @@ convención" ahí.
   - Una tabla nueva conectada a `Clients` solo por FK indirecta también
     necesita su propia política (con subquery a la tabla padre si no tiene
     `ClientId` propio) — no asumas que hereda el aislamiento del padre.
+  - **Excepción registrada: `Users` y `UserSessions` no tienen RLS.** Se leen
+    en el login y en el validador del token (`SecurityStampValidator`) con
+    contexto `Anonymous`, antes de que exista un usuario autenticado, así que
+    no pueden llevar política por cliente. `UserSessions` solo guarda
+    metadatos de sesión (sin datos de clientes). Cualquier otra tabla que
+    necesite lectura pre-autenticación exige la misma justificación explícita.
 
 - **Paginación.** Los listados nuevos devuelven `PagedResult<T>`
   (`Toner.Application/Common/Paging/PagedResult.cs`), nunca una lista suelta.

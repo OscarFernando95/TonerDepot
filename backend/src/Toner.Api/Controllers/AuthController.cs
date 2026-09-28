@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -33,13 +34,27 @@ public class AuthController : ControllerBase
     {
         await _loginValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var result = await _authService.LoginAsync(request, ClientIpAddress, cancellationToken);
+        var result = await _authService.LoginAsync(
+            request, ClientIpAddress, cancellationToken,
+            clientType: Request.Headers["X-Client-Type"].FirstOrDefault(),
+            userAgent: Request.Headers.UserAgent.ToString());
         if (!result.Succeeded)
         {
             return Unauthorized(new { title = "Cédula o contraseña incorrectos." });
         }
 
         return Ok(result);
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+    {
+        if (Guid.TryParse(User.FindFirstValue(JwtRegisteredClaimNames.Jti), out var sessionId))
+        {
+            await _authService.LogoutAsync(CurrentUserId, sessionId, ClientIpAddress, cancellationToken);
+        }
+
+        return NoContent();
     }
 
     [HttpGet("me")]

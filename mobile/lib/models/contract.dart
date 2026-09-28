@@ -29,17 +29,17 @@ class Contract {
   });
 
   factory Contract.fromJson(Map<String, dynamic> json) => Contract(
-        id: json['id'] as String,
-        clientId: json['clientId'] as String,
-        clientName: json['clientName'] as String,
-        startDate: json['startDate'] as String,
-        endDate: json['endDate'] as String?,
-        status: json['status'] as String,
-        includedPrintsPerMonth: json['includedPrintsPerMonth'] as int?,
-        pricePerExtraPage: (json['pricePerExtraPage'] as num?)?.toDouble(),
-        notes: json['notes'] as String?,
-        assetCount: json['assetCount'] as int? ?? 0,
-        cityNames: (json['cityNames'] as List<dynamic>? ?? []).cast<String>(),
-        createdAt: json['createdAt'] as String,
-      );
+    id: json['id'] as String,
+    clientId: json['clientId'] as String,
+    clientName: json['clientName'] as String,
+    startDate: json['startDate'] as String,
+    endDate: json['endDate'] as String?,
+    status: json['status'] as String,
+    includedPrintsPerMonth: json['includedPrintsPerMonth'] as int?,
+    pricePerExtraPage: (json['pricePerExtraPage'] as num?)?.toDouble(),
+    notes: json['notes'] as String?,
+    assetCount: json['assetCount'] as int? ?? 0,
+    cityNames: (json['cityNames'] as List<dynamic>? ?? []).cast<String>(),
+    createdAt: json['createdAt'] as String,
+  );
 }

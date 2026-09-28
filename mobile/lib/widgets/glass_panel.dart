@@ -33,7 +33,9 @@ class GlassPanel extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: Container(
           decoration: BoxDecoration(
-            color: (tintColor ?? AppColors.claySurface).withValues(alpha: tintOpacity),
+            color: (tintColor ?? AppColors.claySurface).withValues(
+              alpha: tintOpacity,
+            ),
             borderRadius: borderRadius,
             border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
           ),
@@ -48,7 +50,12 @@ class GlassPanel extends StatelessWidget {
 /// principal (AppShell). Requiere `Scaffold(extendBodyBehindAppBar: true)`
 /// para que el blur tenga contenido real detrás; si no, solo se ve el tinte.
 class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const GlassAppBar({super.key, required this.title, this.actions, this.leading});
+  const GlassAppBar({
+    super.key,
+    required this.title,
+    this.actions,
+    this.leading,
+  });
 
   final String title;
   final List<Widget>? actions;
@@ -77,7 +84,12 @@ class GlassAppBar extends StatelessWidget implements PreferredSizeWidget {
 /// listas (Fases E/F). No usado todavía en Fase A/B, pero es chrome, no
 /// contenido, así que sigue la regla glass-para-chrome desde ya.
 class GlassFab extends StatelessWidget {
-  const GlassFab({super.key, required this.onPressed, required this.icon, this.label});
+  const GlassFab({
+    super.key,
+    required this.onPressed,
+    required this.icon,
+    this.label,
+  });
 
   final VoidCallback onPressed;
   final Widget icon;
@@ -94,10 +106,15 @@ class GlassFab extends StatelessWidget {
           borderRadius: radius,
           onTap: onPressed,
           child: Padding(
-            padding: label == null ? const EdgeInsets.all(16) : const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: label == null
+                ? const EdgeInsets.all(16)
+                : const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: label == null
                 ? icon
-                : Row(mainAxisSize: MainAxisSize.min, children: [icon, const SizedBox(width: 8), label!]),
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [icon, const SizedBox(width: 8), label!],
+                  ),
           ),
         ),
       ),

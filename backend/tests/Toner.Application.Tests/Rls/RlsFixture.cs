@@ -62,6 +62,12 @@ public sealed class RlsFixture
                 FROM ""Users"" u LIMIT 1
                 ON CONFLICT (""Id"") DO NOTHING;
 
+                -- Evidencia (foto) del ticket del cliente A: la tabla lleva su propio ClientId y política.
+                INSERT INTO ""Evidences"" (""Id"",""ClientId"",""Kind"",""SizeBytes"",""ServiceTicketId"",""FileUrl"",""FileName"",""ContentType"",""UploadedByUserId"",""UploadedAt"",""CreatedAt"")
+                SELECT @evidenceA, @clientA, 'Antes', 10, @ticketA, 'rls/a.jpg', 'a.jpg', 'image/jpeg', u.""Id"", now(), now()
+                FROM ""Users"" u LIMIT 1
+                ON CONFLICT (""Id"") DO NOTHING;
+
                 -- Marca y modelo mínimos para poder colgar activos de ellos.
                 INSERT INTO ""AssetBrands"" (""Id"",""Name"",""CreatedAt"")
                 VALUES (@brandId,'Marca RLS',now())
@@ -88,6 +94,7 @@ public sealed class RlsFixture
             command.Parameters.AddWithValue("contractA", Guid.Parse("cccccccc-0000-0000-0000-000000000001"));
             command.Parameters.AddWithValue("contractB", Guid.Parse("dddddddd-0000-0000-0000-000000000002"));
             command.Parameters.AddWithValue("ticketA", Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"));
+            command.Parameters.AddWithValue("evidenceA", Guid.Parse("eeeeeeee-0000-0000-0000-0000000000e1"));
             command.Parameters.AddWithValue("brandId", Guid.Parse("ffffffff-0000-0000-0000-000000000001"));
             command.Parameters.AddWithValue("modelId", Guid.Parse("ffffffff-0000-0000-0000-000000000002"));
             command.Parameters.AddWithValue("assetA", AssetOfClientA);

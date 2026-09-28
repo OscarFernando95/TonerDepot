@@ -21,7 +21,9 @@ class MyAssetsState extends ChangeNotifier {
       assets = await _api.listMine();
     } catch (e, st) {
       debugPrint('MyAssetsState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar tus activos.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar tus activos.';
     } finally {
       loading = false;
       notifyListeners();

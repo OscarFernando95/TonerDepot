@@ -8,7 +8,11 @@ class PagedResult<T> {
   final int pageSize;
   final bool hasMore;
 
-  PagedResult({required this.items, required this.pageSize, required this.hasMore});
+  PagedResult({
+    required this.items,
+    required this.pageSize,
+    required this.hasMore,
+  });
 
   factory PagedResult.fromJson(
     Map<String, dynamic> json,

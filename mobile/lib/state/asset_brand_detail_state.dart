@@ -5,7 +5,8 @@ import '../services/api_client.dart';
 import '../services/asset_model_api.dart';
 
 class AssetBrandDetailState extends ChangeNotifier {
-  AssetBrandDetailState(ApiClient client, this.brandId) : _api = AssetModelApi(client);
+  AssetBrandDetailState(ApiClient client, this.brandId)
+    : _api = AssetModelApi(client);
 
   final AssetModelApi _api;
   final String brandId;
@@ -23,7 +24,9 @@ class AssetBrandDetailState extends ChangeNotifier {
       models = await _api.listForBrand(brandId);
     } catch (e, st) {
       debugPrint('AssetBrandDetailState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los modelos.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los modelos.';
     } finally {
       loading = false;
       notifyListeners();
@@ -37,19 +40,18 @@ class AssetBrandDetailState extends ChangeNotifier {
     required int unitsPrintThreshold,
     required int unitsMonthsInterval,
     required int consumablesPrintThreshold,
-  }) =>
-      _runAction(() async {
-        final created = await _api.create(
-          brandId,
-          name: name,
-          generalPrintThreshold: generalPrintThreshold,
-          generalMonthsInterval: generalMonthsInterval,
-          unitsPrintThreshold: unitsPrintThreshold,
-          unitsMonthsInterval: unitsMonthsInterval,
-          consumablesPrintThreshold: consumablesPrintThreshold,
-        );
-        models = [...models, created];
-      });
+  }) => _runAction(() async {
+    final created = await _api.create(
+      brandId,
+      name: name,
+      generalPrintThreshold: generalPrintThreshold,
+      generalMonthsInterval: generalMonthsInterval,
+      unitsPrintThreshold: unitsPrintThreshold,
+      unitsMonthsInterval: unitsMonthsInterval,
+      consumablesPrintThreshold: consumablesPrintThreshold,
+    );
+    models = [...models, created];
+  });
 
   Future<String?> updateModel(
     String modelId, {
@@ -59,22 +61,19 @@ class AssetBrandDetailState extends ChangeNotifier {
     required int unitsPrintThreshold,
     required int unitsMonthsInterval,
     required int consumablesPrintThreshold,
-  }) =>
-      _runAction(() async {
-        final updated = await _api.update(
-          brandId,
-          modelId,
-          name: name,
-          generalPrintThreshold: generalPrintThreshold,
-          generalMonthsInterval: generalMonthsInterval,
-          unitsPrintThreshold: unitsPrintThreshold,
-          unitsMonthsInterval: unitsMonthsInterval,
-          consumablesPrintThreshold: consumablesPrintThreshold,
-        );
-        models = [
-          for (final m in models) m.id == modelId ? updated : m,
-        ];
-      });
+  }) => _runAction(() async {
+    final updated = await _api.update(
+      brandId,
+      modelId,
+      name: name,
+      generalPrintThreshold: generalPrintThreshold,
+      generalMonthsInterval: generalMonthsInterval,
+      unitsPrintThreshold: unitsPrintThreshold,
+      unitsMonthsInterval: unitsMonthsInterval,
+      consumablesPrintThreshold: consumablesPrintThreshold,
+    );
+    models = [for (final m in models) m.id == modelId ? updated : m];
+  });
 
   Future<String?> _runAction(Future<void> Function() action) async {
     busyWithAction = true;

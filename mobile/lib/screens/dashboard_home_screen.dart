@@ -33,7 +33,8 @@ class DashboardHomeScreen extends StatelessWidget {
 
     return PlaceholderScreen(
       title: 'Hola, ${auth.currentUser?.fullName ?? ''}',
-      message: 'Tu rol (${role ?? ''}) todavía no tiene funciones propias en esta app.',
+      message:
+          'Tu rol (${role ?? ''}) todavía no tiene funciones propias en esta app.',
     );
   }
 }

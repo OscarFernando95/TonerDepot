@@ -7,6 +7,30 @@ import * as ticketsApi from '../../api/tickets'
 import * as ordersApi from '../../api/maintenanceOrders'
 import { ServiceTicketStatusLabels, type ServiceTicketDto } from '../../api/types'
 import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto, type MaintenanceScheduleDto } from '../../api/types'
+import PhotoPicker from '../../components/technicians/PhotoPicker.vue'
+import { getCurrentPosition } from '../../composables/useGeolocation'
+
+// Foto "antes" del check-in: se pide en un diálogo y el flujo espera a que el técnico la confirme o cancele.
+const photoDialogVisible = ref(false)
+const photoDialogFile = ref<File | null>(null)
+let resolvePhotoDialog: ((file: File | null) => void) | null = null
+
+function askForBeforePhoto(): Promise<File | null> {
+  photoDialogFile.value = null
+  photoDialogVisible.value = true
+  return new Promise((resolve) => {
+    resolvePhotoDialog = resolve
+  })
+}
+
+function closePhotoDialog(file: File | null) {
+  photoDialogVisible.value = false
+  resolvePhotoDialog?.(file)
+  resolvePhotoDialog = null
+}
+
+// Foto "después" del check-out (obligatoria al resolver un ticket u orden).
+const afterPhoto = ref<File | null>(null)
 
 const status = ref<selfApi.TechnicianSelfStatusDto | null>(null)
 const tickets = ref<ServiceTicketDto[]>([])
@@ -124,9 +148,10 @@ const checkoutFormValid = computed(() => {
     )
   }
   if (activeOrder.value) {
-    return checkoutForm.initialCounterValue !== undefined
+    return checkoutForm.initialCounterValue !== undefined && !!afterPhoto.value
   }
-  return true
+  // Ticket: la foto "después" es obligatoria al resolver.
+  return !!afterPhoto.value
 })
 
 async function loadAll() {
@@ -156,39 +181,55 @@ async function loadAll() {
   }
 }
 
-async function checkInTicket(ticket: ServiceTicketDto) {
-  checkingIn.value = ticket.id
+// Check-in de un ticket u orden: foto "antes" (obligatoria) + ubicación (se registra y se alerta si falta o
+// está lejos de la sede, pero no bloquea).
+async function checkInVisit(target: { ticketId?: string; orderId?: string }) {
+  const photo = await askForBeforePhoto()
+  if (!photo) return
+  checkingIn.value = target.ticketId ?? target.orderId ?? null
   try {
-    await selfApi.checkIn({ serviceTicketId: ticket.id })
-    ElMessage.success('Check-in registrado.')
+    const [evidence, position] = await Promise.all([selfApi.uploadEvidence(photo, 'Antes', target), getCurrentPosition()])
+    await selfApi.checkIn({
+      serviceTicketId: target.ticketId ?? null,
+      maintenanceOrderId: target.orderId ?? null,
+      beforeEvidenceId: evidence.data.id,
+      latitude: position?.latitude ?? null,
+      longitude: position?.longitude ?? null,
+      accuracyMeters: position?.accuracyMeters ?? null
+    })
+    ElMessage.success(position ? 'Check-in registrado.' : 'Check-in registrado sin ubicación (permiso o GPS no disponible).')
     await loadAll()
   } catch (err: any) {
+    console.error('Check-in fallido:', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-in.')
   } finally {
     checkingIn.value = null
   }
+}
+
+async function checkInTicket(ticket: ServiceTicketDto) {
+  await checkInVisit({ ticketId: ticket.id })
 }
 
 async function checkInOrder(order: MaintenanceOrderDto) {
-  checkingIn.value = order.id
-  try {
-    await selfApi.checkIn({ maintenanceOrderId: order.id })
-    ElMessage.success('Check-in registrado.')
-    await loadAll()
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-in.')
-  } finally {
-    checkingIn.value = null
-  }
+  await checkInVisit({ orderId: order.id })
 }
 
+// Instalaciones: sin foto (no hay ticket/orden al que atarla), pero sí se registra la ubicación.
 async function checkInInstallation(installation: selfApi.PendingInstallationDto) {
   checkingIn.value = installation.assetId
   try {
-    await selfApi.checkIn({ assetId: installation.assetId })
+    const position = await getCurrentPosition()
+    await selfApi.checkIn({
+      assetId: installation.assetId,
+      latitude: position?.latitude ?? null,
+      longitude: position?.longitude ?? null,
+      accuracyMeters: position?.accuracyMeters ?? null
+    })
     ElMessage.success('Check-in registrado.')
     await loadAll()
   } catch (err: any) {
+    console.error('Check-in de instalación fallido:', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-in.')
   } finally {
     checkingIn.value = null
@@ -231,7 +272,17 @@ async function doCheckOut() {
 
   checkingOut.value = true
   try {
+    // Foto "después" (solo al resolver un ticket u orden) + ubicación (se registra, no bloquea).
+    const visitTarget = activeTicket.value ? { ticketId: activeTicket.value.id } : activeOrder.value ? { orderId: activeOrder.value.id } : null
+    const [evidence, position] = await Promise.all([
+      checkoutForm.resolved && visitTarget && afterPhoto.value ? selfApi.uploadEvidence(afterPhoto.value, 'Despues', visitTarget) : null,
+      getCurrentPosition()
+    ])
     await selfApi.checkOut({
+      afterEvidenceId: evidence?.data.id ?? null,
+      latitude: position?.latitude ?? null,
+      longitude: position?.longitude ?? null,
+      accuracyMeters: position?.accuracyMeters ?? null,
       resolved: checkoutForm.resolved,
       notes: checkoutForm.notes || null,
       area: activeInstallation.value ? checkoutForm.area || null : null,
@@ -259,6 +310,7 @@ async function doCheckOut() {
     checkoutForm.externalAssetBrand = ''
     checkoutForm.externalAssetModel = ''
     checkoutForm.externalAssetCounter = undefined
+    afterPhoto.value = null
     await loadAll()
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-out.')
@@ -363,6 +415,10 @@ onMounted(loadAll)
             </el-form-item>
           </template>
         </template>
+
+        <el-form-item v-if="checkoutForm.resolved && (activeTicket || activeOrder)" label="Foto del resultado (obligatoria)">
+          <PhotoPicker v-model="afterPhoto" />
+        </el-form-item>
 
         <el-form-item label="Notas (opcional)">
           <el-input v-model="checkoutForm.notes" type="textarea" :rows="2" />
@@ -577,6 +633,15 @@ onMounted(loadAll)
         <p v-else class="muted">No hay cronogramas de activos en tu zona.</p>
       </el-card>
     </template>
+
+    <el-dialog v-model="photoDialogVisible" title="Foto antes de empezar" width="440px" :close-on-click-modal="false" @close="closePhotoDialog(null)">
+      <p class="hint">Toma una foto de la falla o del estado del equipo al llegar. Es obligatoria para hacer check-in.</p>
+      <PhotoPicker v-model="photoDialogFile" />
+      <template #footer>
+        <el-button @click="closePhotoDialog(null)">Cancelar</el-button>
+        <el-button type="primary" :disabled="!photoDialogFile" @click="closePhotoDialog(photoDialogFile)">Hacer check-in</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 

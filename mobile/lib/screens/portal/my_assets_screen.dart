@@ -37,7 +37,11 @@ class _MyAssetsBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -63,26 +67,40 @@ class _MyAssetsBody extends StatelessWidget {
                         Expanded(
                           child: Text(
                             '${asset.assetBrandName} ${asset.model}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                         StatusChip.assetLifecycle(asset.lifecycleStatus),
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text('Serie: ${asset.serialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
+                    Text(
+                      'Serie: ${asset.serialNumber}',
+                      style: const TextStyle(color: AppColors.inkSecondary),
+                    ),
                     if (asset.currentClientLocationName != null)
                       Text(
                         '${asset.currentClientLocationName}${asset.cityName != null ? ' — ${asset.cityName}' : ''}',
                         style: const TextStyle(color: AppColors.inkSecondary),
                       ),
                     if (asset.area != null)
-                      Text('Área: ${asset.area}', style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
+                      Text(
+                        'Área: ${asset.area}',
+                        style: const TextStyle(
+                          color: AppColors.inkSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
                     if (asset.lastMeterReading != null)
                       Text(
                         'Último contador: ${asset.lastMeterReading}',
-                        style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)
-                            .merge(AppTextStyles.tabularNumber),
+                        style: const TextStyle(
+                          color: AppColors.inkSecondary,
+                          fontSize: 12,
+                        ).merge(AppTextStyles.tabularNumber),
                       ),
                   ],
                 ),

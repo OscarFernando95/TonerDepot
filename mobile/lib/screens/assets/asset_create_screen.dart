@@ -54,7 +54,9 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
     } catch (e) {
       setState(() {
         _loadingBrands = false;
-        _loadError = e is ApiException ? e.message : 'No se pudieron cargar las marcas.';
+        _loadError = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar las marcas.';
       });
     }
   }
@@ -68,7 +70,8 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
     });
     if (brandId == null) return;
     try {
-      final models = await AssetModelApi(ApiClient.instance).listForBrand(brandId);
+      final models = await AssetModelApi(ApiClient.instance)
+          .listForBrand(brandId);
       setState(() {
         _models = models;
         _loadingModels = false;
@@ -77,13 +80,20 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
       setState(() => _loadingModels = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is ApiException ? e.message : 'No se pudieron cargar los modelos.')),
+          SnackBar(
+            content: Text(
+              e is ApiException
+                  ? e.message
+                  : 'No se pudieron cargar los modelos.',
+            ),
+          ),
         );
       }
     }
   }
 
-  bool get _isValid => _selectedModelId != null && _serialController.text.trim().isNotEmpty;
+  bool get _isValid =>
+      _selectedModelId != null && _serialController.text.trim().isNotEmpty;
 
   Future<void> _submit() async {
     if (!_isValid) return;
@@ -98,7 +108,11 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is ApiException ? e.message : 'No se pudo crear el activo.')),
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'No se pudo crear el activo.',
+            ),
+          ),
         );
       }
     } finally {
@@ -113,54 +127,83 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
       body: _loadingBrands
           ? const Center(child: CircularProgressIndicator())
           : _loadError != null
-              ? Center(child: Text(_loadError!, style: const TextStyle(color: AppColors.signalRed)))
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedBrandId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Marca *'),
-                      items: [for (final b in _brands) DropdownMenuItem(value: b.id, child: Text(b.name))],
-                      onChanged: _onBrandChanged,
-                    ),
-                    const SizedBox(height: 12),
-                    if (_loadingModels)
-                      const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: LinearProgressIndicator())
-                    else
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedModelId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Modelo *'),
-                        items: [for (final m in _models) DropdownMenuItem(value: m.id, child: Text(m.name))],
-                        onChanged: _selectedBrandId == null ? null : (value) => setState(() => _selectedModelId = value),
-                      ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _serialController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(labelText: 'Número de serie *'),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _type,
-                      decoration: const InputDecoration(labelText: 'Tipo'),
-                      items: [for (final t in _types) DropdownMenuItem(value: t, child: Text(t))],
-                      onChanged: (value) => setState(() => _type = value ?? 'Impresora'),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: FilledButton(
-                        onPressed: _isValid && !_submitting ? _submit : null,
-                        child: _submitting
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Crear activo', style: TextStyle(fontWeight: FontWeight.w700)),
-                      ),
-                    ),
+          ? Center(
+              child: Text(
+                _loadError!,
+                style: const TextStyle(color: AppColors.signalRed),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedBrandId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Marca *'),
+                  items: [
+                    for (final b in _brands)
+                      DropdownMenuItem(value: b.id, child: Text(b.name)),
                   ],
+                  onChanged: _onBrandChanged,
                 ),
+                const SizedBox(height: 12),
+                if (_loadingModels)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: LinearProgressIndicator(),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedModelId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Modelo *'),
+                    items: [
+                      for (final m in _models)
+                        DropdownMenuItem(value: m.id, child: Text(m.name)),
+                    ],
+                    onChanged: _selectedBrandId == null
+                        ? null
+                        : (value) => setState(() => _selectedModelId = value),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _serialController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Número de serie *',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _type,
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                  items: [
+                    for (final t in _types)
+                      DropdownMenuItem(value: t, child: Text(t)),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _type = value ?? 'Impresora'),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: _isValid && !_submitting ? _submit : null,
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Crear activo',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

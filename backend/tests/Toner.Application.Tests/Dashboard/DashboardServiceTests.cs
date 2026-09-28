@@ -12,7 +12,7 @@ public class DashboardServiceTests
     // Caché NUEVA por invocación: si los tests compartieran una, el resultado de uno se filtraría al
     // siguiente y estarían midiendo la caché en vez de la lógica del dashboard.
     private static DashboardService BuildService(Infrastructure.Persistence.TonerDbContext db) =>
-        new(db, TestCache.New(), TestCache.StaffTenant());
+        new(db, TestCache.New(), TestCache.StaffTenant(), TestCalendar.For(db));
 
     [Fact]
     public async Task GetSummaryAsync_NoData_ReturnsNullAveragesNotZeroOrException()
@@ -71,6 +71,8 @@ public class DashboardServiceTests
         var user = TestEntities.User(role);
         var city = TestEntities.City();
         var client = TestEntities.Client();
+        // 24/7: el SLA cuenta horas corridas, así el resultado no depende de la hora en que corra el test.
+        client.SupportCoverage = SupportCoverage.Continuo24x7;
         var location = TestEntities.ClientLocation(client, city);
 
         var now = DateTime.UtcNow;
@@ -161,7 +163,7 @@ public class DashboardServiceTests
     }
 
     [Fact]
-    public async Task GetSummaryAsync_ComputesTechnicianUtilizationAsPercentageOfAssumedCapacity()
+    public async Task GetSummaryAsync_ComputesTechnicianUtilizationAsPercentageOfScheduledHours()
     {
         var dbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(dbName);
@@ -183,11 +185,56 @@ public class DashboardServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = BuildService(actDb);
 
-        // Periodo de 10 días -> base asumida de 80h; 4h registradas -> 5% de utilización.
+        // La base ya no es un 8 h/día supuesto sino las horas laborales reales del técnico en el período
+        // (horario por defecto lun-vie, sin festivos de Colombia). Se calcula con el mismo calendario para
+        // que el test no dependa del día en que corra.
         var result = await service.GetSummaryAsync(10);
+
+        var calendar = await TestCalendar.For(actDb).LoadAsync(new[] { technician.Id }, now.AddDays(-10), now.AddMinutes(1));
+        var scheduledHours = calendar.BusinessHours(technician.Id, SupportCoverage.HorarioOficina, now.AddDays(-10), now);
+        Assert.InRange(scheduledHours, 40, 80); // 10 días corridos = 6-8 días hábiles menos festivos posibles
 
         var row = Assert.Single(result.TechnicianUtilization);
         Assert.Equal(4.0, row.HoursLogged);
-        Assert.Equal(5.0, row.UtilizationPercentage);
+        Assert.Equal(Math.Round(4.0 / scheduledHours * 100, 1), row.UtilizationPercentage, 1);
+    }
+
+    [Fact]
+    public async Task GetSummaryAsync_ClienteDeOficina_ElSlaNoCuentaLasHorasDeUnSabado()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var user = TestEntities.User(role);
+        var city = TestEntities.City();
+        var officeClient = TestEntities.Client("Oficina");
+        var officeLocation = TestEntities.ClientLocation(officeClient, city);
+        var alwaysClient = TestEntities.Client("24x7");
+        alwaysClient.SupportCoverage = SupportCoverage.Continuo24x7;
+        var alwaysLocation = TestEntities.ClientLocation(alwaysClient, city);
+
+        // Último sábado 10:00 (hora de Bogotá): 6 h corridas contra una meta Crítica de 4 h, pero un
+        // sábado no es horario laboral, así que para el cliente de oficina consumen 0 horas de SLA.
+        var bogota = TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, bogota);
+        var daysBack = ((int)localNow.DayOfWeek - (int)DayOfWeek.Saturday + 7) % 7 + 7; // sábado de hace 7-13 días
+        var saturday = TimeZoneInfo.ConvertTimeToUtc(localNow.Date.AddDays(-daysBack).AddHours(10), bogota);
+
+        var office = TestEntities.ServiceTicket(officeLocation, user, ServiceTicketStatus.Cerrado, ServiceTicketPriority.Critica);
+        office.CreatedAt = saturday;
+        office.ResolvedAt = saturday.AddHours(6);
+        var always = TestEntities.ServiceTicket(alwaysLocation, user, ServiceTicketStatus.Cerrado, ServiceTicketPriority.Critica);
+        always.CreatedAt = saturday;
+        always.ResolvedAt = saturday.AddHours(6);
+
+        arrangeDb.AddRange(role, user, city, officeClient, officeLocation, alwaysClient, alwaysLocation, office, always);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var result = await BuildService(actDb).GetSummaryAsync(30);
+
+        var critical = Assert.Single(result.SlaCompliance.ByPriority, p => p.Priority == nameof(ServiceTicketPriority.Critica));
+        Assert.Equal(2, critical.ResolvedCount);
+        Assert.Equal(1, critical.WithinSlaCount); // solo el de oficina: 0 h hábiles <= 4 h; el 24/7 usó 6 h corridas
     }
 }

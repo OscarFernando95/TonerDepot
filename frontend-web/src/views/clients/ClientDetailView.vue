@@ -3,10 +3,12 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
+import { getCurrentPosition } from '../../composables/useGeolocation'
+import LocationPickerDialog from '../../components/LocationPickerDialog.vue'
 import * as clientsApi from '../../api/clients'
 import * as locationsApi from '../../api/clientLocations'
 import * as citiesApi from '../../api/cities'
-import type { CityDto, ClientDto, ClientLocationDto } from '../../api/types'
+import type { CityDto, ClientDto, ClientLocationDto, SupportCoverage } from '../../api/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,7 +25,8 @@ const clientForm = reactive({
   contactName: '',
   contactEmail: '',
   contactPhone: '',
-  isContractClient: true
+  isContractClient: true,
+  supportCoverage: 'HorarioOficina' as SupportCoverage
 })
 const savingClient = ref(false)
 
@@ -35,8 +38,40 @@ const locationForm = reactive({
   name: '',
   address: '',
   contactName: '',
-  contactPhone: ''
+  contactPhone: '',
+  latitude: undefined as number | undefined,
+  longitude: undefined as number | undefined
 })
+const locatingSite = ref(false)
+const pickerRef = ref<InstanceType<typeof LocationPickerDialog> | null>(null)
+
+// Elegir la sede en un mapa (con búsqueda de dirección); parte de las coordenadas actuales o de la dirección escrita.
+async function pickOnMap() {
+  const chosen = await pickerRef.value?.pick(
+    { lat: locationForm.latitude, lng: locationForm.longitude },
+    [locationForm.address, cities.value.find((c) => c.id === locationForm.cityId)?.name].filter(Boolean).join(', ')
+  )
+  if (chosen) {
+    locationForm.latitude = chosen.lat
+    locationForm.longitude = chosen.lng
+  }
+}
+
+// Llena las coordenadas con la ubicación actual del navegador (útil si quien edita está en la sede).
+async function useMyLocation() {
+  locatingSite.value = true
+  try {
+    const position = await getCurrentPosition()
+    if (!position) {
+      ElMessage.warning('No se pudo obtener la ubicación. Revisa el permiso del navegador.')
+      return
+    }
+    locationForm.latitude = Number(position.latitude.toFixed(6))
+    locationForm.longitude = Number(position.longitude.toFixed(6))
+  } finally {
+    locatingSite.value = false
+  }
+}
 
 // Cascada Departamento→Ciudad: departmentName es local al formulario, no se manda al backend.
 const departmentName = ref('')
@@ -73,6 +108,7 @@ function syncClientForm() {
   clientForm.contactEmail = client.value.contactEmail ?? ''
   clientForm.contactPhone = client.value.contactPhone ?? ''
   clientForm.isContractClient = client.value.isContractClient
+  clientForm.supportCoverage = client.value.supportCoverage
 }
 
 async function saveClient() {
@@ -84,7 +120,8 @@ async function saveClient() {
       contactName: clientForm.contactName || null,
       contactEmail: clientForm.contactEmail || null,
       contactPhone: clientForm.contactPhone || null,
-      isContractClient: clientForm.isContractClient
+      isContractClient: clientForm.isContractClient,
+      supportCoverage: clientForm.supportCoverage
     })
     client.value = data
     ElMessage.success('Cliente actualizado.')
@@ -114,6 +151,8 @@ function openCreateLocationDialog() {
   locationForm.address = ''
   locationForm.contactName = ''
   locationForm.contactPhone = ''
+  locationForm.latitude = undefined
+  locationForm.longitude = undefined
   locationDialogVisible.value = true
 }
 
@@ -131,6 +170,8 @@ async function openEditLocationDialog(location: ClientLocationDto) {
   locationForm.address = location.address
   locationForm.contactName = location.contactName ?? ''
   locationForm.contactPhone = location.contactPhone ?? ''
+  locationForm.latitude = location.latitude ?? undefined
+  locationForm.longitude = location.longitude ?? undefined
   locationDialogVisible.value = true
 }
 
@@ -141,7 +182,9 @@ async function saveLocation() {
     name: locationForm.name,
     address: locationForm.address,
     contactName: locationForm.contactName || null,
-    contactPhone: locationForm.contactPhone || null
+    contactPhone: locationForm.contactPhone || null,
+    latitude: locationForm.latitude ?? null,
+    longitude: locationForm.longitude ?? null
   }
   try {
     if (editingLocationId.value) {
@@ -208,6 +251,19 @@ onMounted(loadAll)
           <el-form-item>
             <el-checkbox v-model="clientForm.isContractClient">Cliente con contrato</el-checkbox>
           </el-form-item>
+          <el-form-item label="Cobertura de soporte">
+            <el-radio-group v-model="clientForm.supportCoverage">
+              <el-radio-button value="HorarioOficina">Horario de oficina</el-radio-button>
+              <el-radio-button value="Continuo24x7">24/7</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <p class="contract-hint">
+            {{
+              clientForm.supportCoverage === 'Continuo24x7'
+                ? 'El SLA cuenta horas corridas y se le puede asignar un técnico a cualquier hora (menos si está fuera de la oficina).'
+                : 'El SLA cuenta solo horas hábiles (horario del técnico, sin festivos ni permisos) y solo se le asignan técnicos en horario.'
+            }}
+          </p>
         </el-form>
         <div class="section-actions">
           <el-button @click="toggleClientStatus">
@@ -229,6 +285,12 @@ onMounted(loadAll)
           <el-table-column prop="name" label="Nombre" />
           <el-table-column prop="cityName" label="Ciudad" width="140" />
           <el-table-column prop="address" label="Dirección" />
+          <el-table-column label="Coordenadas" width="170">
+            <template #default="{ row }">
+              <span v-if="row.latitude != null && row.longitude != null">{{ row.latitude.toFixed(5) }}, {{ row.longitude.toFixed(5) }}</span>
+              <span v-else class="muted">Sin coordenadas</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="contactName" label="Contacto" />
           <el-table-column prop="contactPhone" label="Teléfono" width="140" />
           <el-table-column label="Estado" width="110">
@@ -280,12 +342,22 @@ onMounted(loadAll)
         <el-form-item label="Teléfono">
           <el-input v-model="locationForm.contactPhone" />
         </el-form-item>
+        <el-form-item label="Coordenadas de la sede (opcional)">
+          <div class="coords-row">
+            <el-input-number v-model="locationForm.latitude" :min="-90" :max="90" :precision="6" :controls="false" placeholder="Latitud" />
+            <el-input-number v-model="locationForm.longitude" :min="-180" :max="180" :precision="6" :controls="false" placeholder="Longitud" />
+            <el-button type="primary" plain @click="pickOnMap">Elegir en el mapa</el-button>
+            <el-button :loading="locatingSite" @click="useMyLocation">Usar mi ubicación</el-button>
+          </div>
+          <p class="coords-hint">Con ellas se verifica que el técnico llegó al hacer check-in. Van juntas: latitud y longitud.</p>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="locationDialogVisible = false">Cancelar</el-button>
         <el-button type="primary" :loading="savingLocation" @click="saveLocation">Guardar</el-button>
       </template>
     </el-dialog>
+    <LocationPickerDialog ref="pickerRef" />
   </div>
 </template>
 
@@ -317,5 +389,25 @@ onMounted(loadAll)
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+.contract-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+.coords-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.coords-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 0.8rem;
+  margin: 0.25rem 0 0;
+}
+
+.muted {
+  color: #9ca3af;
 }
 </style>

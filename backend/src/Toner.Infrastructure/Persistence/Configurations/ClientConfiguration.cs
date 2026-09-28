@@ -1,3 +1,4 @@
+using Toner.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Toner.Domain.Entities;
@@ -17,5 +18,6 @@ public class ClientConfiguration : IEntityTypeConfiguration<Client>
         builder.Property(c => c.ContactEmail).HasMaxLength(256);
         builder.Property(c => c.ContactPhone).HasMaxLength(50);
         builder.Property(c => c.IsContractClient).HasDefaultValue(true);
+        builder.Property(c => c.SupportCoverage).HasConversion<string>().HasMaxLength(20).HasDefaultValue(SupportCoverage.HorarioOficina);
     }
 }

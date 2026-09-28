@@ -20,6 +20,8 @@ public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
         builder.HasIndex(t => t.ClientId);
 
         builder.Property(l => l.Notes).HasMaxLength(1000);
+        builder.Property(l => l.CheckInLocationStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(l => l.CheckOutLocationStatus).HasConversion<string>().HasMaxLength(20);
 
         // CODE_QUALITY_AUDIT.md hallazgo #11: el dashboard filtra por rango de StartTime; "TimeLog
         // abierto" (TechnicianCheckInService, AssetService.ListPendingInstallationsAsync) busca por

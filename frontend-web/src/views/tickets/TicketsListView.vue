@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import * as clientsApi from '../../api/clients'
 import * as clientLocationsApi from '../../api/clientLocations'
 import * as assetsApi from '../../api/assets'
@@ -175,6 +176,9 @@ function goToDetail(ticket: ServiceTicketDto) {
 }
 
 onMounted(loadTickets)
+
+// Se actualiza sola cuando algo cambia un ticket (asignación, check-in/out, cierre) — en cualquier pestaña o dispositivo.
+useRealtimeUpdates(['Ticket'], () => loadTickets())
 </script>
 
 <template>

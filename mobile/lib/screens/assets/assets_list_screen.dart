@@ -26,90 +26,112 @@ class AssetsListScreen extends StatelessWidget {
       // build() de este StatelessWidget es su ancestro, no su descendiente.
       child: Builder(
         builder: (context) => Scaffold(
-        backgroundColor: Colors.transparent,
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () async {
-            final created = await context.push<bool>('/assets/new');
-            if (created == true && context.mounted) {
-              context.read<AssetsListState>().load();
-            }
-          },
-          icon: const Icon(Icons.add),
-          label: const Text('Activo'),
-        ),
-        body: Consumer<AssetsListState>(
-          builder: (context, state, _) {
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ChoiceChip(label: const Text('Todos'), selected: state.statusFilter == null, onSelected: (_) => state.setFilter(null)),
-                        for (final status in StatusLabels.assetLifecycle.keys)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: ChoiceChip(
-                              label: Text(StatusLabels.assetLifecycle[status]!),
-                              selected: state.statusFilter == status,
-                              onSelected: (_) => state.setFilter(status),
-                            ),
+          backgroundColor: Colors.transparent,
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () async {
+              final created = await context.push<bool>('/assets/new');
+              if (created == true && context.mounted) {
+                context.read<AssetsListState>().load();
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Activo'),
+          ),
+          body: Consumer<AssetsListState>(
+            builder: (context, state, _) {
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ChoiceChip(
+                            label: const Text('Todos'),
+                            selected: state.statusFilter == null,
+                            onSelected: (_) => state.setFilter(null),
                           ),
-                      ],
+                          for (final status in StatusLabels.assetLifecycle.keys)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: ChoiceChip(
+                                label: Text(
+                                  StatusLabels.assetLifecycle[status]!,
+                                ),
+                                selected: state.statusFilter == status,
+                                onSelected: (_) => state.setFilter(status),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Builder(
-                    builder: (context) {
-                      if (state.loading && state.assets.isEmpty) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (state.error != null && state.assets.isEmpty) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+                  Expanded(
+                    child: Builder(
+                      builder: (context) {
+                        if (state.loading && state.assets.isEmpty) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (state.error != null && state.assets.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                state.error!,
+                                style: const TextStyle(
+                                  color: AppColors.signalRed,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          );
+                        }
+                        final assets = state.filtered;
+                        if (assets.isEmpty) {
+                          return const PlaceholderScreen(
+                            title: 'Sin activos',
+                            message:
+                                'No hay activos que coincidan con el filtro.',
+                          );
+                        }
+                        return RefreshIndicator(
+                          onRefresh: state.load,
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              if (notification.metrics.pixels >=
+                                  notification.metrics.maxScrollExtent - 200) {
+                                state.loadMore();
+                              }
+                              return false;
+                            },
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              itemCount:
+                                  assets.length + (state.hasMore ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (index >= assets.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                }
+                                return _AssetItem(asset: assets[index]);
+                              },
+                            ),
                           ),
                         );
-                      }
-                      final assets = state.filtered;
-                      if (assets.isEmpty) {
-                        return const PlaceholderScreen(title: 'Sin activos', message: 'No hay activos que coincidan con el filtro.');
-                      }
-                      return RefreshIndicator(
-                        onRefresh: state.load,
-                        child: NotificationListener<ScrollNotification>(
-                          onNotification: (notification) {
-                            if (notification.metrics.pixels >= notification.metrics.maxScrollExtent - 200) {
-                              state.loadMore();
-                            }
-                            return false;
-                          },
-                          child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                            itemCount: assets.length + (state.hasMore ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (index >= assets.length) {
-                                return const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: Center(child: CircularProgressIndicator()),
-                                );
-                              }
-                              return _AssetItem(asset: assets[index]);
-                            },
-                          ),
-                        ),
-                      );
-                    },
+                      },
+                    ),
                   ),
-                ),
-              ],
-            );
-          },
-        ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -130,16 +152,30 @@ class _AssetItem extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('${asset.assetBrandName} ${asset.model}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+              Expanded(
+                child: Text(
+                  '${asset.assetBrandName} ${asset.model}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
               StatusChip.assetLifecycle(asset.lifecycleStatus),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Serie: ${asset.serialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
+          Text(
+            'Serie: ${asset.serialNumber}',
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
           if (asset.currentClientName != null)
             Text(
               '${asset.currentClientName}${asset.currentClientLocationName != null ? ' — ${asset.currentClientLocationName}' : ''}',
-              style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+              style: const TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
+              ),
             ),
         ],
       ),

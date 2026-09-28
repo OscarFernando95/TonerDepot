@@ -11,10 +11,19 @@ class UserApi {
   UserApi(this._client);
   final ApiClient _client;
 
-  Future<PagedResult<ManagedUser>> list({required int page, int pageSize = 50}) async {
+  Future<PagedResult<ManagedUser>> list({
+    required int page,
+    int pageSize = 50,
+  }) async {
     try {
-      final response = await _client.dio.get('/users', queryParameters: {'page': page, 'pageSize': pageSize});
-      return PagedResult<ManagedUser>.fromJson(response.data as Map<String, dynamic>, ManagedUser.fromJson);
+      final response = await _client.dio.get(
+        '/users',
+        queryParameters: {'page': page, 'pageSize': pageSize},
+      );
+      return PagedResult<ManagedUser>.fromJson(
+        response.data as Map<String, dynamic>,
+        ManagedUser.fromJson,
+      );
     } catch (e, st) {
       debugPrint('UserApi.list failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -37,17 +46,22 @@ class UserApi {
     String? clientId,
   }) async {
     try {
-      final response = await _client.dio.post('/users', data: {
-        'cedula': cedula,
-        'email': ?email,
-        'fullName': fullName,
-        'phone': phone,
-        'address': address,
-        'cityId': cityId,
-        'roleName': roleName,
-        'clientId': ?clientId,
-      });
-      return UserWithGeneratedPassword.fromJson(response.data as Map<String, dynamic>);
+      final response = await _client.dio.post(
+        '/users',
+        data: {
+          'cedula': cedula,
+          'email': ?email,
+          'fullName': fullName,
+          'phone': phone,
+          'address': address,
+          'cityId': cityId,
+          'roleName': roleName,
+          'clientId': ?clientId,
+        },
+      );
+      return UserWithGeneratedPassword.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } catch (e, st) {
       debugPrint('UserApi.create failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -67,14 +81,17 @@ class UserApi {
     required String cityId,
   }) async {
     try {
-      final response = await _client.dio.patch('/users/$id', data: {
-        'cedula': cedula,
-        'email': ?email,
-        'fullName': fullName,
-        'phone': phone,
-        'address': address,
-        'cityId': cityId,
-      });
+      final response = await _client.dio.patch(
+        '/users/$id',
+        data: {
+          'cedula': cedula,
+          'email': ?email,
+          'fullName': fullName,
+          'phone': phone,
+          'address': address,
+          'cityId': cityId,
+        },
+      );
       return ManagedUser.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('UserApi.update failed: $e\n$st');
@@ -82,9 +99,23 @@ class UserApi {
     }
   }
 
+  /// Cierra todas las sesiones vivas del usuario (Administrador). Devuelve cuántas cerró.
+  Future<int> revokeSessions(String id) async {
+    try {
+      final response = await _client.dio.post('/users/$id/sessions/revoke');
+      return (response.data as Map<String, dynamic>)['revoked'] as int;
+    } catch (e, st) {
+      debugPrint('UserApi.revokeSessions failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
   Future<ManagedUser> setStatus(String id, bool isActive) async {
     try {
-      final response = await _client.dio.patch('/users/$id/status', data: {'isActive': isActive});
+      final response = await _client.dio.patch(
+        '/users/$id/status',
+        data: {'isActive': isActive},
+      );
       return ManagedUser.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('UserApi.setStatus failed: $e\n$st');
@@ -97,7 +128,9 @@ class UserApi {
   Future<UserWithGeneratedPassword> resetPassword(String id) async {
     try {
       final response = await _client.dio.post('/users/$id/reset-password');
-      return UserWithGeneratedPassword.fromJson(response.data as Map<String, dynamic>);
+      return UserWithGeneratedPassword.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } catch (e, st) {
       debugPrint('UserApi.resetPassword failed: $e\n$st');
       throw ApiClient.translate(e);

@@ -36,21 +36,21 @@ class ManagedUser {
   });
 
   factory ManagedUser.fromJson(Map<String, dynamic> json) => ManagedUser(
-        id: json['id'] as String,
-        cedula: json['cedula'] as String,
-        email: json['email'] as String?,
-        fullName: json['fullName'] as String,
-        phone: json['phone'] as String?,
-        address: json['address'] as String?,
-        cityId: json['cityId'] as String?,
-        cityName: json['cityName'] as String?,
-        roleName: json['roleName'] as String,
-        isActive: json['isActive'] as bool? ?? true,
-        mustChangePassword: json['mustChangePassword'] as bool? ?? false,
-        clientId: json['clientId'] as String?,
-        technicianId: json['technicianId'] as String?,
-        createdAt: json['createdAt'] as String,
-      );
+    id: json['id'] as String,
+    cedula: json['cedula'] as String,
+    email: json['email'] as String?,
+    fullName: json['fullName'] as String,
+    phone: json['phone'] as String?,
+    address: json['address'] as String?,
+    cityId: json['cityId'] as String?,
+    cityName: json['cityName'] as String?,
+    roleName: json['roleName'] as String,
+    isActive: json['isActive'] as bool? ?? true,
+    mustChangePassword: json['mustChangePassword'] as bool? ?? false,
+    clientId: json['clientId'] as String?,
+    technicianId: json['technicianId'] as String?,
+    createdAt: json['createdAt'] as String,
+  );
 }
 
 /// Respuesta de crear usuario y de resetear contraseña — la única vez que la
@@ -60,9 +60,13 @@ class UserWithGeneratedPassword {
   final ManagedUser user;
   final String generatedPassword;
 
-  UserWithGeneratedPassword({required this.user, required this.generatedPassword});
+  UserWithGeneratedPassword({
+    required this.user,
+    required this.generatedPassword,
+  });
 
-  factory UserWithGeneratedPassword.fromJson(Map<String, dynamic> json) => UserWithGeneratedPassword(
+  factory UserWithGeneratedPassword.fromJson(Map<String, dynamic> json) =>
+      UserWithGeneratedPassword(
         user: ManagedUser.fromJson(json),
         generatedPassword: json['generatedPassword'] as String,
       );

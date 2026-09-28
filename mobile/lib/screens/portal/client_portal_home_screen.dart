@@ -18,10 +18,14 @@ class ClientPortalHomeScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text('Hola,', style: const TextStyle(color: AppColors.inkSecondary, fontSize: 14)),
+        Text(
+          'Hola,',
+          style: const TextStyle(color: AppColors.inkSecondary, fontSize: 14),
+        ),
         Text(
           auth.currentUser?.fullName ?? '',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 24),
         _ShortcutCard(
@@ -50,7 +54,12 @@ class ClientPortalHomeScreen extends StatelessWidget {
 }
 
 class _ShortcutCard extends StatelessWidget {
-  const _ShortcutCard({required this.icon, required this.title, required this.subtitle, required this.onTap});
+  const _ShortcutCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String title;
@@ -66,7 +75,10 @@ class _ShortcutCard extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.signalBlueWash),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.signalBlueWash,
+            ),
             child: Icon(icon, color: AppColors.signalBlue),
           ),
           const SizedBox(width: 16),
@@ -74,9 +86,21 @@ class _ShortcutCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.inkSecondary,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),

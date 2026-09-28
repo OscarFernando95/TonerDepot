@@ -26,9 +26,15 @@ class HomeScreen extends StatelessWidget {
     // cuando el check-in abierto es del propio técnico (ver AssetService.
     // ListPendingInstallationsAsync) — por eso ya excluye la que uno mismo
     // tiene activa sin lógica extra aquí.
-    final pendingTickets = work.tickets.where((t) => t.status == 'Asignado').length;
-    final pendingOrders = work.orders.where((o) => o.status == 'Asignada').length;
-    final pendingInstallations = work.pendingInstallations.where((i) => !i.takenByAnotherTechnician).length;
+    final pendingTickets = work.tickets
+        .where((t) => t.status == 'Asignado')
+        .length;
+    final pendingOrders = work.orders
+        .where((o) => o.status == 'Asignada')
+        .length;
+    final pendingInstallations = work.pendingInstallations
+        .where((i) => !i.takenByAnotherTechnician)
+        .length;
     final pendingCount = pendingTickets + pendingOrders + pendingInstallations;
     final hasPending = pendingCount > 0;
     final inProgress = work.isBusy;
@@ -38,64 +44,96 @@ class HomeScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('Hola,', style: TextStyle(color: AppColors.inkSecondary, fontSize: 14)),
+          Text(
+            'Hola,',
+            style: TextStyle(color: AppColors.inkSecondary, fontSize: 14),
+          ),
           Text(
             auth.currentUser?.fullName ?? '',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
             (auth.currentUser?.role ?? '').toUpperCase(),
-            style: const TextStyle(color: AppColors.inkSecondary, letterSpacing: 1, fontSize: 12),
+            style: const TextStyle(
+              color: AppColors.inkSecondary,
+              letterSpacing: 1,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 24),
           ClaySurface(
             child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (hasPending)
+                      const _StatusDot(
+                        color: AppColors.signalAmber,
+                        blink: true,
+                      )
+                    else
+                      Container(
+                        width: 12,
+                        height: 12,
+                        color: AppColors.neutral,
+                      ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        hasPending
+                            ? 'Tienes trabajo asignado sin iniciar'
+                            : 'No tienes trabajo pendiente por ahora',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                if (inProgress) ...[
+                  const SizedBox(height: 12),
+                  const Divider(height: 1, color: AppColors.neutralSoft),
+                  const SizedBox(height: 12),
+                  const Row(
                     children: [
-                      if (hasPending)
-                        const _StatusDot(color: AppColors.signalAmber, blink: true)
-                      else
-                        Container(width: 12, height: 12, color: AppColors.neutral),
-                      const SizedBox(width: 12),
+                      _StatusDot(
+                        color: AppColors.signalBlueBright,
+                        blink: false,
+                      ),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          hasPending ? 'Tienes trabajo asignado sin iniciar' : 'No tienes trabajo pendiente por ahora',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          'Tienes una visita en curso sin cerrar',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.signalBlueBright,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  if (inProgress) ...[
-                    const SizedBox(height: 12),
-                    const Divider(height: 1, color: AppColors.neutralSoft),
-                    const SizedBox(height: 12),
-                    const Row(
-                      children: [
-                        _StatusDot(color: AppColors.signalBlueBright, blink: false),
-                        SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Tienes una visita en curso sin cerrar',
-                            style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.signalBlueBright),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
-              ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _StatTile(label: 'Tickets', value: pendingTickets)),
+              Expanded(
+                child: _StatTile(label: 'Tickets', value: pendingTickets),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _StatTile(label: 'Órdenes', value: pendingOrders)),
+              Expanded(
+                child: _StatTile(label: 'Órdenes', value: pendingOrders),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _StatTile(label: 'Instalaciones', value: pendingInstallations)),
+              Expanded(
+                child: _StatTile(
+                  label: 'Instalaciones',
+                  value: pendingInstallations,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 28),
@@ -134,13 +172,18 @@ class _StatTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: const TextStyle(color: AppColors.inkSecondary, fontSize: 10, letterSpacing: 0.5)),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              color: AppColors.inkSecondary,
+              fontSize: 10,
+              letterSpacing: 0.5,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(
             '$value',
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
+            style: Theme.of(context).textTheme.headlineSmall
                 ?.copyWith(fontWeight: FontWeight.bold)
                 .merge(AppTextStyles.tabularNumber),
           ),
@@ -166,13 +209,17 @@ class _StatusDot extends StatefulWidget {
   State<_StatusDot> createState() => _StatusDotState();
 }
 
-class _StatusDotState extends State<_StatusDot> with SingleTickerProviderStateMixin {
+class _StatusDotState extends State<_StatusDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
     if (widget.blink) {
       _controller.repeat(reverse: true);
     } else {
@@ -200,7 +247,11 @@ class _StatusDotState extends State<_StatusDot> with SingleTickerProviderStateMi
           decoration: BoxDecoration(
             color: widget.color.withValues(alpha: t),
             boxShadow: [
-              BoxShadow(color: widget.color.withValues(alpha: t * 0.85), blurRadius: 10 * t, spreadRadius: 2 * t),
+              BoxShadow(
+                color: widget.color.withValues(alpha: t * 0.85),
+                blurRadius: 10 * t,
+                spreadRadius: 2 * t,
+              ),
             ],
           ),
         );

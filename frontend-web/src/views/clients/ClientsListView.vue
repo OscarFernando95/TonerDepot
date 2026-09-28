@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as clientsApi from '../../api/clients'
-import type { ClientDto } from '../../api/types'
+import { SupportCoverageLabels, type ClientDto, type SupportCoverage } from '../../api/types'
 import CreateClientDialog from '../../components/CreateClientDialog.vue'
 
 const router = useRouter()
@@ -83,6 +83,13 @@ onMounted(loadClients)
         <template #default="{ row }">
           <el-tag :type="row.isContractClient ? 'primary' : 'warning'" size="small" effect="plain">
             {{ row.isContractClient ? 'Contrato' : 'Externo' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="supportCoverage" label="Soporte" width="140" sortable>
+        <template #default="{ row }">
+          <el-tag :type="row.supportCoverage === 'Continuo24x7' ? 'success' : 'info'" size="small" effect="plain">
+            {{ SupportCoverageLabels[row.supportCoverage as SupportCoverage] }}
           </el-tag>
         </template>
       </el-table-column>

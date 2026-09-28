@@ -29,7 +29,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
         var changedBy = Guid.NewGuid();
 
         var result = await service.AddAsync(
@@ -70,7 +70,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => service.AddAsync(
             contract.Id,
@@ -98,7 +98,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
 
         await Assert.ThrowsAsync<ConflictException>(() => service.AddAsync(
             contract.Id,
@@ -129,7 +129,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => service.AddAsync(
             newContract.Id,
@@ -156,7 +156,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
 
         var result = (await service.ListByContractAsync(contract.Id, null, null)).Items;
 
@@ -183,7 +183,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
 
         var result = (await service.ListByContractAsync(contract.Id, null, null)).Items;
 
@@ -211,7 +211,7 @@ public class ContractAssetServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), new AssignmentEngine(actDb)));
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
 
         var result = (await service.ListByContractAsync(contract.Id, null, null)).Items;
 

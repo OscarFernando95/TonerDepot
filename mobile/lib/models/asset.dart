@@ -50,21 +50,21 @@ class Asset {
   };
 
   factory Asset.fromJson(Map<String, dynamic> json) => Asset(
-        id: json['id'] as String,
-        assetModelId: json['assetModelId'] as String,
-        assetBrandName: json['assetBrandName'] as String,
-        model: json['model'] as String,
-        serialNumber: json['serialNumber'] as String,
-        type: json['type'] as String,
-        lifecycleStatus: json['lifecycleStatus'] as String,
-        area: json['area'] as String?,
-        currentClientLocationId: json['currentClientLocationId'] as String?,
-        currentClientLocationName: json['currentClientLocationName'] as String?,
-        currentClientId: json['currentClientId'] as String?,
-        currentClientName: json['currentClientName'] as String?,
-        cityName: json['cityName'] as String?,
-        lastMeterReading: json['lastMeterReading'] as int?,
-        activeContractId: json['activeContractId'] as String?,
-        createdAt: json['createdAt'] as String,
-      );
+    id: json['id'] as String,
+    assetModelId: json['assetModelId'] as String,
+    assetBrandName: json['assetBrandName'] as String,
+    model: json['model'] as String,
+    serialNumber: json['serialNumber'] as String,
+    type: json['type'] as String,
+    lifecycleStatus: json['lifecycleStatus'] as String,
+    area: json['area'] as String?,
+    currentClientLocationId: json['currentClientLocationId'] as String?,
+    currentClientLocationName: json['currentClientLocationName'] as String?,
+    currentClientId: json['currentClientId'] as String?,
+    currentClientName: json['currentClientName'] as String?,
+    cityName: json['cityName'] as String?,
+    lastMeterReading: json['lastMeterReading'] as int?,
+    activeContractId: json['activeContractId'] as String?,
+    createdAt: json['createdAt'] as String,
+  );
 }

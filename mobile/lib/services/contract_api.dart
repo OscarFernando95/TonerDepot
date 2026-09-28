@@ -15,7 +15,10 @@ class ContractApi {
   Future<List<Contract>> listMine() async {
     try {
       final response = await _client.dio.get('/contracts');
-      final page = PagedResult<Contract>.fromJson(response.data as Map<String, dynamic>, Contract.fromJson);
+      final page = PagedResult<Contract>.fromJson(
+        response.data as Map<String, dynamic>,
+        Contract.fromJson,
+      );
       return page.items;
     } catch (e, st) {
       debugPrint('ContractApi.listMine failed: $e\n$st');
@@ -23,10 +26,19 @@ class ContractApi {
     }
   }
 
-  Future<PagedResult<Contract>> listCatalog({required int page, int pageSize = 50}) async {
+  Future<PagedResult<Contract>> listCatalog({
+    required int page,
+    int pageSize = 50,
+  }) async {
     try {
-      final response = await _client.dio.get('/contracts', queryParameters: {'page': page, 'pageSize': pageSize});
-      return PagedResult<Contract>.fromJson(response.data as Map<String, dynamic>, Contract.fromJson);
+      final response = await _client.dio.get(
+        '/contracts',
+        queryParameters: {'page': page, 'pageSize': pageSize},
+      );
+      return PagedResult<Contract>.fromJson(
+        response.data as Map<String, dynamic>,
+        Contract.fromJson,
+      );
     } catch (e, st) {
       debugPrint('ContractApi.listCatalog failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -54,14 +66,17 @@ class ContractApi {
     String? notes,
   }) async {
     try {
-      final response = await _client.dio.post('/contracts', data: {
-        'clientId': clientId,
-        'startDate': startDate,
-        'endDate': ?endDate,
-        'includedPrintsPerMonth': ?includedPrintsPerMonth,
-        'pricePerExtraPage': ?pricePerExtraPage,
-        'notes': ?notes,
-      });
+      final response = await _client.dio.post(
+        '/contracts',
+        data: {
+          'clientId': clientId,
+          'startDate': startDate,
+          'endDate': ?endDate,
+          'includedPrintsPerMonth': ?includedPrintsPerMonth,
+          'pricePerExtraPage': ?pricePerExtraPage,
+          'notes': ?notes,
+        },
+      );
       return Contract.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ContractApi.create failed: $e\n$st');
@@ -78,13 +93,16 @@ class ContractApi {
     String? notes,
   }) async {
     try {
-      final response = await _client.dio.put('/contracts/$id', data: {
-        'startDate': startDate,
-        'endDate': ?endDate,
-        'includedPrintsPerMonth': ?includedPrintsPerMonth,
-        'pricePerExtraPage': ?pricePerExtraPage,
-        'notes': ?notes,
-      });
+      final response = await _client.dio.put(
+        '/contracts/$id',
+        data: {
+          'startDate': startDate,
+          'endDate': ?endDate,
+          'includedPrintsPerMonth': ?includedPrintsPerMonth,
+          'pricePerExtraPage': ?pricePerExtraPage,
+          'notes': ?notes,
+        },
+      );
       return Contract.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ContractApi.update failed: $e\n$st');
@@ -96,7 +114,10 @@ class ContractApi {
   /// valor del enum sin importar el estado actual.
   Future<Contract> setStatus(String id, String status) async {
     try {
-      final response = await _client.dio.patch('/contracts/$id/status', data: {'status': status});
+      final response = await _client.dio.patch(
+        '/contracts/$id/status',
+        data: {'status': status},
+      );
       return Contract.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('ContractApi.setStatus failed: $e\n$st');

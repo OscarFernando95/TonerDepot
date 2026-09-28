@@ -1,3 +1,7 @@
+using Toner.Application.Geo;
+using Toner.Application.Evidences;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Assets;
 using Toner.Application.Assets.Dtos;
@@ -21,6 +25,9 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     private readonly IAssetService _assetService;
     private readonly IMaintenanceScheduleEngine _scheduleEngine;
     private readonly IAssignmentEngine _assignmentEngine;
+    private readonly GeoOptions _geo;
+    private readonly EvidenceOptions _evidence;
+    private readonly ILogger<TechnicianCheckInService> _logger;
 
     public TechnicianCheckInService(
         IApplicationDbContext db,
@@ -28,8 +35,14 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         IMaintenanceOrderService orderService,
         IAssetService assetService,
         IMaintenanceScheduleEngine scheduleEngine,
-        IAssignmentEngine assignmentEngine)
+        IAssignmentEngine assignmentEngine,
+        IOptions<GeoOptions> geo,
+        IOptions<EvidenceOptions> evidence,
+        ILogger<TechnicianCheckInService> logger)
     {
+        _geo = geo.Value;
+        _evidence = evidence.Value;
+        _logger = logger;
         _db = db;
         _ticketService = ticketService;
         _orderService = orderService;
@@ -123,6 +136,25 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             }
         }
 
+        // Foto "antes" y ubicación. Se validan ANTES de mutar nada (misma regla que el resto del servicio).
+        var isVisit = request.ServiceTicketId.HasValue || request.MaintenanceOrderId.HasValue;
+        Evidence? beforePhoto = null;
+        if (isVisit && (request.BeforeEvidenceId.HasValue || _evidence.RequirePhotos))
+        {
+            beforePhoto = await RequireEvidenceAsync(
+                request.BeforeEvidenceId, EvidenceKind.Antes, request.ServiceTicketId, request.MaintenanceOrderId,
+                technician.UserId, "la foto de la falla o del estado del equipo (antes)", cancellationToken);
+        }
+
+        var (siteLat, siteLon) = await GetSiteCoordinatesAsync(request.ServiceTicketId, request.MaintenanceOrderId, request.AssetId, cancellationToken);
+        var checkInLocation = LocationEvaluator.Evaluate(siteLat, siteLon, request.Latitude, request.Longitude, _geo.SiteRadiusMeters);
+        if (checkInLocation.Status == LocationStatus.FueraDeSitio)
+        {
+            _logger.LogWarning(
+                "Check-in fuera de sitio: técnico {TechnicianId} a {Distance} m de la sede (radio {Radius} m)",
+                technicianId, checkInLocation.DistanceMeters, _geo.SiteRadiusMeters);
+        }
+
         technician.Status = TechnicianStatus.Ocupado;
         _db.TechnicianAvailabilities.Add(new TechnicianAvailability
         {
@@ -144,15 +176,25 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                     ? await GetAssetClientIdAsync(request.AssetId.Value, cancellationToken)
                     : null;
 
-        _db.TimeLogs.Add(new TimeLog
+        var timeLog = new TimeLog
         {
             TechnicianId = technicianId,
             ClientId = timeLogClientId,
             ServiceTicketId = request.ServiceTicketId,
             MaintenanceOrderId = request.MaintenanceOrderId,
             AssetId = request.AssetId,
-            StartTime = DateTime.UtcNow
-        });
+            StartTime = DateTime.UtcNow,
+            CheckInLatitude = request.Latitude,
+            CheckInLongitude = request.Longitude,
+            CheckInAccuracyMeters = request.AccuracyMeters,
+            CheckInDistanceMeters = checkInLocation.DistanceMeters,
+            CheckInLocationStatus = checkInLocation.Status
+        };
+        _db.TimeLogs.Add(timeLog);
+        if (beforePhoto is not null)
+        {
+            beforePhoto.TimeLogId = timeLog.Id;
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -237,8 +279,36 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 assetForCounterCheck.Value, request.InitialCounterDate ?? DateTime.UtcNow, cancellationToken);
         }
 
+        // Foto "después": obligatoria al resolver un ticket u orden. Se valida antes de mutar nada.
+        var isVisitCheckout = openLog.ServiceTicketId.HasValue || openLog.MaintenanceOrderId.HasValue;
+        Evidence? afterPhoto = null;
+        if (isVisitCheckout && ((request.Resolved && _evidence.RequirePhotos) || request.AfterEvidenceId.HasValue))
+        {
+            afterPhoto = await RequireEvidenceAsync(
+                request.AfterEvidenceId, EvidenceKind.Despues, openLog.ServiceTicketId, openLog.MaintenanceOrderId,
+                technician.UserId, "la foto del resultado (después)", cancellationToken);
+        }
+
+        var (siteLat, siteLon) = await GetSiteCoordinatesAsync(openLog.ServiceTicketId, openLog.MaintenanceOrderId, openLog.AssetId, cancellationToken);
+        var checkOutLocation = LocationEvaluator.Evaluate(siteLat, siteLon, request.Latitude, request.Longitude, _geo.SiteRadiusMeters);
+        if (checkOutLocation.Status == LocationStatus.FueraDeSitio)
+        {
+            _logger.LogWarning(
+                "Check-out fuera de sitio: técnico {TechnicianId} a {Distance} m de la sede (radio {Radius} m)",
+                technicianId, checkOutLocation.DistanceMeters, _geo.SiteRadiusMeters);
+        }
+
         openLog.EndTime = DateTime.UtcNow;
         openLog.Notes = request.Notes?.Trim();
+        openLog.CheckOutLatitude = request.Latitude;
+        openLog.CheckOutLongitude = request.Longitude;
+        openLog.CheckOutAccuracyMeters = request.AccuracyMeters;
+        openLog.CheckOutDistanceMeters = checkOutLocation.DistanceMeters;
+        openLog.CheckOutLocationStatus = checkOutLocation.Status;
+        if (afterPhoto is not null)
+        {
+            afterPhoto.TimeLogId = openLog.Id;
+        }
 
         technician.Status = TechnicianStatus.Disponible;
         _db.TechnicianAvailabilities.Add(new TechnicianAvailability
@@ -361,6 +431,64 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     // origen es siempre el activo, del que solo se tiene el id — de ahí esta consulta puntual por PK.
     // Devuelve null si el activo está en bodega: esa fila no pertenece a ningún cliente y la política
     // RLS no se la muestra a nadie (fail-closed).
+    // Coordenadas de la sede de la visita: la del ticket, o la sede actual del activo (órdenes e instalaciones).
+    private async Task<(double? Latitude, double? Longitude)> GetSiteCoordinatesAsync(
+        Guid? serviceTicketId, Guid? maintenanceOrderId, Guid? assetId, CancellationToken cancellationToken)
+    {
+        if (serviceTicketId.HasValue)
+        {
+            var site = await _db.ServiceTickets.Where(t => t.Id == serviceTicketId.Value)
+                .Select(t => new { t.ClientLocation.Latitude, t.ClientLocation.Longitude }).FirstOrDefaultAsync(cancellationToken);
+            return (site?.Latitude, site?.Longitude);
+        }
+
+        var resolvedAssetId = assetId;
+        if (maintenanceOrderId.HasValue)
+        {
+            resolvedAssetId = await _db.MaintenanceOrders.Where(o => o.Id == maintenanceOrderId.Value)
+                .Select(o => (Guid?)o.AssetId).FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (!resolvedAssetId.HasValue)
+        {
+            return (null, null);
+        }
+
+        var assetSite = await _db.Assets.Where(a => a.Id == resolvedAssetId.Value && a.CurrentClientLocation != null)
+            .Select(a => new { a.CurrentClientLocation!.Latitude, a.CurrentClientLocation.Longitude }).FirstOrDefaultAsync(cancellationToken);
+        return (assetSite?.Latitude, assetSite?.Longitude);
+    }
+
+    // La foto debe existir, ser de este técnico, del tipo esperado, del mismo ticket/orden y no estar ya
+    // atada a otro check-in/out (una foto no se reutiliza).
+    private async Task<Evidence> RequireEvidenceAsync(
+        Guid? evidenceId, EvidenceKind kind, Guid? serviceTicketId, Guid? maintenanceOrderId, Guid uploaderUserId,
+        string description, CancellationToken cancellationToken)
+    {
+        if (!evidenceId.HasValue)
+        {
+            throw new ConflictException($"Debes tomar {description} antes de continuar.");
+        }
+
+        var evidence = await _db.Evidences.FirstOrDefaultAsync(e => e.Id == evidenceId.Value, cancellationToken)
+            ?? throw new ConflictException($"No se encontró {description}. Vuelve a tomarla.");
+
+        if (evidence.UploadedByUserId != uploaderUserId
+            || evidence.Kind != kind
+            || evidence.ServiceTicketId != serviceTicketId
+            || evidence.MaintenanceOrderId != maintenanceOrderId)
+        {
+            throw new ConflictException($"La foto enviada no corresponde a {description} de esta visita.");
+        }
+
+        if (evidence.TimeLogId.HasValue)
+        {
+            throw new ConflictException("Esa foto ya se usó en otra visita. Toma una nueva.");
+        }
+
+        return evidence;
+    }
+
     private Task<Guid?> GetAssetClientIdAsync(Guid assetId, CancellationToken cancellationToken) =>
         _db.Assets.Where(a => a.Id == assetId).Select(a => a.ClientId).FirstOrDefaultAsync(cancellationToken);
 

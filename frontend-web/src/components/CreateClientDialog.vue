@@ -2,8 +2,9 @@
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as clientsApi from '../api/clients'
+import LocationPickerDialog from './LocationPickerDialog.vue'
 import * as citiesApi from '../api/cities'
-import type { CityDto, ClientDto } from '../api/types'
+import type { CityDto, ClientDto, SupportCoverage } from '../api/types'
 
 const emit = defineEmits<{ created: [client: ClientDto] }>()
 
@@ -17,7 +18,8 @@ const clientForm = reactive({
   contactName: '',
   contactEmail: '',
   contactPhone: '',
-  isContractClient: true
+  isContractClient: true,
+  supportCoverage: 'HorarioOficina' as SupportCoverage
 })
 
 const multipleLocations = ref(false)
@@ -29,10 +31,26 @@ interface LocationSubForm {
   address: string
   contactName: string
   contactPhone: string
+  latitude: number | null
+  longitude: number | null
 }
 
 function emptyLocation(): LocationSubForm {
-  return { departmentName: '', cityId: '', name: '', address: '', contactName: '', contactPhone: '' }
+  return { departmentName: '', cityId: '', name: '', address: '', contactName: '', contactPhone: '', latitude: null, longitude: null }
+}
+
+const pickerRef = ref<InstanceType<typeof LocationPickerDialog> | null>(null)
+
+// Elegir la sede en un mapa (con búsqueda de dirección); parte de la dirección y ciudad ya escritas.
+async function pickOnMap(loc: LocationSubForm) {
+  const chosen = await pickerRef.value?.pick(
+    { lat: loc.latitude, lng: loc.longitude },
+    [loc.address, cities.value.find((c) => c.id === loc.cityId)?.name].filter(Boolean).join(', ')
+  )
+  if (chosen) {
+    loc.latitude = chosen.lat
+    loc.longitude = chosen.lng
+  }
 }
 
 const locationForms = ref<LocationSubForm[]>([emptyLocation()])
@@ -75,7 +93,7 @@ function removeLocation(index: number) {
 }
 
 async function open() {
-  Object.assign(clientForm, { name: '', taxId: '', contactName: '', contactEmail: '', contactPhone: '', isContractClient: true })
+  Object.assign(clientForm, { name: '', taxId: '', contactName: '', contactEmail: '', contactPhone: '', isContractClient: true, supportCoverage: 'HorarioOficina' })
   multipleLocations.value = false
   locationForms.value = [emptyLocation()]
   // La sede principal se sobreentiende: no se le pregunta nombre ni contacto propio (el del cliente ya
@@ -102,12 +120,15 @@ async function handleSave() {
       contactEmail: clientForm.contactEmail || null,
       contactPhone: clientForm.contactPhone || null,
       isContractClient: clientForm.isContractClient,
+      supportCoverage: clientForm.supportCoverage,
       locations: locationForms.value.map((l) => ({
         cityId: l.cityId,
         name: l.name,
         address: l.address,
         contactName: l.contactName || null,
-        contactPhone: l.contactPhone || null
+        contactPhone: l.contactPhone || null,
+        latitude: l.latitude,
+        longitude: l.longitude
       }))
     })
     ElMessage.success('Cliente creado.')
@@ -141,6 +162,12 @@ async function handleSave() {
       </el-form-item>
       <el-form-item>
         <el-checkbox v-model="clientForm.isContractClient">Cliente con contrato</el-checkbox>
+      </el-form-item>
+      <el-form-item label="Cobertura de soporte">
+        <el-radio-group v-model="clientForm.supportCoverage">
+          <el-radio-button value="HorarioOficina">Horario de oficina</el-radio-button>
+          <el-radio-button value="Continuo24x7">24/7</el-radio-button>
+        </el-radio-group>
       </el-form-item>
       <p class="contract-hint">
         {{
@@ -181,6 +208,10 @@ async function handleSave() {
       <el-form-item label="Dirección">
         <el-input v-model="locationForms[0].address" />
       </el-form-item>
+      <el-form-item label="Ubicación en el mapa (opcional)">
+        <el-button type="primary" plain @click="pickOnMap(locationForms[0])">Elegir en el mapa</el-button>
+        <span v-if="locationForms[0].latitude != null" class="coords-set">{{ locationForms[0].latitude }}, {{ locationForms[0].longitude }}</span>
+      </el-form-item>
 
       <el-checkbox v-model="multipleLocations" class="more-locations">Cliente con más de una sede</el-checkbox>
 
@@ -219,6 +250,10 @@ async function handleSave() {
         <el-form-item label="Dirección">
           <el-input v-model="loc.address" />
         </el-form-item>
+        <el-form-item label="Ubicación en el mapa (opcional)">
+          <el-button type="primary" plain @click="pickOnMap(loc)">Elegir en el mapa</el-button>
+          <span v-if="loc.latitude != null" class="coords-set">{{ loc.latitude }}, {{ loc.longitude }}</span>
+        </el-form-item>
         <el-form-item label="Contacto (opcional)">
           <el-input v-model="loc.contactName" />
         </el-form-item>
@@ -234,6 +269,8 @@ async function handleSave() {
       <el-button type="primary" :loading="saving" @click="handleSave">Guardar</el-button>
     </template>
   </el-dialog>
+
+  <LocationPickerDialog ref="pickerRef" />
 </template>
 
 <style scoped>
@@ -256,5 +293,10 @@ async function handleSave() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.coords-set {
+  margin-left: 0.75rem;
+  color: var(--el-text-color-secondary);
+  font-size: 0.85rem;
 }
 </style>

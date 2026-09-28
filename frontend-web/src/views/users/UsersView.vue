@@ -145,6 +145,16 @@ async function toggleStatus(user: UserDto) {
   await loadData()
 }
 
+async function revokeSessions(user: UserDto) {
+  await ElMessageBox.confirm(
+    `¿Cerrar todas las sesiones activas de ${user.fullName}? Tendrá que iniciar sesión de nuevo.`,
+    'Confirmar',
+    { type: 'warning' }
+  )
+  const { data } = await usersApi.revokeUserSessions(user.id)
+  ElMessage.success(data.revoked > 0 ? `Se cerraron ${data.revoked} sesión(es).` : 'El usuario no tenía sesiones activas.')
+}
+
 async function resetPassword(user: UserDto) {
   await ElMessageBox.confirm(
     `¿Restablecer la contraseña de ${user.fullName} a una nueva generada?`,
@@ -185,6 +195,7 @@ onMounted(loadData)
               {{ row.isActive ? 'Desactivar' : 'Activar' }}
             </el-button>
             <el-button link @click="resetPassword(row)">Restablecer contraseña</el-button>
+            <el-button link @click="revokeSessions(row)">Cerrar sesiones</el-button>
             <el-button link @click="openEditDialog(row)">Editar</el-button>
           </div>
         </template>

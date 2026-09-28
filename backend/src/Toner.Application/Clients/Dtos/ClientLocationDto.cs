@@ -11,6 +11,9 @@ public class ClientLocationDto
     public string Address { get; set; } = string.Empty;
     public string? ContactName { get; set; }
     public string? ContactPhone { get; set; }
+    // Coordenadas WGS84 de la sede (opcionales, ambas o ninguna): con ellas se verifica que el técnico llegó.
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
 }

@@ -13,6 +13,10 @@ public class EvidenceConfiguration : IEntityTypeConfiguration<Evidence>
             "CK_Evidences_ExactlyOneTarget",
             "(\"ServiceTicketId\" IS NOT NULL) <> (\"MaintenanceOrderId\" IS NOT NULL)"));
 
+        builder.Property(e => e.Kind).HasConversion<string>().HasMaxLength(20);
+        builder.HasIndex(e => e.ClientId);
+        builder.HasIndex(e => e.TimeLogId);
+
         builder.Property(e => e.FileUrl).IsRequired().HasMaxLength(1000);
         builder.Property(e => e.FileName).IsRequired().HasMaxLength(300);
         builder.Property(e => e.ContentType).IsRequired().HasMaxLength(100);

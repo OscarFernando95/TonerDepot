@@ -58,6 +58,46 @@ Toner/
 
    Swagger queda disponible en `https://localhost:<puerto>/swagger` en entorno de desarrollo.
 
+## Tiempo real (SignalR)
+
+La web y la app se actualizan solas cuando algo cambia (se asigna un ticket, un técnico hace check-in, se sube una
+foto, etc.) — sin recargar. El servidor avisa por WebSocket (`/hubs/updates`) solo el identificador y la acción
+(`{entity, id, action}`); quien recibe el aviso vuelve a pedir el recurso por la API de siempre, con su
+autorización de siempre. El aviso nunca lleva datos, así que no hay nada que un destinatario equivocado pueda leer.
+
+- **A quién le llega cada cambio:** el staff (Administrador/Coordinador) recibe todo; un técnico solo lo suyo
+  (tickets/órdenes que tiene asignados); un cliente solo lo de su empresa. Ver `RealtimeAudience.GroupsFor` en
+  `Toner.Api/Hubs/SignalRRealtimeNotifier.cs`.
+- **Quién publica:** `RealtimeChangeInterceptor` (un `SaveChangesInterceptor` de EF Core) — captura qué cambió antes
+  de guardar y publica después de que el guardado se confirmó, para cualquier camino de escritura (endpoints, jobs
+  de Hangfire, el motor de asignación) sin que cada servicio tenga que acordarse de avisar.
+- **Sesión revocada:** logout, cierre por administrador, cambio de contraseña o desactivación cortan también el
+  canal en vivo (evento `sessionRevoked`), no solo la próxima llamada REST.
+- **Ojo con la URL:** `VITE_API_URL` (web) y `AppConfig.defaultBaseUrl` (app) terminan en `/api` — el hub vive en
+  la raíz del sitio (`/hubs/updates`), no bajo `/api`. Los dos composables/servicios ya le quitan el sufijo.
+
+## Evidencia fotográfica y geolocalización
+
+Las fotos de evidencia (antes / después de cada visita) se guardan en **Azure Blob Storage** — en desarrollo, en
+**Azurite** (ya está en el `docker-compose.yml`, puerto 10000). El contenedor es privado: las fotos se sirven por
+`GET /api/evidence/{id}/content`, autenticado, no por URL directa.
+
+| Configuración | Dónde | Notas |
+|---|---|---|
+| `EvidenceStorage:ConnectionString` | `appsettings.Development.json` (no versionado) o variable `EvidenceStorage__ConnectionString` | En desarrollo: `UseDevelopmentStorage=true`. **La app no arranca sin ella.** |
+| `EvidenceStorage:ContainerName` | `appsettings.json` | `evidence` |
+| `Evidence:RequirePhotos` | `appsettings.json` | `true`: el check-in exige la foto "antes" y el check-out que resuelve, la "después" (tickets y órdenes). |
+| `Geo:SiteRadiusMeters` | `appsettings.json` | 250 m. Radio para marcar "en sitio" / "fuera de sitio". Solo se registra y se alerta; nunca bloquea. |
+
+Las coordenadas de cada sede se cargan en el detalle del cliente (web y app). Sin coordenadas, el check-in queda como
+"sede sin coordenadas".
+
+Las coordenadas se eligen **en un mapa** (botón "Elegir en el mapa", con búsqueda de dirección), o se escriben a mano, o se
+toman de la ubicación actual. El mapa usa **OpenStreetMap** (teselas) y **Nominatim** (búsqueda): no requieren clave ni
+cuenta, pero su política de uso es de volumen bajo. Si el uso crece, conviene cambiar a un proveedor comercial
+(MapTiler, Mapbox, Google…): solo hay que cambiar la URL de teselas y el endpoint de búsqueda en
+`LocationPickerDialog.vue` (web) y `location_picker_screen.dart` (app).
+
 ## Connection strings
 
 Definidas en `backend/src/Toner.Api/appsettings.Development.json`, apuntan al Postgres del `docker-compose.yml`. Son **dos**, con roles distintos:

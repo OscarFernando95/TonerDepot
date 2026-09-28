@@ -22,7 +22,10 @@ class TicketCreateSheet extends StatefulWidget {
       isScrollControlled: true,
       backgroundColor: AppColors.claySurface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
       ),
       builder: (_) => const TicketCreateSheet(),
     );
@@ -45,8 +48,9 @@ class _TicketCreateSheetState extends State<TicketCreateSheet> {
   String? _selectedAssetId;
   String _priority = 'Media';
 
-  List<Asset> get _assetsAtSelectedLocation =>
-      _assets.where((a) => a.currentClientLocationId == _selectedLocationId).toList();
+  List<Asset> get _assetsAtSelectedLocation => _assets
+      .where((a) => a.currentClientLocationId == _selectedLocationId)
+      .toList();
 
   @override
   void initState() {
@@ -83,13 +87,18 @@ class _TicketCreateSheetState extends State<TicketCreateSheet> {
     } catch (e) {
       setState(() {
         _loadingOptions = false;
-        _loadError = e is ApiException ? e.message : 'No se pudieron cargar tus sedes.';
+        _loadError = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar tus sedes.';
       });
     }
   }
 
   Future<void> _submit() async {
-    if (_selectedLocationId == null || _descriptionController.text.trim().isEmpty) return;
+    if (_selectedLocationId == null ||
+        _descriptionController.text.trim().isEmpty) {
+      return;
+    }
     setState(() => _submitting = true);
     try {
       await TicketApi(ApiClient.instance).create(
@@ -102,7 +111,11 @@ class _TicketCreateSheetState extends State<TicketCreateSheet> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e is ApiException ? e.message : 'No se pudo reportar el ticket.')),
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'No se pudo reportar el ticket.',
+            ),
+          ),
         );
       }
     } finally {
@@ -117,93 +130,128 @@ class _TicketCreateSheetState extends State<TicketCreateSheet> {
         left: 20,
         right: 20,
         top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 20,
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
+            MediaQuery.of(context).padding.bottom +
+            20,
       ),
       child: _loadingOptions
-          ? const SizedBox(height: 160, child: Center(child: CircularProgressIndicator()))
+          ? const SizedBox(
+              height: 160,
+              child: Center(child: CircularProgressIndicator()),
+            )
           : _loadError != null
-              ? SizedBox(
-                  height: 160,
-                  child: Center(
-                    child: Text(_loadError!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
-                  ),
-                )
-              : SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Reportar ticket', style: Theme.of(context).textTheme.titleLarge),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedLocationId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Sede *'),
-                        items: [
-                          for (final location in _locations)
-                            DropdownMenuItem(
-                              value: location.id,
-                              child: Text('${location.name} — ${location.cityName}', overflow: TextOverflow.ellipsis),
-                            ),
-                        ],
-                        onChanged: (value) => setState(() {
-                          _selectedLocationId = value;
-                          _selectedAssetId = null;
-                        }),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String?>(
-                        initialValue: _selectedAssetId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Equipo (opcional)'),
-                        items: [
-                          const DropdownMenuItem(value: null, child: Text('Equipo no catalogado / otro')),
-                          for (final asset in _assetsAtSelectedLocation)
-                            DropdownMenuItem(
-                              value: asset.id,
-                              child: Text(
-                                '${asset.assetBrandName} ${asset.model} — ${asset.serialNumber}',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: _selectedLocationId == null ? null : (value) => setState(() => _selectedAssetId = value),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _descriptionController,
-                        minLines: 3,
-                        maxLines: 6,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(labelText: 'Descripción del problema *'),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _priority,
-                        decoration: const InputDecoration(labelText: 'Prioridad'),
-                        items: [
-                          for (final p in _priorities) DropdownMenuItem(value: p, child: Text(p)),
-                        ],
-                        onChanged: (value) => setState(() => _priority = value ?? 'Media'),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: FilledButton(
-                          onPressed: _selectedLocationId != null &&
-                                  _descriptionController.text.trim().isNotEmpty &&
-                                  !_submitting
-                              ? _submit
-                              : null,
-                          child: _submitting
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                              : const Text('Reportar', style: TextStyle(fontWeight: FontWeight.w700)),
-                        ),
-                      ),
-                    ],
-                  ),
+          ? SizedBox(
+              height: 160,
+              child: Center(
+                child: Text(
+                  _loadError!,
+                  style: const TextStyle(color: AppColors.signalRed),
+                  textAlign: TextAlign.center,
                 ),
+              ),
+            )
+          : SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Reportar ticket',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedLocationId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Sede *'),
+                    items: [
+                      for (final location in _locations)
+                        DropdownMenuItem(
+                          value: location.id,
+                          child: Text(
+                            '${location.name} — ${location.cityName}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) => setState(() {
+                      _selectedLocationId = value;
+                      _selectedAssetId = null;
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _selectedAssetId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Equipo (opcional)',
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Equipo no catalogado / otro'),
+                      ),
+                      for (final asset in _assetsAtSelectedLocation)
+                        DropdownMenuItem(
+                          value: asset.id,
+                          child: Text(
+                            '${asset.assetBrandName} ${asset.model} — ${asset.serialNumber}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: _selectedLocationId == null
+                        ? null
+                        : (value) => setState(() => _selectedAssetId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _descriptionController,
+                    minLines: 3,
+                    maxLines: 6,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Descripción del problema *',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _priority,
+                    decoration: const InputDecoration(labelText: 'Prioridad'),
+                    items: [
+                      for (final p in _priorities)
+                        DropdownMenuItem(value: p, child: Text(p)),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _priority = value ?? 'Media'),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton(
+                      onPressed:
+                          _selectedLocationId != null &&
+                              _descriptionController.text.trim().isNotEmpty &&
+                              !_submitting
+                          ? _submit
+                          : null,
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Reportar',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }

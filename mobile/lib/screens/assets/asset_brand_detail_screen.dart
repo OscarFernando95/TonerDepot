@@ -8,7 +8,11 @@ import '../../theme/app_theme.dart';
 import '../../widgets/clay_surface.dart';
 
 class AssetBrandDetailScreen extends StatelessWidget {
-  const AssetBrandDetailScreen({super.key, required this.brandId, this.brandName});
+  const AssetBrandDetailScreen({
+    super.key,
+    required this.brandId,
+    this.brandName,
+  });
 
   final String brandId;
   final String? brandName;
@@ -28,13 +32,27 @@ class AssetBrandDetailScreen extends StatelessWidget {
 class _BrandDetailBody extends StatelessWidget {
   const _BrandDetailBody();
 
-  Future<void> _showModelDialog(BuildContext context, AssetBrandDetailState state, {AssetModel? existing}) async {
+  Future<void> _showModelDialog(
+    BuildContext context,
+    AssetBrandDetailState state, {
+    AssetModel? existing,
+  }) async {
     final nameController = TextEditingController(text: existing?.name ?? '');
-    final generalPrintController = TextEditingController(text: existing?.generalPrintThreshold.toString() ?? '');
-    final generalMonthsController = TextEditingController(text: existing?.generalMonthsInterval.toString() ?? '');
-    final unitsPrintController = TextEditingController(text: existing?.unitsPrintThreshold.toString() ?? '');
-    final unitsMonthsController = TextEditingController(text: existing?.unitsMonthsInterval.toString() ?? '');
-    final consumablesController = TextEditingController(text: existing?.consumablesPrintThreshold.toString() ?? '');
+    final generalPrintController = TextEditingController(
+      text: existing?.generalPrintThreshold.toString() ?? '',
+    );
+    final generalMonthsController = TextEditingController(
+      text: existing?.generalMonthsInterval.toString() ?? '',
+    );
+    final unitsPrintController = TextEditingController(
+      text: existing?.unitsPrintThreshold.toString() ?? '',
+    );
+    final unitsMonthsController = TextEditingController(
+      text: existing?.unitsMonthsInterval.toString() ?? '',
+    );
+    final consumablesController = TextEditingController(
+      text: existing?.consumablesPrintThreshold.toString() ?? '',
+    );
 
     bool isValid() =>
         nameController.text.trim().isNotEmpty &&
@@ -55,50 +73,69 @@ class _BrandDetailBody extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: nameController, onChanged: (_) => setDialogState(() {}), decoration: const InputDecoration(labelText: 'Nombre *')),
+                  TextField(
+                    controller: nameController,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(labelText: 'Nombre *'),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: generalPrintController,
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(labelText: 'Umbral mantenimiento general (impresiones) *'),
+                    decoration: const InputDecoration(
+                      labelText: 'Umbral mantenimiento general (impresiones) *',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: generalMonthsController,
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(labelText: 'Intervalo mantenimiento general (meses) *'),
+                    decoration: const InputDecoration(
+                      labelText: 'Intervalo mantenimiento general (meses) *',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: unitsPrintController,
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(labelText: 'Umbral unidades (impresiones) *'),
+                    decoration: const InputDecoration(
+                      labelText: 'Umbral unidades (impresiones) *',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: unitsMonthsController,
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(labelText: 'Intervalo unidades (meses) *'),
+                    decoration: const InputDecoration(
+                      labelText: 'Intervalo unidades (meses) *',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: consumablesController,
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(labelText: 'Umbral insumos (impresiones) *'),
+                    decoration: const InputDecoration(
+                      labelText: 'Umbral insumos (impresiones) *',
+                    ),
                   ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
-              onPressed: isValid() ? () => Navigator.of(dialogContext).pop(true) : null,
+              onPressed: isValid()
+                  ? () => Navigator.of(dialogContext).pop(true)
+                  : null,
               child: const Text('Guardar'),
             ),
           ],
@@ -134,7 +171,8 @@ class _BrandDetailBody extends StatelessWidget {
               consumablesPrintThreshold: params.consumablesPrintThreshold,
             );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Modelo guardado.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error ?? 'Modelo guardado.')));
       }
     }
   }
@@ -150,7 +188,11 @@ class _BrandDetailBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -160,14 +202,21 @@ class _BrandDetailBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               FilledButton.icon(
-                onPressed: state.busyWithAction ? null : () => _showModelDialog(context, state),
+                onPressed: state.busyWithAction
+                    ? null
+                    : () => _showModelDialog(context, state),
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Agregar modelo'),
               ),
               const SizedBox(height: 16),
               Expanded(
                 child: state.models.isEmpty
-                    ? const Center(child: Text('Sin modelos registrados.', style: TextStyle(color: AppColors.inkSecondary)))
+                    ? const Center(
+                        child: Text(
+                          'Sin modelos registrados.',
+                          style: TextStyle(color: AppColors.inkSecondary),
+                        ),
+                      )
                     : ListView.builder(
                         itemCount: state.models.length,
                         itemBuilder: (context, index) {
@@ -175,23 +224,44 @@ class _BrandDetailBody extends StatelessWidget {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: ClayCard(
-                              onTap: state.busyWithAction ? null : () => _showModelDialog(context, state, existing: model),
+                              onTap: state.busyWithAction
+                                  ? null
+                                  : () => _showModelDialog(
+                                      context,
+                                      state,
+                                      existing: model,
+                                    ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(model.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                  Text(
+                                    model.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
                                   const SizedBox(height: 4),
                                   Text(
                                     'General: ${model.generalPrintThreshold} impr. / ${model.generalMonthsInterval} meses',
-                                    style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: AppColors.inkSecondary,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                   Text(
                                     'Unidades: ${model.unitsPrintThreshold} impr. / ${model.unitsMonthsInterval} meses',
-                                    style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: AppColors.inkSecondary,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                   Text(
                                     'Insumos: ${model.consumablesPrintThreshold} impr.',
-                                    style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: AppColors.inkSecondary,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
                               ),

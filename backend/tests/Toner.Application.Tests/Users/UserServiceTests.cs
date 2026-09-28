@@ -14,7 +14,7 @@ namespace Toner.Application.Tests.Users;
 public class UserServiceTests
 {
     private static UserService BuildService(Infrastructure.Persistence.TonerDbContext db, FakeBackgroundJobScheduler? jobScheduler = null) =>
-        new(db, new BCryptPasswordHasher(), jobScheduler ?? new FakeBackgroundJobScheduler(), NullLogger<UserService>.Instance);
+        new(db, new BCryptPasswordHasher(), jobScheduler ?? new FakeBackgroundJobScheduler(), NullLogger<UserService>.Instance, TestSessions.Create(db));
 
     // La contraseña real que cumpla ChangePasswordRequestValidator (no una copia paralela de sus
     // reglas): si el generador y el validador se desincronizan, este assert falla.

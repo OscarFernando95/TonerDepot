@@ -15,5 +15,10 @@ class RoleNames {
   static const staffRoles = [administrador, coordinador];
   static const staffAndClientRoles = [administrador, coordinador, cliente];
   static const staffAndTechnicianRoles = [administrador, coordinador, tecnico];
-  static const staffClientAndTechnicianRoles = [administrador, coordinador, cliente, tecnico];
+  static const staffClientAndTechnicianRoles = [
+    administrador,
+    coordinador,
+    cliente,
+    tecnico,
+  ];
 }

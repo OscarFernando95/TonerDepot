@@ -20,4 +20,6 @@ public class Technician : BaseEntity
     public ICollection<ServiceTicket> AssignedTickets { get; set; } = new List<ServiceTicket>();
     public ICollection<MaintenanceOrder> AssignedMaintenanceOrders { get; set; } = new List<MaintenanceOrder>();
     public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
+    public ICollection<TechnicianWorkInterval> WorkIntervals { get; set; } = new List<TechnicianWorkInterval>();
+    public ICollection<TechnicianTimeOff> TimeOffs { get; set; } = new List<TechnicianTimeOff>();
 }

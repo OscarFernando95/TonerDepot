@@ -24,7 +24,9 @@ class TicketsListState extends ChangeNotifier {
       tickets = await _api.listMine();
     } catch (e, st) {
       debugPrint('TicketsListState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los tickets.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los tickets.';
     } finally {
       loading = false;
       notifyListeners();

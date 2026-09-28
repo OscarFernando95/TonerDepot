@@ -10,6 +10,8 @@ public class CreateClientRequest
 
     // true (default): cliente con contrato de alquiler. false: cliente externo — ver Client.IsContractClient.
     public bool IsContractClient { get; set; } = true;
+    // "HorarioOficina" (default) | "Continuo24x7": cómo se cuenta su SLA y a quién se le puede asignar.
+    public string SupportCoverage { get; set; } = "HorarioOficina";
 
     // Al menos una sede es obligatoria: garantiza que todo cliente nace con dónde prestarle servicio,
     // en vez de depender de que alguien se acuerde de agregarla después.

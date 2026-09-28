@@ -8,6 +8,8 @@ export const http = axios.create({
 })
 
 http.interceptors.request.use((config) => {
+  // Informativo para la auditoría y el mensaje de sesión única (nunca una decisión de seguridad).
+  config.headers['X-Client-Type'] = 'web'
   const auth = useAuthStore()
   if (auth.token) {
     config.headers.Authorization = `Bearer ${auth.token}`

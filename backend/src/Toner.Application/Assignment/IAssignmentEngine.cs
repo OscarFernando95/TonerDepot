@@ -21,8 +21,9 @@ namespace Toner.Application.Assignment;
 public interface IAssignmentEngine
 {
     // Devuelve el TechnicianId asignado, o null si no había ningún candidato (el ticket queda "Sin asignar").
-    Task<Guid?> AssignServiceTicketAsync(ServiceTicket ticket, CancellationToken cancellationToken = default);
+    // recordUnassignedAttempt = false lo usa el job de reintento para no llenar el historial con un intento fallido cada pocos minutos.
+    Task<Guid?> AssignServiceTicketAsync(ServiceTicket ticket, CancellationToken cancellationToken = default, bool recordUnassignedAttempt = true);
 
     // Devuelve el TechnicianId asignado, o null si no había ningún candidato (la orden queda sin asignar).
-    Task<Guid?> AssignMaintenanceOrderAsync(MaintenanceOrder order, CancellationToken cancellationToken = default);
+    Task<Guid?> AssignMaintenanceOrderAsync(MaintenanceOrder order, CancellationToken cancellationToken = default, bool recordUnassignedAttempt = true);
 }

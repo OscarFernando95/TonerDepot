@@ -22,7 +22,10 @@ class AssetDetailState extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final results = await Future.wait([_api.getById(assetId), _api.getStatusHistory(assetId)]);
+      final results = await Future.wait([
+        _api.getById(assetId),
+        _api.getStatusHistory(assetId),
+      ]);
       asset = results[0] as Asset;
       statusHistory = results[1] as List<AssetStatusLog>;
     } catch (e, st) {
@@ -34,21 +37,34 @@ class AssetDetailState extends ChangeNotifier {
     }
   }
 
-  Future<String?> updateAsset({required String assetModelId, required String serialNumber, required String type}) =>
-      _runAction(() async {
-        asset = await _api.update(assetId, assetModelId: assetModelId, serialNumber: serialNumber, type: type);
-      });
+  Future<String?> updateAsset({
+    required String assetModelId,
+    required String serialNumber,
+    required String type,
+  }) => _runAction(() async {
+    asset = await _api.update(
+      assetId,
+      assetModelId: assetModelId,
+      serialNumber: serialNumber,
+      type: type,
+    );
+  });
 
   Future<String?> changeStatus({
     required String newStatus,
     String? clientLocationId,
     String? area,
     String? notes,
-  }) =>
-      _runAction(() async {
-        asset = await _api.setStatus(assetId, newStatus: newStatus, clientLocationId: clientLocationId, area: area, notes: notes);
-        statusHistory = await _api.getStatusHistory(assetId);
-      });
+  }) => _runAction(() async {
+    asset = await _api.setStatus(
+      assetId,
+      newStatus: newStatus,
+      clientLocationId: clientLocationId,
+      area: area,
+      notes: notes,
+    );
+    statusHistory = await _api.getStatusHistory(assetId);
+  });
 
   Future<String?> _runAction(Future<void> Function() action) async {
     busyWithAction = true;

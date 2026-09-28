@@ -17,7 +17,7 @@ namespace Toner.Application.Tests.Paging;
 public class PagingTests
 {
     private static AssetService BuildAssetService(TonerDbContext db) =>
-        new(db, new MaintenanceScheduleEngine(db), new AssignmentEngine(db));
+        new(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
 
     private static readonly RequestingUser Staff = new(Guid.NewGuid(), RoleNames.Administrador, null, null);
 

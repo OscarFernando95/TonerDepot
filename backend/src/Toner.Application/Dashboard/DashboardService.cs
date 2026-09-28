@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Toner.Application.Common.Caching;
+using Toner.Application.Calendar;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Dashboard.Dtos;
 using Toner.Domain.Enums;
@@ -26,16 +27,14 @@ public class DashboardService : IDashboardService
     // Confirmado con el usuario (recomendado) al no existir un valor explícito en el modelo original.
     private const int MaintenanceOnTimeWindowDays = 3;
 
-    // Base de 8h/día para expresar horas registradas como porcentaje de utilización. Es un supuesto
-    // documentado (no una política de negocio confirmada) — ver Alcance en el README del módulo 11.
-    private const double AssumedHoursPerDay = 8.0;
-
     private readonly IApplicationDbContext _db;
     private readonly IMemoryCache _cache;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly IWorkCalendarService _calendar;
 
-    public DashboardService(IApplicationDbContext db, IMemoryCache cache, ITenantContextAccessor tenantContextAccessor)
+    public DashboardService(IApplicationDbContext db, IMemoryCache cache, ITenantContextAccessor tenantContextAccessor, IWorkCalendarService calendar)
     {
+        _calendar = calendar;
         _db = db;
         _cache = cache;
         _tenantContextAccessor = tenantContextAccessor;
@@ -70,7 +69,7 @@ public class DashboardService : IDashboardService
 
         var resolvedTickets = await _db.ServiceTickets
             .Where(t => t.ResolvedAt != null && t.ResolvedAt >= periodStart)
-            .Select(t => new ResolvedTicketRow(t.CreatedAt, t.ResolvedAt!.Value, t.Priority))
+            .Select(t => new ResolvedTicketRow(t.CreatedAt, t.ResolvedAt!.Value, t.Priority, t.TechnicianId, t.ClientLocation.Client.SupportCoverage))
             .ToListAsync(cancellationToken);
 
         var completedOrders = await _db.MaintenanceOrders
@@ -88,14 +87,23 @@ public class DashboardService : IDashboardService
             .Select(l => new TimeLogRow(l.TechnicianId, l.StartTime, l.EndTime!.Value, l.Technician.User.FullName))
             .ToListAsync(cancellationToken);
 
+        // SLA y utilización se miden en horas hábiles (horario del técnico, festivos de Colombia y sus
+        // períodos fuera de la oficina); un cliente 24/7 cuenta horas corridas. MTTR se deja en horas
+        // corridas a propósito: mide cuánto tarda en resolverse un ticket, no el cumplimiento de un contrato.
+        var now = DateTime.UtcNow;
+        var calendarFrom = resolvedTickets.Count > 0 ? new[] { periodStart, resolvedTickets.Min(t => t.CreatedAt) }.Min() : periodStart;
+        var technicianIds = resolvedTickets.Where(t => t.TechnicianId.HasValue).Select(t => t.TechnicianId!.Value)
+            .Concat(timeLogs.Select(l => l.TechnicianId));
+        var calendar = await _calendar.LoadAsync(technicianIds, calendarFrom, now, cancellationToken);
+
         var summary = new DashboardSummaryDto
         {
             PeriodDays = periodDays,
             Mttr = BuildMttr(resolvedTickets),
             MaintenanceCompliance = BuildMaintenanceCompliance(completedOrders),
             TicketsByCity = BuildCityBacklog(openTickets),
-            TechnicianUtilization = BuildUtilization(timeLogs, periodDays),
-            SlaCompliance = BuildSlaCompliance(resolvedTickets)
+            TechnicianUtilization = BuildUtilization(timeLogs, periodStart, now, calendar),
+            SlaCompliance = BuildSlaCompliance(resolvedTickets, calendar)
         };
 
         // Absoluta: 30 segundos es el techo real de antigüedad. Con expiración deslizante, un
@@ -154,15 +162,16 @@ public class DashboardService : IDashboardService
             .ToList();
     }
 
-    private static List<TechnicianUtilizationDto> BuildUtilization(IReadOnlyCollection<TimeLogRow> logs, int periodDays)
+    private static List<TechnicianUtilizationDto> BuildUtilization(
+        IReadOnlyCollection<TimeLogRow> logs, DateTime periodStart, DateTime periodEnd, WorkCalendarContext calendar)
     {
-        var maxHours = periodDays * AssumedHoursPerDay;
-
         return logs
             .GroupBy(l => new { l.TechnicianId, l.TechnicianName })
             .Select(g =>
             {
                 var hours = g.Sum(x => (x.EndTime - x.StartTime).TotalHours);
+                // Denominador: horas laborales reales del técnico en el período (no un 8 h/día supuesto).
+                var maxHours = calendar.BusinessHours(g.Key.TechnicianId, SupportCoverage.HorarioOficina, periodStart, periodEnd);
                 return new TechnicianUtilizationDto
                 {
                     TechnicianId = g.Key.TechnicianId,
@@ -175,8 +184,10 @@ public class DashboardService : IDashboardService
             .ToList();
     }
 
-    private static SlaComplianceDto BuildSlaCompliance(IReadOnlyCollection<ResolvedTicketRow> resolved)
+    private static SlaComplianceDto BuildSlaCompliance(IReadOnlyCollection<ResolvedTicketRow> resolved, WorkCalendarContext calendar)
     {
+        double SlaHours(ResolvedTicketRow t) => calendar.BusinessHours(t.TechnicianId, t.Coverage, t.CreatedAt, t.ResolvedAt);
+
         var byPriority = new List<SlaPriorityComplianceDto>();
 
         foreach (var priority in Enum.GetValues<ServiceTicketPriority>())
@@ -197,7 +208,7 @@ public class DashboardService : IDashboardService
                 continue;
             }
 
-            var withinSla = subset.Count(t => (t.ResolvedAt - t.CreatedAt).TotalHours <= targetHours);
+            var withinSla = subset.Count(t => SlaHours(t) <= targetHours);
             byPriority.Add(new SlaPriorityComplianceDto
             {
                 Priority = priority.ToString(),
@@ -209,7 +220,7 @@ public class DashboardService : IDashboardService
         }
 
         var totalResolved = resolved.Count;
-        var totalWithinSla = resolved.Count(t => (t.ResolvedAt - t.CreatedAt).TotalHours <= SlaTargetHours[t.Priority]);
+        var totalWithinSla = resolved.Count(t => SlaHours(t) <= SlaTargetHours[t.Priority]);
 
         return new SlaComplianceDto
         {
@@ -218,7 +229,7 @@ public class DashboardService : IDashboardService
         };
     }
 
-    private sealed record ResolvedTicketRow(DateTime CreatedAt, DateTime ResolvedAt, ServiceTicketPriority Priority);
+    private sealed record ResolvedTicketRow(DateTime CreatedAt, DateTime ResolvedAt, ServiceTicketPriority Priority, Guid? TechnicianId, SupportCoverage Coverage);
 
     private sealed record CompletedOrderRow(DateTime ScheduledDate, DateTime CompletedAt);
 

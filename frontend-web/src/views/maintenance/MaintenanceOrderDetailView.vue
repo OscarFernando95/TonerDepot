@@ -6,6 +6,8 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import * as ordersApi from '../../api/maintenanceOrders'
 import * as techniciansApi from '../../api/technicians'
 import { MaintenanceOrderStatusLabels, type AssignmentHistoryDto, type MaintenanceOrderDto } from '../../api/types'
+import EvidenceGallery from '../../components/EvidenceGallery.vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 
 const route = useRoute()
 const router = useRouter()
@@ -118,6 +120,10 @@ function statusTagType(status: string) {
 }
 
 onMounted(loadAll)
+
+useRealtimeUpdates(['MaintenanceOrder'], (event) => {
+  if (event.id === orderId) loadAll()
+})
 </script>
 
 <template>
@@ -166,6 +172,11 @@ onMounted(loadAll)
             Cancelar
           </el-button>
         </div>
+      </el-card>
+
+      <el-card class="section-card">
+        <template #header>Evidencia fotográfica</template>
+        <EvidenceGallery :order-id="orderId" />
       </el-card>
 
       <el-card class="section-card">

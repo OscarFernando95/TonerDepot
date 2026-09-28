@@ -44,7 +44,9 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
     final currentPath = GoRouterState.of(context).matchedLocation;
-    final visibleDestinations = kAppDestinations.where((d) => auth.hasAnyRole(d.roles)).toList();
+    final visibleDestinations = kAppDestinations
+        .where((d) => auth.hasAnyRole(d.roles))
+        .toList();
     AppDestination? current;
     for (final d in kAppDestinations) {
       if (d.path == currentPath) {
@@ -86,46 +88,55 @@ class _AppShellState extends State<AppShell> {
           child: Material(
             type: MaterialType.transparency,
             child: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'TONER',
-                        style: TextStyle(
-                          color: AppColors.signalBlueBright,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
-                          letterSpacing: 1.4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'TONER',
+                          style: TextStyle(
+                            color: AppColors.signalBlueBright,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            letterSpacing: 1.4,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (auth.currentUser != null) ...[
-                        Text(auth.currentUser!.fullName, style: const TextStyle(color: AppColors.inkSecondary)),
-                        Text(
-                          auth.currentUser!.role,
-                          style: const TextStyle(color: AppColors.inkSecondary, fontSize: 11, letterSpacing: 0.6),
-                        ),
+                        const SizedBox(height: 6),
+                        if (auth.currentUser != null) ...[
+                          Text(
+                            auth.currentUser!.fullName,
+                            style: const TextStyle(
+                              color: AppColors.inkSecondary,
+                            ),
+                          ),
+                          Text(
+                            auth.currentUser!.role,
+                            style: const TextStyle(
+                              color: AppColors.inkSecondary,
+                              fontSize: 11,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const Divider(height: 1, color: AppColors.neutralSoft),
-                const SizedBox(height: 8),
-                for (final destination in visibleDestinations)
-                  _DrawerItem(
-                    icon: destination.icon,
-                    label: destination.label,
-                    selected: destination.path == currentPath,
-                    onTap: () => _selectDestination(destination),
-                  ),
-              ],
+                  const Divider(height: 1, color: AppColors.neutralSoft),
+                  const SizedBox(height: 8),
+                  for (final destination in visibleDestinations)
+                    _DrawerItem(
+                      icon: destination.icon,
+                      label: destination.label,
+                      selected: destination.path == currentPath,
+                      onTap: () => _selectDestination(destination),
+                    ),
+                ],
+              ),
             ),
-          ),
           ),
         ),
       ),
@@ -166,7 +177,9 @@ class _HeaderGlow extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Color(0x662F6FED), Colors.transparent]),
+                gradient: RadialGradient(
+                  colors: [Color(0x662F6FED), Colors.transparent],
+                ),
               ),
             ),
           ),
@@ -178,7 +191,9 @@ class _HeaderGlow extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Color(0x55D9A441), Colors.transparent]),
+                gradient: RadialGradient(
+                  colors: [Color(0x55D9A441), Colors.transparent],
+                ),
               ),
             ),
           ),
@@ -189,7 +204,12 @@ class _HeaderGlow extends StatelessWidget {
 }
 
 class _DrawerItem extends StatelessWidget {
-  const _DrawerItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -201,10 +221,16 @@ class _DrawerItem extends StatelessWidget {
     return Container(
       color: selected ? AppColors.signalBlueWash : null,
       child: ListTile(
-        leading: Icon(icon, color: selected ? AppColors.signalBlueBright : AppColors.inkSecondary),
+        leading: Icon(
+          icon,
+          color: selected ? AppColors.signalBlueBright : AppColors.inkSecondary,
+        ),
         title: Text(
           label,
-          style: TextStyle(color: selected ? AppColors.inkPrimary : AppColors.inkSecondary, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            color: selected ? AppColors.inkPrimary : AppColors.inkSecondary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         onTap: onTap,
       ),

@@ -25,7 +25,8 @@ class MeterReadingAsset {
     required this.lastMeterReading,
   });
 
-  factory MeterReadingAsset.fromJson(Map<String, dynamic> json) => MeterReadingAsset(
+  factory MeterReadingAsset.fromJson(Map<String, dynamic> json) =>
+      MeterReadingAsset(
         assetId: json['assetId'] as String,
         assetBrandName: json['assetBrandName'] as String? ?? '',
         model: json['model'] as String? ?? '',

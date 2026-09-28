@@ -58,19 +58,27 @@ class _TicketsListBody extends StatelessWidget {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+                child: Text(
+                  state.error!,
+                  style: const TextStyle(color: AppColors.signalRed),
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
           if (state.tickets.isEmpty) {
-            return const PlaceholderScreen(title: 'Sin tickets', message: 'No hay tickets para mostrar todavía.');
+            return const PlaceholderScreen(
+              title: 'Sin tickets',
+              message: 'No hay tickets para mostrar todavía.',
+            );
           }
           return RefreshIndicator(
             onRefresh: state.load,
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               itemCount: state.tickets.length,
-              itemBuilder: (context, index) => _TicketListItem(ticket: state.tickets[index]),
+              itemBuilder: (context, index) =>
+                  _TicketListItem(ticket: state.tickets[index]),
             ),
           );
         },
@@ -94,7 +102,13 @@ class _TicketListItem extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(ticket.clientName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                child: Text(
+                  ticket.clientName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
               ),
               StatusChip.priority(ticket.priority),
               const SizedBox(width: 6),
@@ -102,12 +116,25 @@ class _TicketListItem extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(ticket.clientLocationName, style: const TextStyle(color: AppColors.inkSecondary)),
+          Text(
+            ticket.clientLocationName,
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
           const SizedBox(height: 6),
-          Text(ticket.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(
+            ticket.description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
           if (ticket.technicianName != null) ...[
             const SizedBox(height: 4),
-            Text('Técnico: ${ticket.technicianName}', style: const TextStyle(fontSize: 12, color: AppColors.inkSecondary)),
+            Text(
+              'Técnico: ${ticket.technicianName}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.inkSecondary,
+              ),
+            ),
           ],
         ],
       ),

@@ -310,6 +310,13 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("SupportCoverage")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("HorarioOficina");
+
                     b.Property<string>("TaxId")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -352,6 +359,12 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -367,6 +380,36 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.HasIndex("ClientId");
 
                     b.ToTable("ClientLocations", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.CompanyHolidayOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsWorkingDay")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("CompanyHolidayOverrides", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.Contract", b =>
@@ -455,6 +498,9 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -473,10 +519,21 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<Guid?>("MaintenanceOrderId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("ServiceTicketId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("TimeLogId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -490,9 +547,13 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ClientId");
+
                     b.HasIndex("MaintenanceOrderId");
 
                     b.HasIndex("ServiceTicketId");
+
+                    b.HasIndex("TimeLogId");
 
                     b.HasIndex("UploadedByUserId");
 
@@ -920,6 +981,73 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.ToTable("TechnicianCoverages", (string)null);
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.TechnicianTimeOff", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TechnicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TechnicianId", "StartsAt");
+
+                    b.ToTable("TechnicianTimeOffs", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.TechnicianWorkInterval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid>("TechnicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TechnicianId", "Day");
+
+                    b.ToTable("TechnicianWorkIntervals", (string)null);
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.TimeLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -927,6 +1055,38 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("AssetId")
                         .HasColumnType("uuid");
+
+                    b.Property<double?>("CheckInAccuracyMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("CheckInDistanceMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("CheckInLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("CheckInLocationStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<double?>("CheckInLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("CheckOutAccuracyMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("CheckOutDistanceMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("CheckOutLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("CheckOutLocationStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<double?>("CheckOutLongitude")
+                        .HasColumnType("double precision");
 
                     b.Property<Guid?>("ClientId")
                         .HasColumnType("uuid");
@@ -1059,6 +1219,67 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.UserSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EnforcesSingleSession")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("IdleTimeoutMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RevokedReason")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserSessions_UserId_SingleActive")
+                        .HasFilter("\"RevokedAt\" IS NULL AND \"EnforcesSingleSession\" = TRUE");
+
+                    b.HasIndex("UserId", "IssuedAt");
+
+                    b.ToTable("UserSessions", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.Asset", b =>
@@ -1350,6 +1571,28 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("Technician");
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.TechnicianTimeOff", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.Technician", "Technician")
+                        .WithMany("TimeOffs")
+                        .HasForeignKey("TechnicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Technician");
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.TechnicianWorkInterval", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.Technician", "Technician")
+                        .WithMany("WorkIntervals")
+                        .HasForeignKey("TechnicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Technician");
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.TimeLog", b =>
                 {
                     b.HasOne("Toner.Domain.Entities.Asset", "Asset")
@@ -1405,6 +1648,17 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("Client");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.UserSession", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.Asset", b =>
@@ -1503,6 +1757,10 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("Coverages");
 
                     b.Navigation("TimeLogs");
+
+                    b.Navigation("TimeOffs");
+
+                    b.Navigation("WorkIntervals");
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.User", b =>

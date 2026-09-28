@@ -13,7 +13,10 @@ import '../common/placeholder_screen.dart';
 class AssetBrandsListScreen extends StatelessWidget {
   const AssetBrandsListScreen({super.key});
 
-  Future<void> _showAddBrandDialog(BuildContext context, AssetBrandsState state) async {
+  Future<void> _showAddBrandDialog(
+    BuildContext context,
+    AssetBrandsState state,
+  ) async {
     final controller = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -26,9 +29,15 @@ class AssetBrandsListScreen extends StatelessWidget {
             decoration: const InputDecoration(labelText: 'Nombre *'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
-              onPressed: controller.text.trim().isEmpty ? null : () => Navigator.of(dialogContext).pop(controller.text.trim()),
+              onPressed: controller.text.trim().isEmpty
+                  ? null
+                  : () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim()),
               child: const Text('Crear'),
             ),
           ],
@@ -38,7 +47,8 @@ class AssetBrandsListScreen extends StatelessWidget {
     if (name != null && context.mounted) {
       final error = await state.addBrand(name);
       if (error != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error)));
       }
     }
   }
@@ -52,7 +62,9 @@ class AssetBrandsListScreen extends StatelessWidget {
           return Scaffold(
             backgroundColor: Colors.transparent,
             floatingActionButton: FloatingActionButton.extended(
-              onPressed: state.busyWithAction ? null : () => _showAddBrandDialog(context, state),
+              onPressed: state.busyWithAction
+                  ? null
+                  : () => _showAddBrandDialog(context, state),
               icon: const Icon(Icons.add),
               label: const Text('Marca'),
             ),
@@ -65,12 +77,19 @@ class AssetBrandsListScreen extends StatelessWidget {
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+                      child: Text(
+                        state.error!,
+                        style: const TextStyle(color: AppColors.signalRed),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   );
                 }
                 if (state.brands.isEmpty) {
-                  return const PlaceholderScreen(title: 'Sin marcas', message: 'Todavía no hay marcas registradas.');
+                  return const PlaceholderScreen(
+                    title: 'Sin marcas',
+                    message: 'Todavía no hay marcas registradas.',
+                  );
                 }
                 return RefreshIndicator(
                   onRefresh: state.load,
@@ -80,13 +99,30 @@ class AssetBrandsListScreen extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final brand = state.brands[index];
                       return ClayCard(
-                        onTap: () => context.push('/asset-brands/${brand.id}', extra: brand.name),
+                        onTap: () => context.push(
+                          '/asset-brands/${brand.id}',
+                          extra: brand.name,
+                        ),
                         child: Row(
                           children: [
-                            const Icon(Icons.category_outlined, color: AppColors.signalBlue),
+                            const Icon(
+                              Icons.category_outlined,
+                              color: AppColors.signalBlue,
+                            ),
                             const SizedBox(width: 12),
-                            Expanded(child: Text(brand.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
-                            const Icon(Icons.chevron_right, color: AppColors.inkSecondary),
+                            Expanded(
+                              child: Text(
+                                brand.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: AppColors.inkSecondary,
+                            ),
                           ],
                         ),
                       );

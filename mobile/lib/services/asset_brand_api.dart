@@ -13,7 +13,9 @@ class AssetBrandApi {
     try {
       final response = await _client.dio.get('/asset-brands');
       final items = response.data as List<dynamic>;
-      return items.map((e) => AssetBrand.fromJson(e as Map<String, dynamic>)).toList();
+      return items
+          .map((e) => AssetBrand.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e, st) {
       debugPrint('AssetBrandApi.list failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -22,7 +24,10 @@ class AssetBrandApi {
 
   Future<AssetBrand> create(String name) async {
     try {
-      final response = await _client.dio.post('/asset-brands', data: {'name': name});
+      final response = await _client.dio.post(
+        '/asset-brands',
+        data: {'name': name},
+      );
       return AssetBrand.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AssetBrandApi.create failed: $e\n$st');

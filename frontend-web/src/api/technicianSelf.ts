@@ -15,9 +15,20 @@ export interface CheckInRequest {
   serviceTicketId?: string | null
   maintenanceOrderId?: string | null
   assetId?: string | null
+  // Ubicación del técnico (opcional: si falta, el servidor la registra como "sin ubicación" y alerta).
+  latitude?: number | null
+  longitude?: number | null
+  accuracyMeters?: number | null
+  // Foto "antes" ya subida con uploadEvidence — obligatoria para tickets y órdenes.
+  beforeEvidenceId?: string | null
 }
 
 export interface CheckOutRequest {
+  latitude?: number | null
+  longitude?: number | null
+  accuracyMeters?: number | null
+  // Foto "después" — obligatoria al resolver un ticket u orden.
+  afterEvidenceId?: string | null
   resolved?: boolean
   notes?: string | null
   area?: string | null
@@ -88,4 +99,25 @@ export function claimMaintenanceOrder(id: string) {
 
 export function claimTicket(id: string) {
   return http.post<ServiceTicketDto>(`/technicians/me/tickets/${id}/claim`)
+}
+
+export interface EvidenceDto {
+  id: string
+  kind: 'Antes' | 'Despues'
+  contentType: string
+  sizeBytes: number
+  uploadedAt: string
+  serviceTicketId: string | null
+  maintenanceOrderId: string | null
+  timeLogId: string | null
+}
+
+// Sube la foto de evidencia (antes / después) de un ticket u orden asignado; devuelve el id que se envía en el check-in/out.
+export function uploadEvidence(file: File, kind: 'Antes' | 'Despues', target: { ticketId?: string; orderId?: string }) {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('kind', kind)
+  if (target.ticketId) form.append('ticketId', target.ticketId)
+  if (target.orderId) form.append('orderId', target.orderId)
+  return http.post<EvidenceDto>('/technicians/me/evidence', form, { timeout: 60000 })
 }

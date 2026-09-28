@@ -39,7 +39,10 @@ class _AssetDetailBody extends StatelessWidget {
 
   String _formatDate(String iso) => iso.split('T').first;
 
-  Future<void> _showEditDialog(BuildContext context, AssetDetailState state) async {
+  Future<void> _showEditDialog(
+    BuildContext context,
+    AssetDetailState state,
+  ) async {
     final asset = state.asset!;
     List<AssetBrand> brands = [];
     List<AssetModel> models = [];
@@ -58,14 +61,22 @@ class _AssetDetailBody extends StatelessWidget {
               brands = loaded;
               // Preseleccionar la marca actual buscando por nombre — Asset
               // no trae assetBrandId, solo el nombre ya resuelto.
-              final current = loaded.where((b) => b.name == asset.assetBrandName);
+              final current = loaded.where(
+                (b) => b.name == asset.assetBrandName,
+              );
               if (current.isNotEmpty) {
                 brandId = current.first.id;
-                models = await AssetModelApi(ApiClient.instance).listForBrand(brandId!);
+                models = await AssetModelApi(ApiClient.instance)
+                    .listForBrand(brandId!);
               }
               setDialogState(() => loading = false);
             });
-            return const AlertDialog(content: SizedBox(height: 120, child: Center(child: CircularProgressIndicator())));
+            return const AlertDialog(
+              content: SizedBox(
+                height: 120,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            );
           }
           return AlertDialog(
             title: const Text('Editar activo'),
@@ -79,9 +90,15 @@ class _AssetDetailBody extends StatelessWidget {
                       initialValue: brandId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Marca *'),
-                      items: [for (final b in brands) DropdownMenuItem(value: b.id, child: Text(b.name))],
+                      items: [
+                        for (final b in brands)
+                          DropdownMenuItem(value: b.id, child: Text(b.name)),
+                      ],
                       onChanged: (value) async {
-                        final newModels = value == null ? <AssetModel>[] : await AssetModelApi(ApiClient.instance).listForBrand(value);
+                        final newModels = value == null
+                            ? <AssetModel>[]
+                            : await AssetModelApi(ApiClient.instance)
+                                  .listForBrand(value);
                         setDialogState(() {
                           brandId = value;
                           modelId = null;
@@ -94,39 +111,65 @@ class _AssetDetailBody extends StatelessWidget {
                       initialValue: modelId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Modelo *'),
-                      items: [for (final m in models) DropdownMenuItem(value: m.id, child: Text(m.name))],
-                      onChanged: brandId == null ? null : (value) => setDialogState(() => modelId = value),
+                      items: [
+                        for (final m in models)
+                          DropdownMenuItem(value: m.id, child: Text(m.name)),
+                      ],
+                      onChanged: brandId == null
+                          ? null
+                          : (value) => setDialogState(() => modelId = value),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: serialController,
                       onChanged: (_) => setDialogState(() {}),
-                      decoration: const InputDecoration(labelText: 'Número de serie *'),
+                      decoration: const InputDecoration(
+                        labelText: 'Número de serie *',
+                      ),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: type,
                       decoration: const InputDecoration(labelText: 'Tipo'),
                       items: const [
-                        DropdownMenuItem(value: 'Impresora', child: Text('Impresora')),
-                        DropdownMenuItem(value: 'ComputoEquipo', child: Text('ComputoEquipo')),
+                        DropdownMenuItem(
+                          value: 'Impresora',
+                          child: Text('Impresora'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'ComputoEquipo',
+                          child: Text('ComputoEquipo'),
+                        ),
                       ],
-                      onChanged: (value) => setDialogState(() => type = value ?? 'Impresora'),
+                      onChanged: (value) =>
+                          setDialogState(() => type = value ?? 'Impresora'),
                     ),
                   ],
                 ),
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
               FilledButton(
-                onPressed: modelId == null || serialController.text.trim().isEmpty
+                onPressed:
+                    modelId == null || serialController.text.trim().isEmpty
                     ? null
                     : () async {
                         Navigator.of(dialogContext).pop();
-                        final error = await state.updateAsset(assetModelId: modelId!, serialNumber: serialController.text.trim(), type: type);
+                        final error = await state.updateAsset(
+                          assetModelId: modelId!,
+                          serialNumber: serialController.text.trim(),
+                          type: type,
+                        );
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Activo actualizado.')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(error ?? 'Activo actualizado.'),
+                            ),
+                          );
                         }
                       },
                 child: const Text('Guardar'),
@@ -138,7 +181,10 @@ class _AssetDetailBody extends StatelessWidget {
     );
   }
 
-  Future<void> _showChangeStatusDialog(BuildContext context, AssetDetailState state) async {
+  Future<void> _showChangeStatusDialog(
+    BuildContext context,
+    AssetDetailState state,
+  ) async {
     final asset = state.asset!;
     final allowed = Asset.allowedTransitions[asset.lifecycleStatus] ?? [];
     if (allowed.isEmpty) return;
@@ -150,7 +196,8 @@ class _AssetDetailBody extends StatelessWidget {
     String? clientLocationId;
     final areaController = TextEditingController();
     final notesController = TextEditingController();
-    bool needsLocation = newStatus == 'Instalado' || newStatus == 'PendienteInstalacion';
+    bool needsLocation =
+        newStatus == 'Instalado' || newStatus == 'PendienteInstalacion';
     bool loadingClients = needsLocation;
 
     if (needsLocation) {
@@ -173,12 +220,20 @@ class _AssetDetailBody extends StatelessWidget {
                   DropdownButtonFormField<String>(
                     initialValue: newStatus,
                     isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Nuevo estado'),
+                    decoration: const InputDecoration(
+                      labelText: 'Nuevo estado',
+                    ),
                     items: [
-                      for (final s in allowed) DropdownMenuItem(value: s, child: Text((StatusLabels.assetLifecycle[s] ?? s))),
+                      for (final s in allowed)
+                        DropdownMenuItem(
+                          value: s,
+                          child: Text((StatusLabels.assetLifecycle[s] ?? s)),
+                        ),
                     ],
                     onChanged: (value) async {
-                      final requiresLocation = value == 'Instalado' || value == 'PendienteInstalacion';
+                      final requiresLocation =
+                          value == 'Instalado' ||
+                          value == 'PendienteInstalacion';
                       if (requiresLocation && clients.isEmpty) {
                         setDialogState(() => loadingClients = true);
                         clients = await ClientApi(ApiClient.instance).list();
@@ -196,15 +251,26 @@ class _AssetDetailBody extends StatelessWidget {
                   if (needsLocation) ...[
                     const SizedBox(height: 12),
                     if (loadingClients)
-                      const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: LinearProgressIndicator())
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: LinearProgressIndicator(),
+                      )
                     else
                       DropdownButtonFormField<String>(
                         initialValue: clientId,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Cliente *'),
-                        items: [for (final c in clients) DropdownMenuItem(value: c.id, child: Text(c.name))],
+                        decoration: const InputDecoration(
+                          labelText: 'Cliente *',
+                        ),
+                        items: [
+                          for (final c in clients)
+                            DropdownMenuItem(value: c.id, child: Text(c.name)),
+                        ],
                         onChanged: (value) async {
-                          final newLocations = value == null ? <ClientLocation>[] : await ClientLocationApi(ApiClient.instance).listForClient(value);
+                          final newLocations = value == null
+                              ? <ClientLocation>[]
+                              : await ClientLocationApi(ApiClient.instance)
+                                    .listForClient(value);
                           setDialogState(() {
                             clientId = value;
                             clientLocationId = null;
@@ -217,8 +283,20 @@ class _AssetDetailBody extends StatelessWidget {
                       initialValue: clientLocationId,
                       isExpanded: true,
                       decoration: const InputDecoration(labelText: 'Sede *'),
-                      items: [for (final l in locations) DropdownMenuItem(value: l.id, child: Text('${l.name} — ${l.cityName}', overflow: TextOverflow.ellipsis))],
-                      onChanged: clientId == null ? null : (value) => setDialogState(() => clientLocationId = value),
+                      items: [
+                        for (final l in locations)
+                          DropdownMenuItem(
+                            value: l.id,
+                            child: Text(
+                              '${l.name} — ${l.cityName}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: clientId == null
+                          ? null
+                          : (value) =>
+                                setDialogState(() => clientLocationId = value),
                     ),
                     if (newStatus == 'Instalado') ...[
                       const SizedBox(height: 12),
@@ -230,26 +308,46 @@ class _AssetDetailBody extends StatelessWidget {
                     ],
                   ],
                   const SizedBox(height: 12),
-                  TextField(controller: notesController, decoration: const InputDecoration(labelText: 'Notas (opcional)')),
+                  TextField(
+                    controller: notesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas (opcional)',
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
-              onPressed: needsLocation && (clientLocationId == null || (newStatus == 'Instalado' && areaController.text.trim().isEmpty))
+              onPressed:
+                  needsLocation &&
+                      (clientLocationId == null ||
+                          (newStatus == 'Instalado' &&
+                              areaController.text.trim().isEmpty))
                   ? null
                   : () async {
                       Navigator.of(dialogContext).pop();
                       final error = await state.changeStatus(
                         newStatus: newStatus,
                         clientLocationId: clientLocationId,
-                        area: newStatus == 'Instalado' ? areaController.text.trim() : null,
-                        notes: notesController.text.trim().isEmpty ? null : notesController.text.trim(),
+                        area: newStatus == 'Instalado'
+                            ? areaController.text.trim()
+                            : null,
+                        notes: notesController.text.trim().isEmpty
+                            ? null
+                            : notesController.text.trim(),
                       );
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error ?? 'Estado actualizado.')));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(error ?? 'Estado actualizado.'),
+                          ),
+                        );
                       }
                     },
               child: const Text('Guardar'),
@@ -271,12 +369,17 @@ class _AssetDetailBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
         final asset = state.asset!;
-        final canChangeStatus = (Asset.allowedTransitions[asset.lifecycleStatus] ?? []).isNotEmpty;
+        final canChangeStatus =
+            (Asset.allowedTransitions[asset.lifecycleStatus] ?? []).isNotEmpty;
         return RefreshIndicator(
           onRefresh: state.load,
           child: ListView(
@@ -288,29 +391,47 @@ class _AssetDetailBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text('${asset.assetBrandName} ${asset.model}', style: Theme.of(context).textTheme.titleMedium)),
+                        Expanded(
+                          child: Text(
+                            '${asset.assetBrandName} ${asset.model}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
                         StatusChip.assetLifecycle(asset.lifecycleStatus),
                       ],
                     ),
-                    Text('Serie: ${asset.serialNumber}', style: const TextStyle(color: AppColors.inkSecondary)),
-                    Text('Tipo: ${asset.type}', style: const TextStyle(color: AppColors.inkSecondary)),
+                    Text(
+                      'Serie: ${asset.serialNumber}',
+                      style: const TextStyle(color: AppColors.inkSecondary),
+                    ),
+                    Text(
+                      'Tipo: ${asset.type}',
+                      style: const TextStyle(color: AppColors.inkSecondary),
+                    ),
                     if (asset.currentClientName != null)
                       Text(
                         '${asset.currentClientName} — ${asset.currentClientLocationName}${asset.cityName != null ? ' (${asset.cityName})' : ''}',
                         style: const TextStyle(color: AppColors.inkSecondary),
                       ),
-                    if (asset.area != null) Text('Área: ${asset.area}', style: const TextStyle(color: AppColors.inkSecondary)),
+                    if (asset.area != null)
+                      Text(
+                        'Área: ${asset.area}',
+                        style: const TextStyle(color: AppColors.inkSecondary),
+                      ),
                     if (asset.lastMeterReading != null)
                       Text(
                         'Último contador: ${asset.lastMeterReading}',
-                        style: const TextStyle(color: AppColors.inkSecondary).merge(AppTextStyles.tabularNumber),
+                        style: const TextStyle(color: AppColors.inkSecondary)
+                            .merge(AppTextStyles.tabularNumber),
                       ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: state.busyWithAction ? null : () => _showEditDialog(context, state),
+                            onPressed: state.busyWithAction
+                                ? null
+                                : () => _showEditDialog(context, state),
                             icon: const Icon(Icons.edit_outlined, size: 18),
                             label: const Text('Editar'),
                           ),
@@ -319,7 +440,10 @@ class _AssetDetailBody extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed: state.busyWithAction ? null : () => _showChangeStatusDialog(context, state),
+                              onPressed: state.busyWithAction
+                                  ? null
+                                  : () =>
+                                        _showChangeStatusDialog(context, state),
                               icon: const Icon(Icons.sync_alt, size: 18),
                               label: const Text('Cambiar estado'),
                             ),
@@ -331,16 +455,27 @@ class _AssetDetailBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text('Historial de estados', style: Theme.of(context).textTheme.titleSmall),
+              Text(
+                'Historial de estados',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
               const SizedBox(height: 8),
               if (state.statusHistory.isEmpty)
-                const ClaySurface(child: Text('Sin cambios de estado registrados.', style: TextStyle(color: AppColors.inkSecondary)))
+                const ClaySurface(
+                  child: Text(
+                    'Sin cambios de estado registrados.',
+                    style: TextStyle(color: AppColors.inkSecondary),
+                  ),
+                )
               else
                 for (final log in state.statusHistory)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: ClaySurface(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -350,9 +485,19 @@ class _AssetDetailBody extends StatelessWidget {
                           ),
                           Text(
                             '${_formatDate(log.changedAt)}${log.changedByUserName != null ? ' — ${log.changedByUserName}' : ''}',
-                            style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                            style: const TextStyle(
+                              color: AppColors.inkSecondary,
+                              fontSize: 12,
+                            ),
                           ),
-                          if (log.notes != null) Text(log.notes!, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                          if (log.notes != null)
+                            Text(
+                              log.notes!,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
                         ],
                       ),
                     ),

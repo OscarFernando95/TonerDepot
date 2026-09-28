@@ -18,7 +18,9 @@ class UsersListState extends ChangeNotifier {
   int _page = 1;
   String? roleFilter;
 
-  List<ManagedUser> get filtered => roleFilter == null ? users : users.where((u) => u.roleName == roleFilter).toList();
+  List<ManagedUser> get filtered => roleFilter == null
+      ? users
+      : users.where((u) => u.roleName == roleFilter).toList();
 
   Future<void> load() async {
     loading = true;
@@ -31,7 +33,9 @@ class UsersListState extends ChangeNotifier {
       hasMore = page.hasMore;
     } catch (e, st) {
       debugPrint('UsersListState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los usuarios.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los usuarios.';
     } finally {
       loading = false;
       notifyListeners();

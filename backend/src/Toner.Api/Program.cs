@@ -1,3 +1,9 @@
+using Toner.Infrastructure.Realtime;
+using Toner.Application.Realtime;
+using Toner.Api.Hubs;
+using Toner.Infrastructure.Storage;
+using Toner.Application.Geo;
+using Toner.Application.Evidences;
 using System.Net;
 using System.Text;
 using System.Threading.RateLimiting;
@@ -17,6 +23,7 @@ using Toner.Application.Common;
 using Toner.Application.Assets;
 using Toner.Application.Assignment;
 using Toner.Application.Auth;
+using Toner.Application.Calendar;
 using Toner.Application.Cities;
 using Toner.Application.Clients;
 using Toner.Application.Common.Interfaces;
@@ -131,6 +138,10 @@ builder.Services.AddCors(options =>
 // que no tiene acceso al scope de la request.
 builder.Services.AddSingleton<ITenantContextAccessor, TenantContextAccessor>();
 builder.Services.AddSingleton<TenantContextInterceptor>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<RealtimeConnectionTracker>();
+builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+builder.Services.AddSingleton<RealtimeChangeInterceptor>();
 
 // DefaultConnection usa el rol toner_app (sin privilegios de DDL y sujeto a RLS). Las migraciones
 // usan MigrationsConnection (owner) vía TonerDbContextFactory, no esta configuración.
@@ -145,7 +156,7 @@ builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
                 // que no hay conflicto con el requisito de EF Core de envolverlas en un execution
                 // strategy.
                 .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
-        .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>()));
+        .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>(), sp.GetRequiredService<RealtimeChangeInterceptor>()));
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
@@ -163,6 +174,8 @@ builder.Services.AddMemoryCache();
 
 builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.Configure<UserSessionOptions>(builder.Configuration.GetSection("Session"));
+builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICityService, CityService>();
@@ -180,7 +193,21 @@ builder.Services.AddScoped<MaintenanceScheduleEvaluationJob>();
 builder.Services.AddScoped<IServiceTicketService, ServiceTicketService>();
 builder.Services.AddScoped<ITechnicianService, TechnicianService>();
 builder.Services.AddScoped<ITechnicianCheckInService, TechnicianCheckInService>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<WorkCalendarOptions>(builder.Configuration.GetSection("WorkCalendar"));
+builder.Services.AddScoped<IWorkCalendarService, WorkCalendarService>();
+builder.Services.AddScoped<ITechnicianScheduleService, TechnicianScheduleService>();
+builder.Services.AddScoped<IHolidayService, HolidayService>();
+builder.Services.Configure<GeoOptions>(builder.Configuration.GetSection("Geo"));
+builder.Services.Configure<EvidenceOptions>(builder.Configuration.GetSection("Evidence"));
+var evidenceStorageSettings = builder.Configuration.GetSection("EvidenceStorage").Get<EvidenceStorageSettings>() ?? new EvidenceStorageSettings();
+EvidenceStorageSettingsValidator.EnsureValid(evidenceStorageSettings);
+builder.Services.Configure<EvidenceStorageSettings>(builder.Configuration.GetSection("EvidenceStorage"));
+builder.Services.AddSingleton<IEvidenceStorage, AzureBlobEvidenceStorage>();
+builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
+builder.Services.AddScoped<PendingAssignmentService>();
+builder.Services.AddScoped<PendingAssignmentJob>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // Contraseña generada al crear/resetear un usuario (hallazgo #3 de SECURITY_AUDIT.md).
@@ -243,6 +270,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // en más de una instancia.
         options.Events = new JwtBearerEvents
         {
+            // Los navegadores no pueden mandar cabeceras en un WebSocket: el token del canal en vivo viaja en la
+            // query (?access_token=). Solo se acepta ahí para /hubs, nunca para la API REST.
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
             OnTokenValidated = SecurityStampValidator.ValidateAsync
         };
     });
@@ -374,10 +413,16 @@ app.UseMiddleware<OpenDbConnectionMiddleware>();
 app.UseMiddleware<MustChangePasswordMiddleware>();
 
 app.MapControllers();
+app.MapHub<UpdatesHub>("/hubs/updates");
 
 // AllowAnonymous explícito: el FallbackPolicy de arriba exige autenticación por defecto en TODO
 // endpoint, y un orquestador (Docker/K8s) que verifica liveness/readiness no puede autenticarse.
 app.MapHealthChecks("/health").AllowAnonymous();
+
+RecurringJob.AddOrUpdate<PendingAssignmentJob>(
+    "retry-pending-assignments",
+    job => job.RunAsync(CancellationToken.None),
+    "*/10 * * * *");
 
 RecurringJob.AddOrUpdate<MaintenanceScheduleEvaluationJob>(
     "evaluate-maintenance-schedules",

@@ -32,7 +32,12 @@ class MeterReadingState extends ChangeNotifier {
     final cities = byCity.keys.toList()..sort();
     return [
       for (final c in cities)
-        CityGroup(c, byCity[c]!..sort((x, y) => (x.clientName ?? '').compareTo(y.clientName ?? ''))),
+        CityGroup(
+          c,
+          byCity[c]!..sort(
+            (x, y) => (x.clientName ?? '').compareTo(y.clientName ?? ''),
+          ),
+        ),
     ];
   }
 
@@ -44,7 +49,9 @@ class MeterReadingState extends ChangeNotifier {
       assets = await _api.listAssets();
     } catch (e, st) {
       debugPrint('MeterReadingState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los equipos.';
+      error = e is ApiException
+          ? e.message
+          : 'No se pudieron cargar los equipos.';
     } finally {
       loading = false;
       notifyListeners();
@@ -52,19 +59,30 @@ class MeterReadingState extends ChangeNotifier {
   }
 
   /// Devuelve null si el registro salió bien, o un mensaje de error.
-  Future<String?> register(MeterReadingAsset asset, double counterValue, DateTime? readingDate) async {
-    if (asset.lastMeterReading != null && counterValue < asset.lastMeterReading!) {
+  Future<String?> register(
+    MeterReadingAsset asset,
+    double counterValue,
+    DateTime? readingDate,
+  ) async {
+    if (asset.lastMeterReading != null &&
+        counterValue < asset.lastMeterReading!) {
       return 'El contador no puede ser menor al último registrado (${asset.lastMeterReading!.toStringAsFixed(0)}).';
     }
     saving = true;
     notifyListeners();
     try {
-      await _api.register(asset.assetId, counterValue: counterValue, readingDate: readingDate);
+      await _api.register(
+        asset.assetId,
+        counterValue: counterValue,
+        readingDate: readingDate,
+      );
       await load();
       return null;
     } catch (e, st) {
       debugPrint('MeterReadingState.register failed: $e\n$st');
-      return e is ApiException ? e.message : 'No se pudo registrar el contador.';
+      return e is ApiException
+          ? e.message
+          : 'No se pudo registrar el contador.';
     } finally {
       saving = false;
       notifyListeners();

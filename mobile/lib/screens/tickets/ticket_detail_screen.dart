@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/role_names.dart';
 import '../../models/service_ticket.dart';
 import '../../services/api_client.dart';
+import '../../state/auth_state.dart';
 import '../../state/ticket_detail_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/evidence_gallery.dart';
 import '../../widgets/status_chip.dart';
 
 /// Detalle de ticket — solo lectura por ahora para todos los roles que
@@ -51,7 +54,11 @@ class _TicketDetailBody extends StatelessWidget {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+              child: Text(
+                state.error!,
+                style: const TextStyle(color: AppColors.signalRed),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -68,7 +75,10 @@ class _TicketDetailBody extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(ticket.clientName, style: Theme.of(context).textTheme.titleMedium),
+                          child: Text(
+                            ticket.clientName,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
                         StatusChip(value: ticket.status),
                       ],
@@ -81,14 +91,20 @@ class _TicketDetailBody extends StatelessWidget {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        const Text('Prioridad: ', style: TextStyle(color: AppColors.inkSecondary)),
+                        const Text(
+                          'Prioridad: ',
+                          style: TextStyle(color: AppColors.inkSecondary),
+                        ),
                         StatusChip.priority(ticket.priority),
                       ],
                     ),
                     const SizedBox(height: 16),
                     const Divider(height: 1, color: AppColors.neutralSoft),
                     const SizedBox(height: 16),
-                    Text('Descripción', style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      'Descripción',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 6),
                     Text(ticket.description),
                   ],
@@ -99,7 +115,10 @@ class _TicketDetailBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Equipo', style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      'Equipo',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 8),
                     _EquipmentInfo(ticket: ticket),
                   ],
@@ -110,16 +129,51 @@ class _TicketDetailBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Seguimiento', style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      'Seguimiento',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 8),
-                    _InfoRow(label: 'Reportado por', value: ticket.reportedByUserName),
-                    _InfoRow(label: 'Creado', value: _formatDateTime(ticket.createdAt)),
-                    if (ticket.technicianName != null) _InfoRow(label: 'Técnico asignado', value: ticket.technicianName!),
-                    if (ticket.resolvedAt != null) _InfoRow(label: 'Resuelto', value: _formatDateTime(ticket.resolvedAt!)),
-                    if (ticket.closedAt != null) _InfoRow(label: 'Cerrado', value: _formatDateTime(ticket.closedAt!)),
+                    _InfoRow(
+                      label: 'Reportado por',
+                      value: ticket.reportedByUserName,
+                    ),
+                    _InfoRow(
+                      label: 'Creado',
+                      value: _formatDateTime(ticket.createdAt),
+                    ),
+                    if (ticket.technicianName != null)
+                      _InfoRow(
+                        label: 'Técnico asignado',
+                        value: ticket.technicianName!,
+                      ),
+                    if (ticket.resolvedAt != null)
+                      _InfoRow(
+                        label: 'Resuelto',
+                        value: _formatDateTime(ticket.resolvedAt!),
+                      ),
+                    if (ticket.closedAt != null)
+                      _InfoRow(
+                        label: 'Cerrado',
+                        value: _formatDateTime(ticket.closedAt!),
+                      ),
                   ],
                 ),
               ),
+              // Las fotos de evidencia solo las ve el staff (el endpoint no está abierto al rol Cliente).
+              if (context.read<AuthState>().hasAnyRole(RoleNames.staffRoles)) ...[
+                const SizedBox(height: 16),
+                ClaySurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Evidencia fotográfica', style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      EvidenceGallery(ticketId: ticket.id),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );
@@ -136,7 +190,9 @@ class _EquipmentInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!ticket.isExternal) {
-      return Text('${ticket.assetBrandName} ${ticket.assetModel} — Serie: ${ticket.assetSerialNumber}');
+      return Text(
+        '${ticket.assetBrandName} ${ticket.assetModel} — Serie: ${ticket.assetSerialNumber}',
+      );
     }
     if (ticket.hasExternalAssetInfo) {
       return Text(
@@ -148,7 +204,10 @@ class _EquipmentInfo extends StatelessWidget {
     }
     return const Text(
       'Equipo no catalogado — todavía sin datos (el técnico los captura al cerrar la visita).',
-      style: TextStyle(color: AppColors.inkSecondary, fontStyle: FontStyle.italic),
+      style: TextStyle(
+        color: AppColors.inkSecondary,
+        fontStyle: FontStyle.italic,
+      ),
     );
   }
 }
@@ -166,7 +225,13 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 140, child: Text(label, style: const TextStyle(color: AppColors.inkSecondary))),
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: const TextStyle(color: AppColors.inkSecondary),
+            ),
+          ),
           Expanded(child: Text(value)),
         ],
       ),

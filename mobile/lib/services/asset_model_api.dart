@@ -14,7 +14,9 @@ class AssetModelApi {
     try {
       final response = await _client.dio.get('/asset-brands/$brandId/models');
       final items = response.data as List<dynamic>;
-      return items.map((e) => AssetModel.fromJson(e as Map<String, dynamic>)).toList();
+      return items
+          .map((e) => AssetModel.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e, st) {
       debugPrint('AssetModelApi.listForBrand failed: $e\n$st');
       throw ApiClient.translate(e);
@@ -31,14 +33,17 @@ class AssetModelApi {
     required int consumablesPrintThreshold,
   }) async {
     try {
-      final response = await _client.dio.post('/asset-brands/$brandId/models', data: {
-        'name': name,
-        'generalPrintThreshold': generalPrintThreshold,
-        'generalMonthsInterval': generalMonthsInterval,
-        'unitsPrintThreshold': unitsPrintThreshold,
-        'unitsMonthsInterval': unitsMonthsInterval,
-        'consumablesPrintThreshold': consumablesPrintThreshold,
-      });
+      final response = await _client.dio.post(
+        '/asset-brands/$brandId/models',
+        data: {
+          'name': name,
+          'generalPrintThreshold': generalPrintThreshold,
+          'generalMonthsInterval': generalMonthsInterval,
+          'unitsPrintThreshold': unitsPrintThreshold,
+          'unitsMonthsInterval': unitsMonthsInterval,
+          'consumablesPrintThreshold': consumablesPrintThreshold,
+        },
+      );
       return AssetModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AssetModelApi.create failed: $e\n$st');
@@ -57,14 +62,17 @@ class AssetModelApi {
     required int consumablesPrintThreshold,
   }) async {
     try {
-      final response = await _client.dio.put('/asset-brands/$brandId/models/$id', data: {
-        'name': name,
-        'generalPrintThreshold': generalPrintThreshold,
-        'generalMonthsInterval': generalMonthsInterval,
-        'unitsPrintThreshold': unitsPrintThreshold,
-        'unitsMonthsInterval': unitsMonthsInterval,
-        'consumablesPrintThreshold': consumablesPrintThreshold,
-      });
+      final response = await _client.dio.put(
+        '/asset-brands/$brandId/models/$id',
+        data: {
+          'name': name,
+          'generalPrintThreshold': generalPrintThreshold,
+          'generalMonthsInterval': generalMonthsInterval,
+          'unitsPrintThreshold': unitsPrintThreshold,
+          'unitsMonthsInterval': unitsMonthsInterval,
+          'consumablesPrintThreshold': consumablesPrintThreshold,
+        },
+      );
       return AssetModel.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('AssetModelApi.update failed: $e\n$st');

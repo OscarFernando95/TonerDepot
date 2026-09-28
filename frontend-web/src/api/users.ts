@@ -18,6 +18,10 @@ export function setUserStatus(id: string, isActive: boolean) {
   return http.patch<UserDto>(`/users/${id}/status`, { isActive })
 }
 
+export function revokeUserSessions(id: string) {
+  return http.post<{ revoked: number }>(`/users/${id}/sessions/revoke`)
+}
+
 export function resetUserPassword(id: string) {
   return http.post<UserWithGeneratedPasswordDto>(`/users/${id}/reset-password`)
 }

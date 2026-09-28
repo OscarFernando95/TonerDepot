@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { RoleNames } from '../api/types'
 import * as dashboardApi from '../api/dashboard'
+import { useRealtimeUpdates } from '../composables/useRealtime'
 import type { DashboardSummaryDto } from '../api/dashboard'
 import FlapText from '../components/board/FlapText.vue'
 import LaneStatus from '../components/board/LaneStatus.vue'
@@ -94,6 +95,15 @@ onMounted(() => {
   if (isStaff.value) {
     loadSummary()
   }
+})
+
+// El dashboard es agregados (SLA, MTTR, utilización): no vale la pena recalcular en cada ticket que
+// cambia, así que se espacía un poco.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
+useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit'], () => {
+  if (!isStaff.value) return
+  if (refreshTimer) clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(loadSummary, 3000)
 })
 </script>
 

@@ -43,19 +43,27 @@ class ClientsListScreen extends StatelessWidget {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text(state.error!, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+                    child: Text(
+                      state.error!,
+                      style: const TextStyle(color: AppColors.signalRed),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 );
               }
               if (state.clients.isEmpty) {
-                return const PlaceholderScreen(title: 'Sin clientes', message: 'Todavía no hay clientes registrados.');
+                return const PlaceholderScreen(
+                  title: 'Sin clientes',
+                  message: 'Todavía no hay clientes registrados.',
+                );
               }
               return RefreshIndicator(
                 onRefresh: state.load,
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                   itemCount: state.clients.length,
-                  itemBuilder: (context, index) => _ClientItem(client: state.clients[index]),
+                  itemBuilder: (context, index) =>
+                      _ClientItem(client: state.clients[index]),
                 ),
               );
             },
@@ -80,22 +88,47 @@ class _ClientItem extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text(client.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+              Expanded(
+                child: Text(
+                  client.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
               StatusChip.activeState(client.isActive),
             ],
           ),
           if (client.taxId != null) ...[
             const SizedBox(height: 4),
-            Text('NIT: ${client.taxId}', style: const TextStyle(color: AppColors.inkSecondary)),
+            Text(
+              'NIT: ${client.taxId}',
+              style: const TextStyle(color: AppColors.inkSecondary),
+            ),
           ],
           const SizedBox(height: 6),
           Text(
             '${client.locationCount} sede(s)${client.cityNames.isEmpty ? '' : ' — ${client.cityNames.join(', ')}'}',
             style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
           ),
+          if (client.supportCoverage == 'Continuo24x7') ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Soporte 24/7',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.signalBlue,
+              ),
+            ),
+          ],
           if (!client.isContractClient) ...[
             const SizedBox(height: 4),
-            const Text('Cliente externo (sin equipos catalogados)', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+            const Text(
+              'Cliente externo (sin equipos catalogados)',
+              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic),
+            ),
           ],
         ],
       ),

@@ -20,6 +20,9 @@ public class AuthService : IAuthService
     // Bloqueo de cuenta por intentos fallidos consecutivos (ver SECURITY_AUDIT.md hallazgo #9).
     // Control adicional por CUENTA, complementario al rate limiting por IP del hallazgo #2 — protege
     // contra un atacante que rota de IP pero insiste sobre la misma cédula.
+    // Debe coincidir con UserSessionConfiguration.SingleActiveSessionIndexName (Application no referencia Infrastructure).
+    private const string SingleActiveSessionIndexName = "IX_UserSessions_UserId_SingleActive";
+
     private const int MaxFailedLoginAttempts = 5;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
@@ -27,20 +30,23 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenGenerator _jwtTokenGenerator;
     private readonly ILogger<AuthService> _logger;
+    private readonly ISessionService _sessions;
 
     public AuthService(
         IApplicationDbContext db,
         IPasswordHasher passwordHasher,
         IJwtTokenGenerator jwtTokenGenerator,
-        ILogger<AuthService> logger)
+        ILogger<AuthService> logger,
+        ISessionService sessions)
     {
         _db = db;
         _passwordHasher = passwordHasher;
         _jwtTokenGenerator = jwtTokenGenerator;
         _logger = logger;
+        _sessions = sessions;
     }
 
-    public async Task<LoginResult> LoginAsync(LoginRequest request, string? ipAddress = null, CancellationToken cancellationToken = default)
+    public async Task<LoginResult> LoginAsync(LoginRequest request, string? ipAddress = null, CancellationToken cancellationToken = default, string? clientType = null, string? userAgent = null)
     {
         var cedula = request.Cedula.Trim();
 
@@ -130,8 +136,35 @@ public class AuthService : IAuthService
             "Login exitoso para cédula {Cedula} (usuario {UserId}) desde IP {IpAddress}",
             cedula, user!.Id, ipAddress ?? "desconocida");
 
-        var (token, expiresAtUtc) = _jwtTokenGenerator.GenerateToken(user!);
+        var sessionId = Guid.NewGuid();
+        var (token, expiresAtUtc) = _jwtTokenGenerator.GenerateToken(user!, sessionId);
+
+        // Puede lanzar ConflictException (técnico con sesión activa — gana la primera). El contador de
+        // intentos fallidos ya se limpió arriba: la contraseña era correcta.
+        await _sessions.StartAsync(user!, sessionId, expiresAtUtc, clientType, ipAddress, userAgent, cancellationToken);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(SingleActiveSessionIndexName) == true)
+        {
+            // Dos logins simultáneos del mismo técnico pasaron el chequeo a la vez: el índice único
+            // parcial deja pasar solo a uno.
+            throw new ConflictException("Ya tienes una sesión activa en otro dispositivo. Ciérrala allí primero, o pide a un administrador que la cierre.");
+        }
+
         return LoginResult.Success(token, expiresAtUtc, ToCurrentUserDto(user!));
+    }
+
+    public async Task LogoutAsync(Guid userId, Guid sessionId, string? ipAddress = null, CancellationToken cancellationToken = default)
+    {
+        await _sessions.RevokeAsync(sessionId, userId, "Logout", cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Logout del usuario {UserId} (sesión {SessionId}) desde IP {IpAddress}",
+            userId, sessionId, ipAddress ?? "desconocida");
     }
 
     public async Task<CurrentUserDto> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -163,6 +196,8 @@ public class AuthService : IAuthService
         user.MustChangePassword = false;
         // Invalida cualquier JWT ya emitido para este usuario (ver SecurityStampValidator).
         user.SecurityStamp = Guid.NewGuid();
+        // Sin esto la sesión (y, para un técnico, el bloqueo de sesión única) sobreviviría al token muerto.
+        await _sessions.RevokeAllForUserAsync(userId, "CambioContraseña", cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(

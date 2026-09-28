@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/role_names.dart';
-import '../screens/common/placeholder_screen.dart';
 import '../screens/dashboard_home_screen.dart';
 import '../screens/meter_readings_screen.dart';
 import '../screens/my_work_screen.dart';
@@ -10,8 +9,10 @@ import '../screens/assets/asset_brands_list_screen.dart';
 import '../screens/assets/assets_list_screen.dart';
 import '../screens/clients/clients_list_screen.dart';
 import '../screens/contracts/contracts_list_screen.dart';
+import '../screens/holidays/holidays_screen.dart';
 import '../screens/users/users_list_screen.dart';
 import '../screens/maintenance/maintenance_orders_list_screen.dart';
+import '../screens/maintenance/maintenance_schedules_list_screen.dart';
 import '../screens/portal/my_assets_screen.dart';
 import '../screens/portal/my_contracts_screen.dart';
 import '../screens/technicians/technicians_list_screen.dart';
@@ -40,11 +41,8 @@ class AppDestination {
   final Widget Function(BuildContext context, GoRouterState state) builder;
 }
 
-/// Árbol completo de navegación por rol. Las pantallas marcadas
-/// "Fase C/D/E/F" todavía no existen — muestran PlaceholderScreen mientras
-/// se portan (ver plan de implementación); ya están aquí para que el Drawer
-/// sea dinámico por rol desde el día 1, no algo que se arma pantalla a
-/// pantalla más adelante.
+/// Árbol completo de navegación por rol: el Drawer se arma dinámicamente
+/// filtrando esta lista por el rol del usuario.
 final List<AppDestination> kAppDestinations = [
   AppDestination(
     name: 'dashboard',
@@ -143,12 +141,20 @@ final List<AppDestination> kAppDestinations = [
     builder: (context, state) => const ContractsListScreen(),
   ),
   AppDestination(
+    name: 'holidays',
+    path: '/holidays',
+    label: 'Festivos',
+    icon: Icons.event_busy_outlined,
+    roles: RoleNames.staffRoles,
+    builder: (context, state) => const HolidaysScreen(),
+  ),
+  AppDestination(
     name: 'maintenance-schedules',
     path: '/maintenance-schedules',
     label: 'Programaciones',
     icon: Icons.event_repeat_outlined,
     roles: RoleNames.staffRoles,
-    builder: (context, state) => const PlaceholderScreen(title: 'Programaciones de mantenimiento'),
+    builder: (context, state) => const MaintenanceSchedulesListScreen(),
   ),
   AppDestination(
     name: 'users',

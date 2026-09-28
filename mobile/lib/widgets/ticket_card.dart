@@ -28,56 +28,89 @@ class TicketCard extends StatelessWidget {
       color: isActive ? AppColors.claySurfaceRaised : null,
       padding: const EdgeInsets.all(12),
       child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(ticket.clientName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                ),
-                StatusChip(value: ticket.priority, isPriority: true),
-                const SizedBox(width: 6),
-                StatusChip(value: ticket.status),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(ticket.clientLocationName, style: const TextStyle(color: AppColors.inkSecondary)),
-            if (ticket.cityName != null) Text(ticket.cityName!, style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)),
-            const SizedBox(height: 6),
-            Text(ticket.description),
-            if (ticket.isExternal) ...[
-              const SizedBox(height: 4),
-              const Text('Equipo no catalogado (cliente externo)', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-            ] else if (ticket.assetBrandName != null) ...[
-              const SizedBox(height: 4),
-              Text('${ticket.assetBrandName} ${ticket.assetModel ?? ''} — ${ticket.assetSerialNumber ?? ''}',
-                  style: const TextStyle(fontSize: 12)),
-            ],
-            if (canCheckIn && !isActive) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: AnimatedGradientBorder(
-                  backgroundColor: isActive ? AppColors.claySurfaceRaised : AppColors.claySurface,
-                  child: FilledButton.icon(
-                    onPressed: checkingIn ? null : onCheckIn,
-                    icon: checkingIn
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.login, size: 18),
-                    label: const Text('Check-in'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  ticket.clientName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
                   ),
                 ),
               ),
+              StatusChip(value: ticket.priority, isPriority: true),
+              const SizedBox(width: 6),
+              StatusChip(value: ticket.status),
             ],
-            if (isActive) ...[
-              const SizedBox(height: 8),
-              const Align(
-                alignment: Alignment.centerRight,
-                child: Text('Visita en curso', style: TextStyle(color: AppColors.signalBlueBright, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            ticket.clientLocationName,
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
+          if (ticket.cityName != null)
+            Text(
+              ticket.cityName!,
+              style: const TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
               ),
-            ],
+            ),
+          const SizedBox(height: 6),
+          Text(ticket.description),
+          if (ticket.isExternal) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'Equipo no catalogado (cliente externo)',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ] else if (ticket.assetBrandName != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${ticket.assetBrandName} ${ticket.assetModel ?? ''} — ${ticket.assetSerialNumber ?? ''}',
+              style: const TextStyle(fontSize: 12),
+            ),
           ],
-        ),
+          if (canCheckIn && !isActive) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: AnimatedGradientBorder(
+                backgroundColor: isActive
+                    ? AppColors.claySurfaceRaised
+                    : AppColors.claySurface,
+                child: FilledButton.icon(
+                  onPressed: checkingIn ? null : onCheckIn,
+                  icon: checkingIn
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.login, size: 18),
+                  label: const Text('Check-in'),
+                ),
+              ),
+            ),
+          ],
+          if (isActive) ...[
+            const SizedBox(height: 8),
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'Visita en curso',
+                style: TextStyle(
+                  color: AppColors.signalBlueBright,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
