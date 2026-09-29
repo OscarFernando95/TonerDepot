@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -8,6 +8,7 @@ import LocationPickerDialog from '../../components/LocationPickerDialog.vue'
 import * as clientsApi from '../../api/clients'
 import * as locationsApi from '../../api/clientLocations'
 import * as citiesApi from '../../api/cities'
+import { useDepartmentCityCascade } from '../../composables/useDepartmentCityCascade'
 import type { CityDto, ClientDto, ClientLocationDto, SupportCoverage } from '../../api/types'
 
 const route = useRoute()
@@ -73,13 +74,12 @@ async function useMyLocation() {
   }
 }
 
-// Cascada Departamento→Ciudad: departmentName es local al formulario, no se manda al backend.
-const departmentName = ref('')
-const departments = computed(() => [...new Set(cities.value.map((c) => c.stateOrProvince))].sort())
-const citiesInDepartment = computed(() => cities.value.filter((c) => c.stateOrProvince === departmentName.value))
-watch(departmentName, () => {
-  locationForm.cityId = ''
-})
+const { departmentName, departments, citiesInDepartment, setDepartmentForCity } = useDepartmentCityCascade(
+  cities,
+  () => {
+    locationForm.cityId = ''
+  }
+)
 
 async function loadAll() {
   loading.value = true
@@ -159,11 +159,10 @@ function openCreateLocationDialog() {
 async function openEditLocationDialog(location: ClientLocationDto) {
   editingLocationId.value = location.id
   // Pre-poblar el departamento a partir de la ciudad ya asignada — si no, el select de Departamento
-  // aparece vacío al editar aunque la sede ya tenga ciudad.
-  const city = cities.value.find((c) => c.id === location.cityId)
-  departmentName.value = city?.stateOrProvince ?? ''
-  // El watch de departmentName limpia cityId de forma asíncrona (próximo tick) — hay que esperarlo
-  // antes de fijar el valor real, o lo pisaría después de asignarlo acá.
+  // aparece vacío al editar aunque la sede ya tenga ciudad. El watch de departmentName limpia cityId
+  // de forma asíncrona (próximo tick) — hay que esperarlo antes de fijar el valor real, o lo pisaría
+  // después de asignarlo acá.
+  setDepartmentForCity(location.cityId)
   await nextTick()
   locationForm.cityId = location.cityId
   locationForm.name = location.name

@@ -26,6 +26,23 @@ class MeterReadingApi {
     }
   }
 
+  /// Pestaña de respaldo — activos instalados en las ciudades de cobertura
+  /// del técnico (TechnicianCoverage), vinculados o no a él o a otro
+  /// técnico. Ver AssetService.ListForMeterReadingByCoverageAsync, backend.
+  Future<List<MeterReadingAsset>> listAssetsByCoverage() async {
+    try {
+      final response = await _client.dio.get('/meter-readings/by-coverage');
+      final page = PagedResult<MeterReadingAsset>.fromJson(
+        response.data as Map<String, dynamic>,
+        MeterReadingAsset.fromJson,
+      );
+      return page.items;
+    } catch (e, st) {
+      debugPrint('MeterReadingApi.listAssetsByCoverage failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
   Future<void> register(
     String assetId, {
     required double counterValue,

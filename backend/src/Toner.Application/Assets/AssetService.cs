@@ -477,14 +477,56 @@ public class AssetService : IAssetService
         return result;
     }
 
-    // El alcance por rol se resuelve enteramente en MeterReadingsController ([Authorize(Roles =
-    // RoleNames.StaffAndTechnicianRoles)]): Admin/Coordinador/Técnico ven todos los activos instalados,
-    // no hay recorte adicional por cliente.
     public async Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingAsync(
         RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var result = await _db.Assets
-            .Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado)
+        var query = _db.Assets.Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado);
+
+        // Admin/Coordinador ven todos los activos instalados. Un Técnico solo ve los que un
+        // administrador le vinculó explícitamente (TechnicianAsset) — decisión de arquitectura del
+        // 2026-09-27: la cobertura por ciudad (TechnicianCoverage) no otorga visibilidad de activos
+        // por sí sola, así que un técnico recién asignado a una ciudad no ve nada hasta que se le
+        // vinculen sus activos. Para el caso "el técnico titular no está disponible" existe una lista
+        // de respaldo aparte, ver ListForMeterReadingByCoverageAsync — nunca se fusionan.
+        if (requestingUser.IsTechnician)
+        {
+            var technicianId = requestingUser.TechnicianId
+                ?? throw new ForbiddenException("Tu usuario no tiene un técnico asociado.");
+
+            query = query.Where(a => a.TechnicianAssets.Any(ta => ta.TechnicianId == technicianId));
+        }
+
+        return await ProjectMeterReadingAssetsAsync(query, page, pageSize, cancellationToken);
+    }
+
+    // Respaldo cuando el técnico titular de un activo no está disponible (vacaciones, incapacidad,
+    // renuncia/despido): además de sus activos vinculados explícitamente (ListForMeterReadingAsync),
+    // un técnico puede ver y registrar lecturas de TODOS los activos instalados en las ciudades de su
+    // cobertura (TechnicianCoverage), estén o no vinculados a él o a otro técnico — decisión de
+    // producto 2026-09-28. La vinculación explícita sigue siendo la lista "principal"; esta es una
+    // pestaña de respaldo separada en la app, nunca se fusionan las dos. Solo tiene sentido para
+    // Técnico — Admin/Coordinador ya ven todo en ListForMeterReadingAsync.
+    public async Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingByCoverageAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    {
+        var technicianId = requestingUser.TechnicianId
+            ?? throw new ForbiddenException("Tu usuario no tiene un técnico asociado.");
+
+        var query = _db.Assets.Where(a =>
+            a.LifecycleStatus == AssetLifecycleStatus.Instalado &&
+            a.CurrentClientLocation != null &&
+            a.CurrentClientLocation.City.TechnicianCoverages.Any(tc => tc.TechnicianId == technicianId));
+
+        return await ProjectMeterReadingAssetsAsync(query, page, pageSize, cancellationToken);
+    }
+
+    // Compartido por ListForMeterReadingAsync y ListForMeterReadingByCoverageAsync — solo cambia el
+    // filtro previo (por vínculo explícito vs. por cobertura de ciudad), la proyección y el adjunto de
+    // última lectura son idénticos.
+    private async Task<PagedResult<MeterReadingAssetDto>> ProjectMeterReadingAssetsAsync(
+        IQueryable<Asset> query, int? page, int? pageSize, CancellationToken cancellationToken)
+    {
+        var result = await query
             .Select(a => new MeterReadingAssetDto
             {
                 AssetId = a.Id,

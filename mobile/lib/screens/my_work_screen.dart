@@ -130,15 +130,9 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                   onCheckOut: () => _handleCheckOut(state),
                 ),
               const SizedBox(height: 16),
-              Text(
-                'Mis tickets (${state.checkInableTickets.length})',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              _SectionHeader(title: 'Mis tickets', count: state.checkInableTickets.length),
               if (state.tickets.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('No tienes tickets asignados.'),
-                ),
+                const Padding(padding: EdgeInsets.all(8), child: Text('No tienes tickets asignados.', textAlign: TextAlign.center)),
               ...state.tickets.map(
                 (t) => TicketCard(
                   ticket: t,
@@ -154,15 +148,9 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Mis órdenes de mantenimiento (${state.checkInableOrders.length})',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              _SectionHeader(title: 'Órdenes de mantenimiento', count: state.checkInableOrders.length),
               if (state.orders.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('No tienes órdenes asignadas.'),
-                ),
+                const Padding(padding: EdgeInsets.all(8), child: Text('No tienes órdenes asignadas.', textAlign: TextAlign.center)),
               ...state.orders.map(
                 (o) => OrderCard(
                   order: o,
@@ -178,15 +166,9 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Instalaciones pendientes (${state.pendingInstallations.length})',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              _SectionHeader(title: 'Instalaciones pendientes', count: state.pendingInstallations.length),
               if (state.pendingInstallations.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Text('No hay instalaciones pendientes.'),
-                ),
+                const Padding(padding: EdgeInsets.all(8), child: Text('No hay instalaciones pendientes.', textAlign: TextAlign.center)),
               ...state.pendingInstallations.map(
                 (i) => InstallationCard(
                   installation: i,
@@ -263,3 +245,29 @@ class _ActiveVisitCard extends StatelessWidget {
     );
   }
 }
+
+
+/// Encabezado de sección con el mismo lenguaje visual de "caja" que el
+/// resto de la app (ClaySurface) — antes era un Text suelto sin diseño,
+/// ver ClaySurface/ClayCard (widgets/clay_surface.dart).
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.count});
+
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClaySurface(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      child: Center(
+        child: Text(
+          '$title ($count)',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4, fontSize: 13),
+        ),
+      ),
+    );
+  }
+}
+

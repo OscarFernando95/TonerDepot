@@ -39,4 +39,5 @@ public class Asset : BaseEntity
     public ICollection<MaintenanceSchedule> MaintenanceSchedules { get; set; } = new List<MaintenanceSchedule>();
     public ICollection<ServiceTicket> ServiceTickets { get; set; } = new List<ServiceTicket>();
     public ICollection<TimeLog> TimeLogs { get; set; } = new List<TimeLog>();
+    public ICollection<TechnicianAsset> TechnicianAssets { get; set; } = new List<TechnicianAsset>();
 }

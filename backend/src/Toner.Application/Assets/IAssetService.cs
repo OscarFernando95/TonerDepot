@@ -34,4 +34,8 @@ public interface IAssetService
     // Para el módulo "Lectura de contadores" (abierto a los 5 roles) — separado de ListAsync a propósito,
     // para no tocar el alcance por rol que ya usan los consumidores existentes de ListAsync.
     Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+
+    // Pestaña de respaldo — activos instalados en las ciudades de cobertura del técnico, vinculados o
+    // no a él o a otro técnico. Solo aplica a Técnico (ver AssetService para el porqué).
+    Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingByCoverageAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
 }

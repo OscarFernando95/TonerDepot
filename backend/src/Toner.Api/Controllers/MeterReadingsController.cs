@@ -32,6 +32,15 @@ public class MeterReadingsController : ControllerBase
         return Ok(await _assetService.ListForMeterReadingAsync(CurrentUser, page, pageSize, cancellationToken));
     }
 
+    // Pestaña de respaldo (app móvil, solo Técnico) — activos instalados en sus ciudades de cobertura,
+    // para cuando el técnico titular de un activo no está disponible (vacaciones, incapacidad,
+    // renuncia/despido) y de otro modo quedaría sin nadie que le registre lecturas.
+    [HttpGet("by-coverage")]
+    public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> ListByCoverage([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    {
+        return Ok(await _assetService.ListForMeterReadingByCoverageAsync(CurrentUser, page, pageSize, cancellationToken));
+    }
+
     [HttpPost("{assetId:guid}")]
     public async Task<ActionResult<MeterReadingDto>> Register(Guid assetId, [FromBody] CreateMeterReadingRequest request, CancellationToken cancellationToken)
     {

@@ -25,6 +25,7 @@ public class TonerDbContext : DbContext, IApplicationDbContext
 
     public DbSet<Technician> Technicians => Set<Technician>();
     public DbSet<TechnicianCoverage> TechnicianCoverages => Set<TechnicianCoverage>();
+    public DbSet<TechnicianAsset> TechnicianAssets => Set<TechnicianAsset>();
     public DbSet<TechnicianAvailability> TechnicianAvailabilities => Set<TechnicianAvailability>();
 
     public DbSet<AssetBrand> AssetBrands => Set<AssetBrand>();

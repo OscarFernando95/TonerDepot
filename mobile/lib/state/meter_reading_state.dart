@@ -13,6 +13,17 @@ class CityGroup {
 /// Espejo recortado de MeterReadingsView.vue: agrupación por ciudad (la web
 /// también agrupa por cliente dentro de cada ciudad; en el celular, con
 /// pantallas más angostas, una sola agrupación por ciudad es más legible).
+///
+/// Maneja dos listas independientes:
+/// - `assets` ("Vinculados"): activos que un administrador vinculó
+///   explícitamente al técnico (TechnicianAsset).
+/// - `coverageAssets` ("Por cobertura", respaldo): todos los activos
+///   instalados en las ciudades de cobertura del técnico (TechnicianCoverage),
+///   estén o no vinculados a él o a otro técnico — para cuando el técnico
+///   titular de un activo no está disponible (vacaciones, incapacidad,
+///   renuncia/despido) y de otro modo nadie más podría registrarle lecturas.
+/// Nunca se fusionan: un mismo activo puede aparecer en ambas si, además de
+/// estar vinculado a este técnico, también cae en su cobertura.
 class MeterReadingState extends ChangeNotifier {
   MeterReadingState(ApiClient client) : _api = MeterReadingApi(client);
 
@@ -24,9 +35,16 @@ class MeterReadingState extends ChangeNotifier {
   String? error;
   List<MeterReadingAsset> assets = [];
 
-  List<CityGroup> get groupedByCity {
+  bool loadingCoverage = false;
+  String? coverageError;
+  List<MeterReadingAsset> coverageAssets = [];
+
+  List<CityGroup> get groupedByCity => _groupByCity(assets);
+  List<CityGroup> get coverageGroupedByCity => _groupByCity(coverageAssets);
+
+  List<CityGroup> _groupByCity(List<MeterReadingAsset> source) {
     final byCity = <String, List<MeterReadingAsset>>{};
-    for (final a in assets) {
+    for (final a in source) {
       byCity.putIfAbsent(a.cityName ?? _noCity, () => []).add(a);
     }
     final cities = byCity.keys.toList()..sort();
@@ -58,6 +76,21 @@ class MeterReadingState extends ChangeNotifier {
     }
   }
 
+  Future<void> loadCoverage() async {
+    loadingCoverage = true;
+    coverageError = null;
+    notifyListeners();
+    try {
+      coverageAssets = await _api.listAssetsByCoverage();
+    } catch (e, st) {
+      debugPrint('MeterReadingState.loadCoverage failed: $e\n$st');
+      coverageError = e is ApiException ? e.message : 'No se pudieron cargar los equipos de tu cobertura.';
+    } finally {
+      loadingCoverage = false;
+      notifyListeners();
+    }
+  }
+
   /// Devuelve null si el registro salió bien, o un mensaje de error.
   Future<String?> register(
     MeterReadingAsset asset,
@@ -76,7 +109,9 @@ class MeterReadingState extends ChangeNotifier {
         counterValue: counterValue,
         readingDate: readingDate,
       );
-      await load();
+      // El mismo activo puede aparecer en "vinculados" y en "por cobertura" a
+      // la vez, así que hay que refrescar ambas listas tras registrar.
+      await Future.wait([load(), loadCoverage()]);
       return null;
     } catch (e, st) {
       debugPrint('MeterReadingState.register failed: $e\n$st');

@@ -98,6 +98,78 @@ public class TechnicianService : ITechnicianService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<TechnicianAssetDto>> ListLinkedAssetsAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    {
+        var technicianExists = await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken);
+        if (!technicianExists)
+        {
+            throw new NotFoundException(nameof(Technician), technicianId);
+        }
+
+        return await _db.TechnicianAssets
+            .Where(ta => ta.TechnicianId == technicianId)
+            .OrderBy(ta => ta.Asset.CurrentClientLocation!.Client.Name)
+            .Select(ta => new TechnicianAssetDto
+            {
+                Id = ta.Id,
+                AssetId = ta.AssetId,
+                AssetBrandName = ta.Asset.AssetModel.AssetBrand.Name,
+                Model = ta.Asset.AssetModel.Name,
+                SerialNumber = ta.Asset.SerialNumber,
+                ClientName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Client.Name : null,
+                ClientLocationName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Name : null,
+                CityName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.City.Name : null,
+                Area = ta.Asset.Area
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<TechnicianAssetDto> LinkAssetAsync(Guid technicianId, AddTechnicianAssetRequest request, CancellationToken cancellationToken = default)
+    {
+        var technicianExists = await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken);
+        if (!technicianExists)
+        {
+            throw new NotFoundException(nameof(Technician), technicianId);
+        }
+
+        var alreadyLinked = await _db.TechnicianAssets
+            .AnyAsync(ta => ta.TechnicianId == technicianId && ta.AssetId == request.AssetId, cancellationToken);
+        if (alreadyLinked)
+        {
+            throw new ConflictException("El técnico ya tiene vinculado ese activo.");
+        }
+
+        var link = new TechnicianAsset { TechnicianId = technicianId, AssetId = request.AssetId };
+        _db.TechnicianAssets.Add(link);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await _db.TechnicianAssets
+            .Where(ta => ta.Id == link.Id)
+            .Select(ta => new TechnicianAssetDto
+            {
+                Id = ta.Id,
+                AssetId = ta.AssetId,
+                AssetBrandName = ta.Asset.AssetModel.AssetBrand.Name,
+                Model = ta.Asset.AssetModel.Name,
+                SerialNumber = ta.Asset.SerialNumber,
+                ClientName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Client.Name : null,
+                ClientLocationName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Name : null,
+                CityName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.City.Name : null,
+                Area = ta.Asset.Area
+            })
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task UnlinkAssetAsync(Guid technicianId, Guid technicianAssetId, CancellationToken cancellationToken = default)
+    {
+        var link = await _db.TechnicianAssets
+            .FirstOrDefaultAsync(ta => ta.Id == technicianAssetId && ta.TechnicianId == technicianId, cancellationToken)
+            ?? throw new NotFoundException(nameof(TechnicianAsset), technicianAssetId);
+
+        _db.TechnicianAssets.Remove(link);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<PagedResult<TimeLogDto>> ListTimeLogsAsync(Guid technicianId, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var technicianExists = await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken);

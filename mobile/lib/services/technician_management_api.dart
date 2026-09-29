@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/paged_result.dart';
 import '../models/technician.dart';
+import '../models/technician_asset.dart';
 import '../models/technician_coverage.dart';
 import '../models/technician_schedule.dart';
 import '../models/technician_visit.dart';
@@ -82,6 +83,17 @@ class TechnicianManagementApi {
     }
   }
 
+  Future<List<TechnicianAsset>> getLinkedAssets(String technicianId) async {
+    try {
+      final response = await _client.dio.get('/technicians/$technicianId/assets');
+      final items = response.data as List<dynamic>;
+      return items.map((e) => TechnicianAsset.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e, st) {
+      debugPrint('TechnicianManagementApi.getLinkedAssets failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
   Future<TechnicianSchedule> setSchedule(
     String technicianId,
     List<WorkInterval> intervals,
@@ -96,6 +108,16 @@ class TechnicianManagementApi {
       return TechnicianSchedule.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('TechnicianManagementApi.setSchedule failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  Future<TechnicianAsset> linkAsset(String technicianId, String assetId) async {
+    try {
+      final response = await _client.dio.post('/technicians/$technicianId/assets', data: {'assetId': assetId});
+      return TechnicianAsset.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('TechnicianManagementApi.linkAsset failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
@@ -171,6 +193,15 @@ class TechnicianManagementApi {
       return page.items;
     } catch (e, st) {
       debugPrint('TechnicianManagementApi.listVisits failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  Future<void> unlinkAsset(String technicianId, String technicianAssetId) async {
+    try {
+      await _client.dio.delete('/technicians/$technicianId/assets/$technicianAssetId');
+    } catch (e, st) {
+      debugPrint('TechnicianManagementApi.unlinkAsset failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

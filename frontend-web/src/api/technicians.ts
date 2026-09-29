@@ -45,6 +45,18 @@ export interface TechnicianCoverageDto {
   cityName: string
 }
 
+export interface TechnicianAssetDto {
+  id: string
+  assetId: string
+  assetBrandName: string
+  model: string
+  serialNumber: string
+  clientName: string | null
+  clientLocationName: string | null
+  cityName: string | null
+  area: string | null
+}
+
 export function listTechnicians() {
   return getList<TechnicianDto>('/technicians')
 }
@@ -102,4 +114,16 @@ export interface TimeLogDto {
 
 export function listTechnicianVisits(technicianId: string) {
   return getList<TimeLogDto>(`/technicians/${technicianId}/time-logs`)
+}
+
+export function listTechnicianAssets(technicianId: string) {
+  return http.get<TechnicianAssetDto[]>(`/technicians/${technicianId}/assets`)
+}
+
+export function addTechnicianAsset(technicianId: string, assetId: string) {
+  return http.post<TechnicianAssetDto>(`/technicians/${technicianId}/assets`, { assetId })
+}
+
+export function removeTechnicianAsset(technicianId: string, technicianAssetId: string) {
+  return http.delete(`/technicians/${technicianId}/assets/${technicianAssetId}`)
 }

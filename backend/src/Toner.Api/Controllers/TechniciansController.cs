@@ -16,11 +16,16 @@ public class TechniciansController : ControllerBase
 {
     private readonly ITechnicianService _technicianService;
     private readonly IValidator<AddTechnicianCoverageRequest> _addCoverageValidator;
+    private readonly IValidator<AddTechnicianAssetRequest> _addAssetValidator;
 
-    public TechniciansController(ITechnicianService technicianService, IValidator<AddTechnicianCoverageRequest> addCoverageValidator)
+    public TechniciansController(
+        ITechnicianService technicianService,
+        IValidator<AddTechnicianCoverageRequest> addCoverageValidator,
+        IValidator<AddTechnicianAssetRequest> addAssetValidator)
     {
         _technicianService = technicianService;
         _addCoverageValidator = addCoverageValidator;
+        _addAssetValidator = addAssetValidator;
     }
 
     [HttpGet]
@@ -48,6 +53,28 @@ public class TechniciansController : ControllerBase
     public async Task<IActionResult> RemoveCoverage(Guid id, Guid coverageId, CancellationToken cancellationToken)
     {
         await _technicianService.RemoveCoverageAsync(id, coverageId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/assets")]
+    public async Task<ActionResult<IReadOnlyList<TechnicianAssetDto>>> ListLinkedAssets(Guid id, CancellationToken cancellationToken)
+    {
+        return Ok(await _technicianService.ListLinkedAssetsAsync(id, cancellationToken));
+    }
+
+    [HttpPost("{id:guid}/assets")]
+    public async Task<ActionResult<TechnicianAssetDto>> LinkAsset(Guid id, [FromBody] AddTechnicianAssetRequest request, CancellationToken cancellationToken)
+    {
+        await _addAssetValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var link = await _technicianService.LinkAssetAsync(id, request, cancellationToken);
+        return CreatedAtAction(nameof(ListLinkedAssets), new { id }, link);
+    }
+
+    [HttpDelete("{id:guid}/assets/{technicianAssetId:guid}")]
+    public async Task<IActionResult> UnlinkAsset(Guid id, Guid technicianAssetId, CancellationToken cancellationToken)
+    {
+        await _technicianService.UnlinkAssetAsync(id, technicianAssetId, cancellationToken);
         return NoContent();
     }
 

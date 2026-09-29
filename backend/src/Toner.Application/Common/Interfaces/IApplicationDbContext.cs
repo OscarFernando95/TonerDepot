@@ -19,6 +19,7 @@ public interface IApplicationDbContext
     DbSet<ClientLocation> ClientLocations { get; }
     DbSet<Technician> Technicians { get; }
     DbSet<TechnicianCoverage> TechnicianCoverages { get; }
+    DbSet<TechnicianAsset> TechnicianAssets { get; }
     DbSet<AssetBrand> AssetBrands { get; }
     DbSet<AssetModel> AssetModels { get; }
     DbSet<Asset> Assets { get; }

@@ -921,6 +921,33 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.ToTable("Technicians", (string)null);
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.TechnicianAsset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TechnicianId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssetId");
+
+                    b.HasIndex("TechnicianId", "AssetId")
+                        .IsUnique();
+
+                    b.ToTable("TechnicianAssets", (string)null);
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.TechnicianAvailability", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1541,6 +1568,25 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.TechnicianAsset", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.Asset", "Asset")
+                        .WithMany("TechnicianAssets")
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Toner.Domain.Entities.Technician", "Technician")
+                        .WithMany("LinkedAssets")
+                        .HasForeignKey("TechnicianId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Asset");
+
+                    b.Navigation("Technician");
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.TechnicianAvailability", b =>
                 {
                     b.HasOne("Toner.Domain.Entities.Technician", "Technician")
@@ -1673,6 +1719,8 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.Navigation("StatusLogs");
 
+                    b.Navigation("TechnicianAssets");
+
                     b.Navigation("TimeLogs");
                 });
 
@@ -1755,6 +1803,8 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("AvailabilityHistory");
 
                     b.Navigation("Coverages");
+
+                    b.Navigation("LinkedAssets");
 
                     b.Navigation("TimeLogs");
 
