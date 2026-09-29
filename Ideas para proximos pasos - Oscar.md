@@ -12,3 +12,8 @@ Aqui quiero expresar ideas que tengo para el proyecto
 10. Revisiones de seguridad (Request limit, sql injection, IP limiting, RLS, Encripcion de datos, RLS, Server Side Validation, Input Sanity, Autenticacion con expiracion de sesion, CORS, CI/CD para despliegues automaticos, manejo de excepciones, manejo de errores, controles de fallo) - En progreso (80%)
 11. Aprovechamiento del espacio de Inicio de los tecnicos
 12. calculo de horas en horario laboral para los sla y demas, tambien tener en cuenta festivos y fines de semana
+
+Pendientes por aplicar y cambios
+
+1. Limitar a 10 caracteres el numero de contacto de todo usuario, tecnico, cliente. | Pendiente por aplicar.
+2. Vincular, automaticamente, un activo al tecnico que realiza una instalacion por primera vez. En caso de se un favor que se pida, la re-vincuacion se debe hacer por el administrador.

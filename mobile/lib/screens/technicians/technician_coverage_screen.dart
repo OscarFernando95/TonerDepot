@@ -246,7 +246,7 @@ class _LinkedAssetsBody extends StatelessWidget {
             return ChangeNotifierProvider.value(
               value: state,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(sheetContext).viewInsets.bottom + 16),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(sheetContext).viewInsets.bottom + MediaQuery.of(sheetContext).padding.bottom + 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -315,6 +315,7 @@ class _LinkedAssetsBody extends StatelessWidget {
                                     style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
                                   ),
                                   isThreeLine: true,
+                                  contentPadding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
                                   trailing: IconButton(
                                     icon: const Icon(Icons.add_circle_outline, color: AppColors.signalBlue),
                                     onPressed: state.busyWithAction

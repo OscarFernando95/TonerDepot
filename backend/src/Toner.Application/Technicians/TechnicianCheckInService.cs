@@ -332,6 +332,16 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 technician.UserId,
                 cancellationToken);
 
+            // El técnico que instala un activo queda vinculado a él: es lo que gobierna qué ve en
+            // "Lectura de contadores". Idempotente (índice único TechnicianId+AssetId) y dentro del
+            // único SaveChanges de abajo, así que no queda el check-out cerrado sin el vínculo.
+            var alreadyLinked = await _db.TechnicianAssets
+                .AnyAsync(ta => ta.TechnicianId == technicianId && ta.AssetId == openLog.AssetId.Value, cancellationToken);
+            if (!alreadyLinked)
+            {
+                _db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = technicianId, AssetId = openLog.AssetId.Value });
+            }
+
             var counterDate = request.InitialCounterDate ?? DateTime.UtcNow;
             _db.MeterReadings.Add(new MeterReading
             {

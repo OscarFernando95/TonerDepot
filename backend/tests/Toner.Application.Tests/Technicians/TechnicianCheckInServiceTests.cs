@@ -354,6 +354,53 @@ public class TechnicianCheckInServiceTests
         Assert.Equal(1200, reading.CounterValue);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CheckOutAsync_AssetInstallation_Resolved_LinksAssetToTechnicianExactlyOnce(bool alreadyLinked)
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.PendienteInstalacion, location.Id);
+
+        var techRole = TestEntities.Role(RoleNames.Tecnico);
+        var techUser = TestEntities.User(techRole);
+        var technician = TestEntities.Technician(techUser, isActive: true, status: TechnicianStatus.Disponible);
+
+        arrangeDb.AddRange(city, client, location, brand, model, asset, techRole, techUser, technician);
+        if (alreadyLinked)
+        {
+            arrangeDb.TechnicianAssets.Add(new Domain.Entities.TechnicianAsset { TechnicianId = technician.Id, AssetId = asset.Id });
+        }
+        await arrangeDb.SaveChangesAsync();
+
+        using (var checkInDb = TonerTestDb.CreateContext(dbName))
+        {
+            await BuildService(checkInDb).CheckInAsync(technician.Id, new CheckInRequest { AssetId = asset.Id });
+        }
+
+        using (var actDb = TonerTestDb.CreateContext(dbName))
+        {
+            await BuildService(actDb).CheckOutAsync(technician.Id, new CheckOutRequest
+            {
+                Resolved = true,
+                Area = "Recepción",
+                InitialCounterValue = 1200,
+                GeneralMaintenanceDone = true,
+                UnitsMaintenanceDone = false
+            });
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var link = await assertDb.TechnicianAssets.SingleAsync(ta => ta.AssetId == asset.Id);
+        Assert.Equal(technician.Id, link.TechnicianId);
+    }
+
     [Fact]
     public async Task CheckOutAsync_AssetInstallation_MissingGeneralOrUnitsMaintenanceDone_Throws()
     {
