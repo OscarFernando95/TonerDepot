@@ -151,6 +151,149 @@ class _AppShellState extends State<AppShell> {
           ),
         ],
       ),
+      bottomNavigationBar: _GlassBottomNav(
+        destinations: visibleDestinations,
+        currentPath: currentPath,
+        onSelect: (d) => context.go(d.path),
+      ),
+    );
+  }
+}
+
+/// Barra inferior con los mismos destinos que el Drawer (ya filtrados por
+/// rol). Un rol de staff tiene 13 destinos, demasiados para una barra fija,
+/// así que hace scroll horizontal y mantiene visible el destino activo.
+class _GlassBottomNav extends StatefulWidget {
+  const _GlassBottomNav({
+    required this.destinations,
+    required this.currentPath,
+    required this.onSelect,
+  });
+
+  final List<AppDestination> destinations;
+  final String currentPath;
+  final ValueChanged<AppDestination> onSelect;
+
+  @override
+  State<_GlassBottomNav> createState() => _GlassBottomNavState();
+}
+
+class _GlassBottomNavState extends State<_GlassBottomNav> {
+  final Map<String, GlobalKey> _itemKeys = {};
+
+  GlobalKey _keyFor(String path) => _itemKeys.putIfAbsent(path, GlobalKey.new);
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollToCurrent();
+  }
+
+  @override
+  void didUpdateWidget(_GlassBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentPath != widget.currentPath) _scrollToCurrent();
+  }
+
+  void _scrollToCurrent() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final itemContext = _itemKeys[widget.currentPath]?.currentContext;
+      if (itemContext == null) return;
+      Scrollable.ensureVisible(
+        itemContext,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 64,
+          // Si los botones caben, quedan centrados; si no, minWidth se
+          // ignora y la barra hace scroll horizontal.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth - 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (final d in widget.destinations)
+                      _BottomNavItem(
+                        key: _keyFor(d.path),
+                        icon: d.icon,
+                        label: d.label,
+                        selected: d.path == widget.currentPath,
+                        onTap: () => widget.onSelect(d),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomNavItem extends StatelessWidget {
+  const _BottomNavItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.signalBlueBright : AppColors.inkSecondary;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          width: 84,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.signalBlueWash : null,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 24),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

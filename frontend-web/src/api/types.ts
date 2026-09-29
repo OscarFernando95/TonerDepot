@@ -503,6 +503,9 @@ export interface ServiceTicketDto {
   technicianName: string | null
   resolvedAt: string | null
   closedAt: string | null
+  // Solo vienen en el detalle y solo para staff/técnico (ver ServiceTicketDto.cs).
+  resolutionNotes?: string | null
+  resolutionDurationMinutes?: number | null
   createdAt: string
 }
 

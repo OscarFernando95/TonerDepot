@@ -8,6 +8,7 @@ import LocationPickerDialog from '../../components/LocationPickerDialog.vue'
 import * as clientsApi from '../../api/clients'
 import * as locationsApi from '../../api/clientLocations'
 import * as citiesApi from '../../api/cities'
+import { PHONE_ERROR_MESSAGE, digitsOnly, isValidPhone } from '../../utils/phone'
 import { useDepartmentCityCascade } from '../../composables/useDepartmentCityCascade'
 import type { CityDto, ClientDto, ClientLocationDto, SupportCoverage } from '../../api/types'
 
@@ -112,6 +113,10 @@ function syncClientForm() {
 }
 
 async function saveClient() {
+  if (!isValidPhone(clientForm.contactPhone)) {
+    ElMessage.warning(PHONE_ERROR_MESSAGE)
+    return
+  }
   savingClient.value = true
   try {
     const { data } = await clientsApi.updateClient(clientId, {
@@ -175,6 +180,10 @@ async function openEditLocationDialog(location: ClientLocationDto) {
 }
 
 async function saveLocation() {
+  if (!isValidPhone(locationForm.contactPhone)) {
+    ElMessage.warning(PHONE_ERROR_MESSAGE)
+    return
+  }
   savingLocation.value = true
   const payload = {
     cityId: locationForm.cityId,
@@ -244,7 +253,7 @@ onMounted(loadAll)
               <el-input v-model="clientForm.contactEmail" type="email" />
             </el-form-item>
             <el-form-item label="Teléfono de contacto">
-              <el-input v-model="clientForm.contactPhone" />
+              <el-input v-model="clientForm.contactPhone" inputmode="numeric" maxlength="10" :formatter="digitsOnly" :parser="digitsOnly" />
             </el-form-item>
           </div>
           <el-form-item>
@@ -339,7 +348,7 @@ onMounted(loadAll)
           <el-input v-model="locationForm.contactName" />
         </el-form-item>
         <el-form-item label="Teléfono">
-          <el-input v-model="locationForm.contactPhone" />
+          <el-input v-model="locationForm.contactPhone" inputmode="numeric" maxlength="10" :formatter="digitsOnly" :parser="digitsOnly" />
         </el-form-item>
         <el-form-item label="Coordenadas de la sede (opcional)">
           <div class="coords-row">

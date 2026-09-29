@@ -44,6 +44,11 @@ const form = reactive({
   priority: ServiceTicketPriorities.Media as ServiceTicketPriorityName
 })
 
+function assetOptionLabel(a: AssetDto) {
+  const base = `${a.assetBrandName} ${a.model} — ${a.serialNumber}`
+  return a.area ? `${base} · Área: ${a.area}` : base
+}
+
 const assetsAtLocation = computed(() =>
   form.clientLocationId ? assets.value.filter((a) => a.currentClientLocationId === form.clientLocationId) : []
 )
@@ -224,7 +229,7 @@ useRealtimeUpdates(['Ticket'], () => loadTickets())
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" title="Nuevo ticket" width="480px">
+    <el-dialog v-model="dialogVisible" title="Nuevo ticket" width="600px">
       <el-form :model="form" label-position="top">
         <el-form-item v-if="!isClient" label="Cliente">
           <div class="client-select-row">
@@ -257,9 +262,14 @@ useRealtimeUpdates(['Ticket'], () => loadTickets())
             <el-option
               v-for="a in assetsAtLocation"
               :key="a.id"
-              :label="`${a.assetBrandName} ${a.model} — ${a.serialNumber}`"
+              :label="assetOptionLabel(a)"
               :value="a.id"
-            />
+            >
+              <div class="asset-option">
+                <span class="asset-option__model">{{ a.assetBrandName }} {{ a.model }} — {{ a.serialNumber }}</span>
+                <span class="asset-option__area">{{ a.area || 'Sin área' }}</span>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="Descripción de la falla">
@@ -297,5 +307,24 @@ useRealtimeUpdates(['Ticket'], () => loadTickets())
   display: flex;
   gap: 0.5rem;
   width: 100%;
+}
+
+/* Dos columnas en la lista de activos: modelo + serie a la izquierda, área a la derecha. */
+.asset-option {
+  display: grid;
+  grid-template-columns: 1fr 9rem;
+  gap: 1rem;
+  align-items: center;
+}
+
+.asset-option__model,
+.asset-option__area {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-option__area {
+  color: var(--el-text-color-secondary);
 }
 </style>

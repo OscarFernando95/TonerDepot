@@ -24,5 +24,10 @@ public class ServiceTicketDto
     public string? TechnicianName { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public DateTime? ClosedAt { get; set; }
+
+    // Solo se llenan en el detalle (GetByIdAsync) y solo para staff/técnico: resumen del trabajo del
+    // técnico al cerrar (TimeLog.Notes) y suma de minutos de sus visitas cerradas.
+    public string? ResolutionNotes { get; set; }
+    public int? ResolutionDurationMinutes { get; set; }
     public DateTime CreatedAt { get; set; }
 }

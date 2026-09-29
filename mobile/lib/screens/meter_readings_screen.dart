@@ -53,89 +53,94 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     MediaQuery.of(sheetContext).padding.bottom +
                     20,
               ),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${asset.assetBrandName} ${asset.model}',
-                      style: Theme.of(sheetContext).textTheme.titleMedium,
-                    ),
-                    Text(
-                      'Serie: ${asset.serialNumber}',
-                      style: const TextStyle(color: AppColors.inkSecondary),
-                    ),
-                    if (asset.lastMeterReading != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Último contador registrado: ${asset.lastMeterReading!.toStringAsFixed(0)}',
-                          style: const TextStyle(color: AppColors.inkSecondary)
-                              .merge(AppTextStyles.tabularNumber),
+              // SingleChildScrollView: al abrirse el teclado (autofocus) el
+              // alto disponible baja y la Column sola se desbordaba.
+              child: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${asset.assetBrandName} ${asset.model}',
+                        style: Theme.of(sheetContext).textTheme.titleMedium,
+                      ),
+                      Text(
+                        'Serie: ${asset.serialNumber}',
+                        style: const TextStyle(color: AppColors.inkSecondary),
+                      ),
+                      if (asset.lastMeterReading != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Último contador registrado: ${asset.lastMeterReading!.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              color: AppColors.inkSecondary,
+                            ).merge(AppTextStyles.tabularNumber),
+                          ),
                         ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: counterController,
+                        autofocus: true,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: false,
+                        ),
+                        style: AppTextStyles.tabularNumber,
+                        decoration: const InputDecoration(
+                          labelText: 'Nuevo valor del contador',
+                        ),
+                        validator: (v) {
+                          final value = double.tryParse(v ?? '');
+                          if (value == null) return 'Ingresa un número válido.';
+                          if (asset.lastMeterReading != null &&
+                              value < asset.lastMeterReading!) {
+                            return 'No puede ser menor al último registrado.';
+                          }
+                          return null;
+                        },
                       ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: counterController,
-                      autofocus: true,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: false,
-                      ),
-                      style: AppTextStyles.tabularNumber,
-                      decoration: const InputDecoration(
-                        labelText: 'Nuevo valor del contador',
-                      ),
-                      validator: (v) {
-                        final value = double.tryParse(v ?? '');
-                        if (value == null) return 'Ingresa un número válido.';
-                        if (asset.lastMeterReading != null &&
-                            value < asset.lastMeterReading!) {
-                          return 'No puede ser menor al último registrado.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      shape: const RoundedRectangleBorder(
-                        side: BorderSide(color: AppColors.neutralSoft),
-                      ),
-                      title: const Text('Fecha de lectura'),
-                      subtitle: Text(
-                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                      ),
-                      trailing: const Icon(
-                        Icons.calendar_today_outlined,
-                        size: 18,
-                      ),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: sheetContext,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked != null) {
-                          setSheetState(() => selectedDate = picked);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: () {
-                          if (formKey.currentState!.validate()) {
-                            Navigator.of(sheetContext).pop(true);
+                      const SizedBox(height: 12),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        shape: const RoundedRectangleBorder(
+                          side: BorderSide(color: AppColors.neutralSoft),
+                        ),
+                        title: const Text('Fecha de lectura'),
+                        subtitle: Text(
+                          '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                        ),
+                        trailing: const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 18,
+                        ),
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: sheetContext,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) {
+                            setSheetState(() => selectedDate = picked);
                           }
                         },
-                        child: const Text('Registrar'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            if (formKey.currentState!.validate()) {
+                              Navigator.of(sheetContext).pop(true);
+                            }
+                          },
+                          child: const Text('Registrar'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -174,12 +179,22 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(error, style: const TextStyle(color: AppColors.signalRed), textAlign: TextAlign.center),
+          child: Text(
+            error,
+            style: const TextStyle(color: AppColors.signalRed),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
     if (groups.isEmpty) {
-      return Center(child: Text(emptyMessage, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.inkSecondary)));
+      return Center(
+        child: Text(
+          emptyMessage,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.inkSecondary),
+        ),
+      );
     }
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -188,7 +203,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
         children: [
           for (final group in groups)
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 initiallyExpanded: groups.length == 1,
                 tilePadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -202,7 +218,11 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     child: Text(
                       group.city.toUpperCase(),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(letterSpacing: 0.6, fontWeight: FontWeight.w700, fontSize: 13),
+                      style: const TextStyle(
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ),
@@ -210,20 +230,47 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                   for (final asset in group.assets)
                     ClayCard(
                       padding: EdgeInsets.zero,
-                      child: ListTile(
-                        title: Text('${asset.assetBrandName} ${asset.model}'),
-                        subtitle: Text(
-                          '${asset.clientName ?? 'Sin cliente'}${asset.clientLocationName != null ? ' — ${asset.clientLocationName}' : ''}'
-                          '${asset.area != null && asset.area!.isNotEmpty ? ' · ${asset.area}' : ''}\n'
-                          'Serie: ${asset.serialNumber}'
-                          '${asset.lastMeterReading != null ? ' · Último: ${asset.lastMeterReading!.toStringAsFixed(0)}' : ' · Sin lecturas'}',
-                          style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12)
-                              .merge(AppTextStyles.tabularNumber),
+                      // Row en vez de ListTile(isThreeLine): el tile tiene alto
+                      // fijo y el subtítulo (que se parte en 2-3 líneas según
+                      // el ancho) lo desbordaba por décimas de píxel.
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        isThreeLine: true,
-                        trailing: FilledButton(
-                          onPressed: () => _openRegisterSheet(asset),
-                          child: const Text('Registrar'),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${asset.assetBrandName} ${asset.model}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyLarge,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${asset.clientName ?? 'Sin cliente'}${asset.clientLocationName != null ? ' — ${asset.clientLocationName}' : ''}'
+                                    '${asset.area != null && asset.area!.isNotEmpty ? ' · ${asset.area}' : ''}\n'
+                                    'Serie: ${asset.serialNumber}'
+                                    '${asset.lastMeterReading != null ? ' · Último: ${asset.lastMeterReading!.toStringAsFixed(0)}' : ' · Sin lecturas'}',
+                                    style: const TextStyle(
+                                      color: AppColors.inkSecondary,
+                                      fontSize: 12,
+                                    ).merge(AppTextStyles.tabularNumber),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            FilledButton(
+                              onPressed: () => _openRegisterSheet(asset),
+                              child: const Text('Registrar'),
+                            ),
+                          ],
                         ),
                       ),
                     ),

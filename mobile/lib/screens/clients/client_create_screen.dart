@@ -7,6 +7,7 @@ import '../../services/api_client.dart';
 import '../../services/city_api.dart';
 import '../../services/client_api.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/phone_input.dart';
 import '../../widgets/clay_surface.dart';
 
 /// Crear cliente — el backend exige al menos una sede (locations no puede
@@ -88,11 +89,13 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
 
   bool get _isValid =>
       _nameController.text.trim().isNotEmpty &&
+      isValidPhone(_contactPhoneController.text) &&
       _locations.every(
         (l) =>
             l.cityId != null &&
             l.nameController.text.trim().isNotEmpty &&
-            l.addressController.text.trim().isNotEmpty,
+            l.addressController.text.trim().isNotEmpty &&
+            isValidPhone(l.contactPhoneController.text),
       );
 
   Future<void> _submit() async {
@@ -206,8 +209,11 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
                       TextField(
                         controller: _contactPhoneController,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
+                        inputFormatters: phoneInputFormatters,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
                           labelText: 'Teléfono de contacto (opcional)',
+                          errorText: phoneErrorText(_contactPhoneController.text),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -394,7 +400,12 @@ class _LocationForm extends StatelessWidget {
           TextField(
             controller: draft.contactPhoneController,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'Teléfono (opcional)'),
+            inputFormatters: phoneInputFormatters,
+            onChanged: (_) => onChanged(),
+            decoration: InputDecoration(
+              labelText: 'Teléfono (opcional)',
+              errorText: phoneErrorText(draft.contactPhoneController.text),
+            ),
           ),
         ],
       ),

@@ -96,6 +96,15 @@ async function changeStatus(status: string) {
   }
 }
 
+// Minutos → "2 h 15 min" / "45 min" / "Menos de 1 min".
+function formatDuration(totalMinutes: number) {
+  if (totalMinutes < 1) return 'Menos de 1 min'
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes} min`
+  return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`
+}
+
 function statusLabel(status: string) {
   return ServiceTicketStatusLabels[status] ?? status
 }
@@ -145,6 +154,10 @@ useRealtimeUpdates(['Ticket'], (event) => {
           <template v-if="ticket.resolvedAt">
             <dt>Resuelto</dt>
             <dd>{{ new Date(ticket.resolvedAt).toLocaleString() }}</dd>
+            <template v-if="ticket.resolutionDurationMinutes != null">
+              <dt>Tiempo de resolución</dt>
+              <dd>{{ formatDuration(ticket.resolutionDurationMinutes) }}</dd>
+            </template>
           </template>
           <template v-if="ticket.closedAt">
             <dt>Cerrado</dt>
@@ -169,8 +182,20 @@ useRealtimeUpdates(['Ticket'], (event) => {
       </el-card>
 
       <el-card v-if="isStaff" class="section-card">
-        <template #header>Evidencia fotográfica</template>
-        <EvidenceGallery :ticket-id="ticketId" />
+        <template #header>Evidencia y resolución</template>
+        <div class="evidence-resolution">
+          <section>
+            <h3 class="column-title">Evidencia fotográfica</h3>
+            <EvidenceGallery :ticket-id="ticketId" />
+          </section>
+          <section>
+            <h3 class="column-title">Descripción de la resolución</h3>
+            <p v-if="ticket.resolutionNotes" class="resolution-notes">{{ ticket.resolutionNotes }}</p>
+            <p v-else class="muted">
+              {{ ticket.resolvedAt ? 'El técnico no dejó descripción.' : 'Aún no se ha resuelto el ticket.' }}
+            </p>
+          </section>
+        </div>
       </el-card>
 
       <el-card v-if="isStaff" class="section-card">
@@ -246,6 +271,30 @@ useRealtimeUpdates(['Ticket'], (event) => {
 .muted {
   color: #9ca3af;
   font-size: 0.85rem;
+}
+
+/* Evidencia a la izquierda, descripción de la resolución a la derecha; en pantallas angostas se apilan. */
+.evidence-resolution {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .evidence-resolution {
+    grid-template-columns: 1fr;
+  }
+}
+
+.column-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--el-text-color-secondary);
+}
+
+.resolution-notes {
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .section-actions {

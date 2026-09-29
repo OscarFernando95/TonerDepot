@@ -9,6 +9,7 @@ import '../../services/city_api.dart';
 import '../../state/auth_state.dart';
 import '../../state/user_detail_state.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/phone_input.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 
@@ -65,7 +66,7 @@ class _UserDetailBody extends StatelessWidget {
           bool isValid() =>
               cedulaController.text.trim().isNotEmpty &&
               fullNameController.text.trim().isNotEmpty &&
-              phoneController.text.trim().isNotEmpty &&
+              isValidPhone(phoneController.text, required: true) &&
               addressController.text.trim().isNotEmpty &&
               cityId != null;
           return AlertDialog(
@@ -97,9 +98,12 @@ class _UserDetailBody extends StatelessWidget {
                     const SizedBox(height: 12),
                     TextField(
                       controller: phoneController,
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: phoneInputFormatters,
                       onChanged: (_) => setDialogState(() {}),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Teléfono *',
+                        errorText: phoneErrorText(phoneController.text),
                       ),
                     ),
                     const SizedBox(height: 12),

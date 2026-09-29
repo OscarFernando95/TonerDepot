@@ -5,6 +5,7 @@ import { User } from '@element-plus/icons-vue'
 import * as usersApi from '../../api/users'
 import * as clientsApi from '../../api/clients'
 import * as citiesApi from '../../api/cities'
+import { PHONE_ERROR_MESSAGE, digitsOnly, isValidPhone } from '../../utils/phone'
 import { RoleNames, type CityDto, type ClientDto, type UserDto } from '../../api/types'
 
 const users = ref<UserDto[]>([])
@@ -99,6 +100,10 @@ async function openEditDialog(user: UserDto) {
 }
 
 async function handleSave() {
+  if (!isValidPhone(form.phone, true)) {
+    ElMessage.warning(PHONE_ERROR_MESSAGE)
+    return
+  }
   saving.value = true
   try {
     if (editingUserId.value) {
@@ -216,7 +221,7 @@ onMounted(loadData)
           <el-input v-model="form.cedula" />
         </el-form-item>
         <el-form-item label="Celular">
-          <el-input v-model="form.phone" />
+          <el-input v-model="form.phone" inputmode="numeric" maxlength="10" :formatter="digitsOnly" :parser="digitsOnly" />
         </el-form-item>
         <el-form-item label="Correo (opcional)">
           <el-input v-model="form.email" type="email" />

@@ -38,3 +38,6 @@ docker/postgres/server.key
 
 # Claves privadas (cuenta de servicio de Firebase, etc.): nunca se versionan.
 secrets/
+
+# Script manual de dev con la contraseña del rol toner_app en claro: nunca se versiona.
+docker/postgres/manual-create-app-role.sql

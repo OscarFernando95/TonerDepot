@@ -43,6 +43,15 @@ class _TicketDetailBody extends StatelessWidget {
     return '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
+  /// Minutos → "2 h 15 min" / "45 min" / "Menos de 1 min" (espejo de TicketDetailView.vue).
+  String _formatDuration(int totalMinutes) {
+    if (totalMinutes < 1) return 'Menos de 1 min';
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours == 0) return '$minutes min';
+    return minutes == 0 ? '$hours h' : '$hours h $minutes min';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<TicketDetailState>(
@@ -152,6 +161,12 @@ class _TicketDetailBody extends StatelessWidget {
                         label: 'Resuelto',
                         value: _formatDateTime(ticket.resolvedAt!),
                       ),
+                    if (ticket.resolvedAt != null &&
+                        ticket.resolutionDurationMinutes != null)
+                      _InfoRow(
+                        label: 'Tiempo de resolución',
+                        value: _formatDuration(ticket.resolutionDurationMinutes!),
+                      ),
                     if (ticket.closedAt != null)
                       _InfoRow(
                         label: 'Cerrado',
@@ -160,6 +175,22 @@ class _TicketDetailBody extends StatelessWidget {
                   ],
                 ),
               ),
+              if (ticket.resolutionNotes != null) ...[
+                const SizedBox(height: 16),
+                ClaySurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Descripción de la resolución',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(ticket.resolutionNotes!),
+                    ],
+                  ),
+                ),
+              ],
               // Las fotos de evidencia solo las ve el staff (el endpoint no está abierto al rol Cliente).
               if (context.read<AuthState>().hasAnyRole(RoleNames.staffRoles)) ...[
                 const SizedBox(height: 16),

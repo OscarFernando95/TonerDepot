@@ -104,26 +104,26 @@ GoRouter buildAppRouter(AuthState auth) {
         name: 'change-password',
         builder: (context, state) => const ChangePasswordScreen(),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/tickets/:id',
         name: 'ticket-detail',
         builder: (context, state) =>
             TicketDetailScreen(ticketId: state.pathParameters['id']!),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/maintenance-orders/:id',
         name: 'maintenance-order-detail',
         builder: (context, state) =>
             MaintenanceOrderDetailScreen(orderId: state.pathParameters['id']!),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/maintenance-schedules/:id',
         name: 'maintenance-schedule-detail',
         builder: (context, state) => MaintenanceScheduleDetailScreen(
           scheduleId: state.pathParameters['id']!,
         ),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/technicians/:id/schedule',
         name: 'technician-schedule',
         builder: (context, state) => TechnicianScheduleScreen(
@@ -131,7 +131,7 @@ GoRouter buildAppRouter(AuthState auth) {
           technicianName: state.extra as String?,
         ),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/technicians/:id/visits',
         name: 'technician-visits',
         builder: (context, state) => TechnicianVisitsScreen(
@@ -139,7 +139,7 @@ GoRouter buildAppRouter(AuthState auth) {
           technicianName: state.extra as String?,
         ),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/technicians/:id/time-off',
         name: 'technician-time-off',
         builder: (context, state) => TechnicianTimeOffScreen(
@@ -147,7 +147,7 @@ GoRouter buildAppRouter(AuthState auth) {
           technicianName: state.extra as String?,
         ),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/technicians/:id',
         name: 'technician-coverage',
         builder: (context, state) => TechnicianCoverageScreen(
@@ -155,51 +155,51 @@ GoRouter buildAppRouter(AuthState auth) {
           technicianName: state.extra as String?,
         ),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/clients/new',
         name: 'client-create',
         builder: (context, state) => const ClientCreateScreen(),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/clients/:id',
         name: 'client-detail',
         builder: (context, state) =>
             ClientDetailScreen(clientId: state.pathParameters['id']!),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/assets/new',
         name: 'asset-create',
         builder: (context, state) => const AssetCreateScreen(),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/assets/:id',
         name: 'asset-detail',
         builder: (context, state) =>
             AssetDetailScreen(assetId: state.pathParameters['id']!),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/contracts/new',
         name: 'contract-create',
         builder: (context, state) => const ContractCreateScreen(),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/contracts/:id',
         name: 'contract-detail',
         builder: (context, state) =>
             ContractDetailScreen(contractId: state.pathParameters['id']!),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/users/new',
         name: 'user-create',
         builder: (context, state) => const UserCreateScreen(),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/users/:id',
         name: 'user-detail',
         builder: (context, state) =>
             UserDetailScreen(user: state.extra as ManagedUser),
       ),
-      GoRoute(
+      _pushedRoute(
         path: '/asset-brands/:id',
         name: 'asset-brand-detail',
         builder: (context, state) => AssetBrandDetailScreen(
@@ -220,6 +220,37 @@ GoRouter buildAppRouter(AuthState auth) {
       ),
     ],
   );
+}
+
+/// GoRoute de una pantalla de detalle/creación (push, sin chrome de AppShell).
+/// Estas pantallas no tienen la barra inferior del shell, así que sin esto sus
+/// botones y listas quedan bajo la barra de navegación/gestos del teléfono.
+GoRoute _pushedRoute({
+  required String path,
+  required String name,
+  required GoRouterWidgetBuilder builder,
+}) {
+  return GoRoute(
+    path: path,
+    name: name,
+    builder: (context, state) => _BottomSafeArea(child: builder(context, state)),
+  );
+}
+
+/// Reserva el inset inferior del sistema. El ColoredBox pinta el fondo de la
+/// app en esa franja, para que no se vea el color por defecto del Navigator.
+class _BottomSafeArea extends StatelessWidget {
+  const _BottomSafeArea({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: SafeArea(top: false, child: child),
+    );
+  }
 }
 
 class _SplashScreen extends StatelessWidget {

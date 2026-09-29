@@ -9,6 +9,7 @@ import '../../services/city_api.dart';
 import '../../services/client_api.dart';
 import '../../services/user_api.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/phone_input.dart';
 
 /// Crear usuario — el backend genera la contraseña y la manda por correo
 /// cifrado (nunca se acepta una escrita a mano acá); si el rol es Tecnico,
@@ -76,7 +77,7 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
   bool get _isValid =>
       _cedulaController.text.trim().isNotEmpty &&
       _fullNameController.text.trim().isNotEmpty &&
-      _phoneController.text.trim().isNotEmpty &&
+      isValidPhone(_phoneController.text, required: true) &&
       _addressController.text.trim().isNotEmpty &&
       _cityId != null &&
       (_roleName != RoleNames.cliente || _clientId != null);
@@ -198,8 +199,12 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
+                  inputFormatters: phoneInputFormatters,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(labelText: 'Teléfono *'),
+                  decoration: InputDecoration(
+                    labelText: 'Teléfono *',
+                    errorText: phoneErrorText(_phoneController.text),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(

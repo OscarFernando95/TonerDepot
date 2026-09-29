@@ -1,4 +1,5 @@
 using FluentValidation;
+using Toner.Application.Common;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Users.Dtos;
@@ -21,7 +22,7 @@ public class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
             .When(x => !string.IsNullOrWhiteSpace(x.Email));
 
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Phone).NotEmpty().MaximumLength(30);
+        RuleFor(x => x.Phone).NotEmpty().Matches(PhoneRules.Pattern).WithMessage(PhoneRules.Message);
         RuleFor(x => x.Address).NotEmpty().MaximumLength(300);
 
         RuleFor(x => x.CityId)

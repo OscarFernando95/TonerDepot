@@ -24,6 +24,10 @@ class ServiceTicket {
   final String? closedAt;
   final String createdAt;
 
+  /// Solo vienen en el detalle y solo para staff/técnico (ver ServiceTicketDto.cs).
+  final String? resolutionNotes;
+  final int? resolutionDurationMinutes;
+
   ServiceTicket({
     required this.id,
     required this.clientLocationId,
@@ -48,6 +52,8 @@ class ServiceTicket {
     required this.resolvedAt,
     required this.closedAt,
     required this.createdAt,
+    this.resolutionNotes,
+    this.resolutionDurationMinutes,
   });
 
   /// Ticket sobre un equipo de un cliente externo, no catalogado en el inventario
@@ -86,5 +92,8 @@ class ServiceTicket {
     resolvedAt: json['resolvedAt'] as String?,
     closedAt: json['closedAt'] as String?,
     createdAt: json['createdAt'] as String,
+    resolutionNotes: json['resolutionNotes'] as String?,
+    resolutionDurationMinutes: (json['resolutionDurationMinutes'] as num?)
+        ?.toInt(),
   );
 }

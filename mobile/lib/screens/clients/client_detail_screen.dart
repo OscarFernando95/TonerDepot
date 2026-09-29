@@ -10,6 +10,7 @@ import '../../services/api_client.dart';
 import '../../services/device_capture.dart';
 import '../../state/client_detail_state.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/phone_input.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 
@@ -87,8 +88,12 @@ class _ClientDetailBody extends StatelessWidget {
                   const SizedBox(height: 12),
                   TextField(
                     controller: contactPhoneController,
-                    decoration: const InputDecoration(
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: phoneInputFormatters,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
                       labelText: 'Teléfono de contacto',
+                      errorText: phoneErrorText(contactPhoneController.text),
                     ),
                   ),
                   SwitchListTile(
@@ -121,7 +126,8 @@ class _ClientDetailBody extends StatelessWidget {
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: nameController.text.trim().isEmpty
+              onPressed: nameController.text.trim().isEmpty ||
+                      !isValidPhone(contactPhoneController.text)
                   ? null
                   : () => Navigator.of(dialogContext).pop(true),
               child: const Text('Guardar'),
@@ -247,7 +253,13 @@ class _ClientDetailBody extends StatelessWidget {
                   const SizedBox(height: 12),
                   TextField(
                     controller: contactPhoneController,
-                    decoration: const InputDecoration(labelText: 'Teléfono'),
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: phoneInputFormatters,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Teléfono',
+                      errorText: phoneErrorText(contactPhoneController.text),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -341,6 +353,7 @@ class _ClientDetailBody extends StatelessWidget {
                   cityId == null ||
                       nameController.text.trim().isEmpty ||
                       addressController.text.trim().isEmpty ||
+                      !isValidPhone(contactPhoneController.text) ||
                       !coordinatesValid()
                   ? null
                   : () => Navigator.of(dialogContext).pop(true),

@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import * as clientsApi from '../api/clients'
 import LocationPickerDialog from './LocationPickerDialog.vue'
 import * as citiesApi from '../api/cities'
+import { PHONE_ERROR_MESSAGE, digitsOnly, isValidPhone } from '../utils/phone'
 import type { CityDto, ClientDto, SupportCoverage } from '../api/types'
 
 const emit = defineEmits<{ created: [client: ClientDto] }>()
@@ -111,6 +112,10 @@ async function open() {
 defineExpose({ open })
 
 async function handleSave() {
+  if (!isValidPhone(clientForm.contactPhone) || !locationForms.value.every((l) => isValidPhone(l.contactPhone))) {
+    ElMessage.warning(PHONE_ERROR_MESSAGE)
+    return
+  }
   saving.value = true
   try {
     const { data: created } = await clientsApi.createClient({
@@ -158,7 +163,7 @@ async function handleSave() {
         <el-input v-model="clientForm.contactEmail" type="email" />
       </el-form-item>
       <el-form-item label="Teléfono de contacto">
-        <el-input v-model="clientForm.contactPhone" />
+        <el-input v-model="clientForm.contactPhone" inputmode="numeric" maxlength="10" :formatter="digitsOnly" :parser="digitsOnly" />
       </el-form-item>
       <el-form-item>
         <el-checkbox v-model="clientForm.isContractClient">Cliente con contrato</el-checkbox>
@@ -258,7 +263,7 @@ async function handleSave() {
           <el-input v-model="loc.contactName" />
         </el-form-item>
         <el-form-item label="Teléfono (opcional)">
-          <el-input v-model="loc.contactPhone" />
+          <el-input v-model="loc.contactPhone" inputmode="numeric" maxlength="10" :formatter="digitsOnly" :parser="digitsOnly" />
         </el-form-item>
       </el-card>
 

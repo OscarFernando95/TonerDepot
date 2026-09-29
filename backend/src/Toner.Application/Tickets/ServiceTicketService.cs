@@ -149,6 +149,27 @@ public class ServiceTicketService : IServiceTicketService
             throw new ForbiddenException("No puedes ver un ticket que no pertenece a tu cliente.");
         }
 
+        // Notas internas del técnico: solo para staff y el técnico asignado, nunca para el cliente. Se
+        // resuelven aquí y no en la proyección compartida para no cargar una subconsulta en cada listado.
+        if (ticket.ResolvedAt != null && (requestingUser.IsStaff || requestingUser.IsTechnician))
+        {
+            var closedLogs = await _db.TimeLogs
+                .Where(l => l.ServiceTicketId == id && l.EndTime != null)
+                .OrderBy(l => l.EndTime)
+                .Select(l => new { l.StartTime, l.EndTime, l.Notes })
+                .ToListAsync(cancellationToken);
+
+            if (closedLogs.Count > 0)
+            {
+                // Suma de todas las visitas cerradas: un ticket con pausas tiene más de un TimeLog.
+                ticket.ResolutionDurationMinutes = (int)Math.Round(
+                    closedLogs.Sum(l => (l.EndTime!.Value - l.StartTime).TotalMinutes));
+                ticket.ResolutionNotes = closedLogs
+                    .Select(l => l.Notes)
+                    .LastOrDefault(n => !string.IsNullOrWhiteSpace(n));
+            }
+        }
+
         return ticket;
     }
 
