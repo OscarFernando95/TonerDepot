@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/meter_reading_asset.dart';
+import '../models/role_names.dart';
+import '../state/auth_state.dart';
 import '../state/meter_reading_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/clay_date_field.dart';
+import '../widgets/clay_segmented_control.dart';
 import '../widgets/clay_surface.dart';
+import '../widgets/list_filter_dropdown.dart';
 
-/// Dos pestañas: "Vinculados" (activos que el admin le asignó explícitamente
-/// al técnico) y "Por cobertura" (respaldo — todos los activos instalados en
-/// sus ciudades de cobertura, estén o no vinculados a él o a otro técnico;
-/// ver AssetService.ListForMeterReadingByCoverageAsync, backend). Cubre el
-/// caso de un técnico titular ausente (vacaciones, incapacidad, renuncia):
-/// sin esta pestaña, sus activos quedarían sin nadie que les registre
-/// lecturas hasta que un admin los revincule a mano.
+/// Técnico ve dos pestañas propias de la app, sin equivalente en la web:
+/// "Vinculados" (activos que un admin le asignó explícitamente) y "Por
+/// cobertura" (respaldo — todos los activos instalados en sus ciudades de
+/// cobertura, estén o no vinculados a él o a otro técnico; ver
+/// AssetService.ListForMeterReadingByCoverageAsync, backend — cubre el caso
+/// de un técnico titular ausente). Administrador/Coordinador no hacen
+/// soporte a los activos, así que ven exactamente lo mismo que
+/// MeterReadingsView.vue: filtros de ciudad/cliente + agrupar por ciudad o
+/// ver como lista, sin esas pestañas.
 class MeterReadingsScreen extends StatefulWidget {
   const MeterReadingsScreen({super.key});
 
@@ -21,13 +28,18 @@ class MeterReadingsScreen extends StatefulWidget {
 }
 
 class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
+  String _tab = 'linked';
+  bool _isStaff = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _isStaff = context.read<AuthState>().hasAnyRole(RoleNames.staffRoles);
       final state = context.read<MeterReadingState>();
       state.load();
-      state.loadCoverage();
+      if (!_isStaff) state.loadCoverage();
+      if (mounted) setState(() {});
     });
   }
 
@@ -92,7 +104,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                           labelText: 'Nuevo valor del contador',
                         ),
                         validator: (v) {
-                          final value = double.tryParse(v ?? '');
+                          final value = int.tryParse(v ?? '');
                           if (value == null) return 'Ingresa un número válido.';
                           if (asset.lastMeterReading != null &&
                               value < asset.lastMeterReading!) {
@@ -102,19 +114,10 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                         },
                       ),
                       const SizedBox(height: 12),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        shape: const RoundedRectangleBorder(
-                          side: BorderSide(color: AppColors.neutralSoft),
-                        ),
-                        title: const Text('Fecha de lectura'),
-                        subtitle: Text(
-                          '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                        ),
-                        trailing: const Icon(
-                          Icons.calendar_today_outlined,
-                          size: 18,
-                        ),
+                      ClayDateField(
+                        label: 'Fecha de lectura',
+                        value:
+                            '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
                         onTap: () async {
                           final picked = await showDatePicker(
                             context: sheetContext,
@@ -150,7 +153,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
     );
 
     if (confirmed == true && mounted) {
-      final value = double.parse(counterController.text);
+      final value = int.parse(counterController.text);
       final error = await context.read<MeterReadingState>().register(
         asset,
         value,
@@ -226,50 +229,186 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     ),
                   ),
                 ),
+                children: [for (final asset in group.assets) _assetCard(asset)],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Tarjeta de un activo, con su botón "Registrar" — reutilizada por las
+  /// pestañas de Técnico y por la vista de Staff.
+  Widget _assetCard(MeterReadingAsset asset) {
+    return ClayCard(
+      padding: EdgeInsets.zero,
+      // Row en vez de ListTile(isThreeLine): el tile tiene alto
+      // fijo y el subtítulo (que se parte en 2-3 líneas según
+      // el ancho) lo desbordaba por décimas de píxel.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final asset in group.assets)
-                    ClayCard(
-                      padding: EdgeInsets.zero,
-                      // Row en vez de ListTile(isThreeLine): el tile tiene alto
-                      // fijo y el subtítulo (que se parte en 2-3 líneas según
-                      // el ancho) lo desbordaba por décimas de píxel.
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                  Text(
+                    '${asset.assetBrandName} ${asset.model}',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${asset.clientName ?? 'Sin cliente'}${asset.clientLocationName != null ? ' — ${asset.clientLocationName}' : ''}'
+                    '${asset.area != null && asset.area!.isNotEmpty ? ' · ${asset.area}' : ''}\n'
+                    'Serie: ${asset.serialNumber}'
+                    '${asset.lastMeterReading != null ? ' · Último: ${asset.lastMeterReading!.toStringAsFixed(0)}' : ' · Sin lecturas'}',
+                    style: const TextStyle(
+                      color: AppColors.inkSecondary,
+                      fontSize: 12,
+                    ).merge(AppTextStyles.tabularNumber),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: () => _openRegisterSheet(asset),
+              child: const Text('Registrar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Administrador/Coordinador — espejo tal cual de MeterReadingsView.vue:
+  /// filtros de ciudad/cliente + agrupar por ciudad (2 niveles, ciudad →
+  /// cliente) o ver como lista plana. Sin pestañas Vinculados/Por cobertura
+  /// (esas son un concepto exclusivo del flujo de Técnico, sin equivalente
+  /// en la web).
+  Widget _buildStaffBody(MeterReadingState state) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ListFilterDropdown(
+                label: 'Ciudad',
+                value: state.cityFilter,
+                options: [for (final c in state.cityOptions) (c, c)],
+                onChanged: state.setCityFilter,
+              ),
+              ListFilterDropdown(
+                label: 'Cliente',
+                value: state.clientFilter,
+                options: state.clientOptions,
+                onChanged: state.setClientFilter,
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: ClaySegmentedControl<String>(
+            selected: state.viewMode,
+            onChanged: state.setViewMode,
+            segments: const [
+              ClaySegment(value: 'grouped', label: 'Agrupar por ciudad'),
+              ClaySegment(value: 'flat', label: 'Ver como lista'),
+            ],
+          ),
+        ),
+        Expanded(child: _buildStaffList(state)),
+      ],
+    );
+  }
+
+  Widget _buildStaffList(MeterReadingState state) {
+    if (state.loading && state.assets.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state.error != null && state.assets.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            state.error!,
+            style: const TextStyle(color: AppColors.signalRed),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+    final filtered = state.filtered;
+    if (filtered.isEmpty) {
+      return Center(
+        child: Text(
+          'No hay equipos que coincidan con los filtros.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppColors.inkSecondary),
+        ),
+      );
+    }
+    if (state.viewMode == 'flat') {
+      return RefreshIndicator(
+        onRefresh: state.load,
+        child: ListView(
+          padding: const EdgeInsets.all(12),
+          children: [for (final asset in filtered) _assetCard(asset)],
+        ),
+      );
+    }
+    final groups = state.groupedByCityAndClient;
+    return RefreshIndicator(
+      onRefresh: state.load,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          for (final cityGroup in groups)
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                title: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.claySurface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${cityGroup.city.toUpperCase()} (${cityGroup.count})',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+                children: [
+                  for (final clientGroup in cityGroup.clientGroups)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 0, 8),
+                      child: Theme(
+                        data: Theme.of(
+                          context,
+                        ).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          title: Text(
+                            '${clientGroup.clientLabel} (${clientGroup.assets.length})',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${asset.assetBrandName} ${asset.model}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${asset.clientName ?? 'Sin cliente'}${asset.clientLocationName != null ? ' — ${asset.clientLocationName}' : ''}'
-                                    '${asset.area != null && asset.area!.isNotEmpty ? ' · ${asset.area}' : ''}\n'
-                                    'Serie: ${asset.serialNumber}'
-                                    '${asset.lastMeterReading != null ? ' · Último: ${asset.lastMeterReading!.toStringAsFixed(0)}' : ' · Sin lecturas'}',
-                                    style: const TextStyle(
-                                      color: AppColors.inkSecondary,
-                                      fontSize: 12,
-                                    ).merge(AppTextStyles.tabularNumber),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            FilledButton(
-                              onPressed: () => _openRegisterSheet(asset),
-                              child: const Text('Registrar'),
-                            ),
+                            for (final asset in clientGroup.assets)
+                              _assetCard(asset),
                           ],
                         ),
                       ),
@@ -286,37 +425,24 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
   Widget build(BuildContext context) {
     return Consumer<MeterReadingState>(
       builder: (context, state, _) {
-        return DefaultTabController(
-          length: 2,
-          child: Column(
-            children: [
-              Container(
-                margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                decoration: BoxDecoration(
-                  color: AppColors.claySurface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TabBar(
-                  labelColor: AppColors.inkPrimary,
-                  unselectedLabelColor: AppColors.inkSecondary,
-                  indicatorColor: AppColors.signalBlue,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  tabs: const [
-                    Tab(text: 'Vinculados'),
-                    Tab(text: 'Por cobertura'),
-                  ],
-                ),
+        if (_isStaff) return _buildStaffBody(state);
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: ClaySegmentedControl<String>(
+                selected: _tab,
+                onChanged: (value) => setState(() => _tab = value),
+                segments: const [
+                  ClaySegment(value: 'linked', label: 'Vinculados'),
+                  ClaySegment(value: 'coverage', label: 'Por cobertura'),
+                ],
               ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildList(state, coverage: false),
-                    _buildList(state, coverage: true),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+            Expanded(
+              child: _buildList(state, coverage: _tab == 'coverage'),
+            ),
+          ],
         );
       },
     );

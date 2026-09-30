@@ -6,12 +6,28 @@ import '../../models/maintenance_schedule.dart';
 import '../../services/api_client.dart';
 import '../../state/maintenance_schedule_detail_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 import '../../utils/date_only.dart';
 
 String _date(String? iso) =>
     iso == null ? '—' : formatDateOnly(DateTime.parse(iso).toLocal());
+
+// Espejo del color de urgencia de _urgencyColor en
+// maintenance_schedules_list_screen.dart.
+Color _urgencyColor(String urgency) {
+  switch (urgency) {
+    case 'soon':
+      return AppColors.signalAmber;
+    case 'urgent':
+      return const Color(0xFFE8730C);
+    case 'overdue':
+      return AppColors.signalRed;
+    default:
+      return AppColors.signalBlue;
+  }
+}
 
 class MaintenanceScheduleDetailScreen extends StatelessWidget {
   const MaintenanceScheduleDetailScreen({super.key, required this.scheduleId});
@@ -100,6 +116,14 @@ class _Body extends StatelessWidget {
               children: [
                 Row(
                   children: [
+                    // Insignia de cabecera — mismo ícono que
+                    // maintenance_schedules_list_screen.dart (llave inglesa),
+                    // color por urgencia del cronograma.
+                    ClayIconBadge(
+                      icon: Icons.build_outlined,
+                      color: _urgencyColor(schedule.urgency),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         '${schedule.assetBrandName} ${schedule.assetModel}',

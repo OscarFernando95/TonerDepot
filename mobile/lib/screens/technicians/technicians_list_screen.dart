@@ -6,6 +6,7 @@ import '../../models/technician.dart';
 import '../../services/api_client.dart';
 import '../../state/technicians_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../utils/date_only.dart';
 import '../../widgets/status_chip.dart';
@@ -63,6 +64,22 @@ class _TechnicianItem extends StatelessWidget {
 
   final Technician technician;
 
+  // Mismos colores conceptuales que StatusLabels.technicianStatusColor /
+  // StatusChip.technicianStatus — el badge es acento visual adicional, no
+  // reemplaza el chip de estado.
+  Color get _statusColor {
+    switch (technician.status) {
+      case 'Disponible':
+        return AppColors.signalBlue;
+      case 'Ocupado':
+        return AppColors.signalAmber;
+      case 'EnTransito':
+        return AppColors.signalBlueBright;
+      default:
+        return AppColors.neutral;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClayCard(
@@ -75,6 +92,11 @@ class _TechnicianItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(
+                icon: Icons.engineering_outlined,
+                color: _statusColor,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   technician.fullName,

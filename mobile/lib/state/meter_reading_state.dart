@@ -10,6 +10,23 @@ class CityGroup {
   final List<MeterReadingAsset> assets;
 }
 
+/// Solo para Administrador/Coordinador (ver comentario largo más abajo) —
+/// agrupación de 2 niveles ciudad → cliente, espejo exacto de
+/// `groupedByCity`/`ClientGroup`/`CityGroup` en MeterReadingsView.vue.
+class MeterClientGroup {
+  MeterClientGroup(this.clientLabel, this.assets);
+  final String clientLabel;
+  final List<MeterReadingAsset> assets;
+}
+
+class MeterCityGroup {
+  MeterCityGroup(this.city, this.clientGroups);
+  final String city;
+  final List<MeterClientGroup> clientGroups;
+
+  int get count => clientGroups.fold(0, (n, g) => n + g.assets.length);
+}
+
 /// Espejo recortado de MeterReadingsView.vue: agrupación por ciudad (la web
 /// también agrupa por cliente dentro de cada ciudad; en el celular, con
 /// pantallas más angostas, una sola agrupación por ciudad es más legible).
@@ -29,6 +46,7 @@ class MeterReadingState extends ChangeNotifier {
 
   final MeterReadingApi _api;
   static const _noCity = 'Sin ciudad';
+  static const _noClient = 'Sin cliente';
 
   bool loading = false;
   bool saving = false;
@@ -41,6 +59,82 @@ class MeterReadingState extends ChangeNotifier {
 
   List<CityGroup> get groupedByCity => _groupByCity(assets);
   List<CityGroup> get coverageGroupedByCity => _groupByCity(coverageAssets);
+
+  // --- Solo Administrador/Coordinador: filtros + agrupación 2 niveles, tal
+  // cual MeterReadingsView.vue (Técnico no usa nada de esto, sigue con las
+  // pestañas Vinculados/Por cobertura de arriba). ---
+
+  /// 'grouped' | 'flat' — espejo de viewMode en MeterReadingsView.vue.
+  String viewMode = 'grouped';
+  String? cityFilter;
+  String? clientFilter;
+
+  bool _matches(MeterReadingAsset a, String exclude) {
+    final cityOk = exclude == 'city' || cityFilter == null || a.cityName == cityFilter;
+    final clientOk = exclude == 'client' || clientFilter == null || a.clientId == clientFilter;
+    return cityOk && clientOk;
+  }
+
+  List<MeterReadingAsset> get filtered =>
+      assets.where((a) => _matches(a, '')).toList();
+
+  List<String> get cityOptions => ({
+    for (final a in assets)
+      if (a.cityName != null && _matches(a, 'city')) a.cityName!,
+  }.toList())..sort();
+
+  List<(String, String)> get clientOptions {
+    final seen = <String, String>{};
+    for (final a in assets) {
+      if (a.clientId != null && _matches(a, 'client')) {
+        seen[a.clientId!] = a.clientName ?? a.clientId!;
+      }
+    }
+    final list = seen.entries.map((e) => (e.key, e.value)).toList();
+    list.sort((a, b) => a.$2.compareTo(b.$2));
+    return list;
+  }
+
+  void setViewMode(String mode) {
+    viewMode = mode;
+    notifyListeners();
+  }
+
+  void setCityFilter(String? city) {
+    cityFilter = city;
+    notifyListeners();
+  }
+
+  void setClientFilter(String? clientId) {
+    clientFilter = clientId;
+    notifyListeners();
+  }
+
+  List<MeterCityGroup> get groupedByCityAndClient {
+    final byCity = <String, Map<String, List<MeterReadingAsset>>>{};
+    final clientLabels = <String, String>{};
+    for (final a in filtered) {
+      final city = a.cityName ?? _noCity;
+      final clientKey = a.clientId ?? _noClient;
+      clientLabels[clientKey] = a.clientName ?? _noClient;
+      final byClient = byCity.putIfAbsent(city, () => {});
+      byClient.putIfAbsent(clientKey, () => []).add(a);
+    }
+    final cities = byCity.entries.map((cityEntry) {
+      final clientGroups = cityEntry.value.entries
+          .map(
+            (clientEntry) => MeterClientGroup(
+              clientLabels[clientEntry.key] ?? _noClient,
+              clientEntry.value,
+            ),
+          )
+          .toList()
+        ..sort((a, b) => a.clientLabel.compareTo(b.clientLabel));
+      return MeterCityGroup(cityEntry.key, clientGroups);
+    }).toList()
+      ..sort((a, b) => a.city.compareTo(b.city));
+    return cities;
+  }
 
   List<CityGroup> _groupByCity(List<MeterReadingAsset> source) {
     final byCity = <String, List<MeterReadingAsset>>{};
@@ -94,7 +188,7 @@ class MeterReadingState extends ChangeNotifier {
   /// Devuelve null si el registro salió bien, o un mensaje de error.
   Future<String?> register(
     MeterReadingAsset asset,
-    double counterValue,
+    int counterValue,
     DateTime? readingDate,
   ) async {
     if (asset.lastMeterReading != null &&

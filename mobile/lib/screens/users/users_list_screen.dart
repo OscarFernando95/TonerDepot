@@ -7,6 +7,8 @@ import '../../models/role_names.dart';
 import '../../services/api_client.dart';
 import '../../state/users_list_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_choice_chip.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
@@ -44,26 +46,22 @@ class UsersListScreen extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Todos'),
-                            selected: state.roleFilter == null,
-                            onSelected: (_) => state.setRoleFilter(null),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        ClayChoiceChip(
+                          label: const Text('Todos'),
+                          selected: state.roleFilter == null,
+                          onSelected: (_) => state.setRoleFilter(null),
+                        ),
+                        for (final role in RoleNames.all)
+                          ClayChoiceChip(
+                            label: Text(role),
+                            selected: state.roleFilter == role,
+                            onSelected: (_) => state.setRoleFilter(role),
                           ),
-                          for (final role in RoleNames.all)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: ChoiceChip(
-                                label: Text(role),
-                                selected: state.roleFilter == role,
-                                onSelected: (_) => state.setRoleFilter(role),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
                   ),
                   Expanded(
@@ -107,7 +105,7 @@ class UsersListScreen extends StatelessWidget {
                               return false;
                             },
                             child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                               itemCount: users.length + (state.hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
                                 if (index >= users.length) {
@@ -141,6 +139,24 @@ class _UserItem extends StatelessWidget {
 
   final ManagedUser user;
 
+  // Ícono según rol — ver RoleNames para los strings exactos del backend.
+  IconData get _roleIcon {
+    switch (user.roleName) {
+      case RoleNames.administrador:
+        return Icons.admin_panel_settings_outlined;
+      case RoleNames.coordinador:
+        return Icons.supervisor_account_outlined;
+      case RoleNames.tecnico:
+        return Icons.engineering_outlined;
+      case RoleNames.cliente:
+        return Icons.storefront_outlined;
+      case RoleNames.ventas:
+        return Icons.point_of_sale_outlined;
+      default:
+        return Icons.person_outline;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClayCard(
@@ -152,6 +168,11 @@ class _UserItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(
+                icon: _roleIcon,
+                color: user.isActive ? AppColors.signalBlue : AppColors.neutral,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   user.fullName,

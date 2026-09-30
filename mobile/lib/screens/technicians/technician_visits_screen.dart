@@ -5,6 +5,7 @@ import '../../services/api_client.dart';
 import '../../services/technician_management_api.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_only.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 
 /// Visitas de un técnico con la ubicación registrada al llegar y al cerrar frente a la sede. Solo se registra
@@ -94,10 +95,23 @@ class _TechnicianVisitsScreenState extends State<TechnicianVisitsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '${visit.kind} · ${formatDateTimeShort(visit.startTime)}'
-                        '${visit.endTime == null ? ' (en curso)' : ' → ${formatDateTimeShort(visit.endTime!)}'}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      Row(
+                        children: [
+                          // Color según la ubicación al llegar — el mismo
+                          // criterio que ya usan las dos filas de abajo.
+                          ClayIconBadge(
+                            icon: Icons.location_on_outlined,
+                            color: _statusColor(visit.checkInStatus),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '${visit.kind} · ${formatDateTimeShort(visit.startTime)}'
+                              '${visit.endTime == null ? ' (en curso)' : ' → ${formatDateTimeShort(visit.endTime!)}'}',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       _locationRow('Al llegar', visit.checkInStatus, visit.checkInDistanceMeters),

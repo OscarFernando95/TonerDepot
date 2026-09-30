@@ -5,6 +5,7 @@ import '../../models/technician_schedule.dart';
 import '../../services/api_client.dart';
 import '../../state/technician_schedule_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 
 // Lunes primero; el backend usa 0 = domingo.
@@ -122,9 +123,25 @@ class _Body extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    // Azul si el día tiene tramos de trabajo, gris si está
+                    // libre — mismo lenguaje "insignia" del resto de la app,
+                    // aplicado aquí por fila de día en vez de por fila de lista.
+                    ClayIconBadge(
+                      icon: Icons.schedule_outlined,
+                      color: state.days[day]!.isEmpty
+                          ? AppColors.neutral
+                          : AppColors.signalBlue,
+                      size: 28,
+                      iconSize: 14,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      label,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
                 if (state.days[day]!.isEmpty)
                   const Text(

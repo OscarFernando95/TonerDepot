@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/my_contracts_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
@@ -64,6 +66,13 @@ class _MyContractsBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // Mismo ícono/color que contracts_list_screen.dart
+                        // (vista de Staff).
+                        ClayIconBadge(
+                          icon: Icons.description_outlined,
+                          color: StatusLabels.contractColor(contract.status),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             contract.cityNames.isEmpty

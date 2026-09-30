@@ -7,6 +7,7 @@ import '../../services/api_client.dart';
 import '../../state/technician_coverage_state.dart';
 import '../../state/technician_linked_assets_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 
 /// Detalle de gestión de un técnico — cobertura geográfica y activos
@@ -190,8 +191,8 @@ class _CoverageBody extends StatelessWidget {
                           return ClayCard(
                             child: Row(
                               children: [
-                                const Icon(
-                                  Icons.location_city_outlined,
+                                const ClayIconBadge(
+                                  icon: Icons.location_city_outlined,
                                   color: AppColors.signalBlue,
                                 ),
                                 const SizedBox(width: 12),
@@ -306,6 +307,7 @@ class _LinkedAssetsBody extends StatelessWidget {
                               return ClayCard(
                                 padding: EdgeInsets.zero,
                                 child: ListTile(
+                                  leading: const ClayIconBadge(icon: Icons.print_outlined, color: AppColors.signalBlue),
                                   title: Text('${asset.assetBrandName} ${asset.model}'),
                                   subtitle: Text(
                                     '${asset.currentClientName ?? 'Sin cliente'}'
@@ -383,7 +385,7 @@ class _LinkedAssetsBody extends StatelessWidget {
                           return ClayCard(
                             child: Row(
                               children: [
-                                const Icon(Icons.print_outlined, color: AppColors.signalBlue),
+                                const ClayIconBadge(icon: Icons.print_outlined, color: AppColors.signalBlue),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(

@@ -5,6 +5,7 @@ import '../../models/asset_model.dart';
 import '../../services/api_client.dart';
 import '../../state/asset_brand_detail_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 
 class AssetBrandDetailScreen extends StatelessWidget {
@@ -22,7 +23,29 @@ class AssetBrandDetailScreen extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => AssetBrandDetailState(ApiClient.instance, brandId)..load(),
       child: Scaffold(
-        appBar: AppBar(title: Text(brandName ?? 'Marca')),
+        // Insignia de cabecera en el AppBar — este detalle no tiene una
+        // ClaySurface de encabezado propia (el cuerpo es directamente la
+        // lista de modelos), mismo ícono que asset_brands_list_screen.dart.
+        appBar: AppBar(
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ClayIconBadge(
+                icon: Icons.category_outlined,
+                color: AppColors.signalBlue,
+                size: 28,
+                iconSize: 14,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  brandName ?? 'Marca',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
         body: const _BrandDetailBody(),
       ),
     );

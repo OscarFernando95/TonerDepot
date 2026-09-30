@@ -6,7 +6,26 @@ import '../../services/api_client.dart';
 import '../../state/technician_time_off_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_only.dart';
+import '../../widgets/clay_date_field.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+
+// Color por estado del período "fuera de la oficina" — espejo del criterio
+// de TimeOff.statusLabel (models/technician_schedule.dart): anulado en rojo,
+// en curso en ámbar (pide atención: el técnico no está disponible ahora),
+// programado en azul brillante, terminado en gris.
+Color _timeOffColor(String statusLabel) {
+  switch (statusLabel) {
+    case 'Anulado':
+      return AppColors.signalRed;
+    case 'En curso':
+      return AppColors.signalAmber;
+    case 'Programado':
+      return AppColors.signalBlueBright;
+    default:
+      return AppColors.neutral;
+  }
+}
 
 /// "Fuera de la oficina" de un técnico: permisos, vacaciones, incapacidades (no es un retiro). Espejo de
 /// TechnicianTimeOffDialog.vue.
@@ -83,19 +102,18 @@ Future<void> _showAddDialog(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Inicio'),
-                subtitle: Text(formatDateTimeShort(startsAt)),
+              ClayDateField(
+                label: 'Inicio',
+                value: formatDateTimeShort(startsAt),
                 onTap: () async {
                   final picked = await _pickDateTime(dialogContext, startsAt);
                   if (picked != null) setDialogState(() => startsAt = picked);
                 },
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Fin'),
-                subtitle: Text(formatDateTimeShort(endsAt)),
+              const SizedBox(height: 12),
+              ClayDateField(
+                label: 'Fin',
+                value: formatDateTimeShort(endsAt),
                 onTap: () async {
                   final picked = await _pickDateTime(dialogContext, endsAt);
                   if (picked != null) setDialogState(() => endsAt = picked);
@@ -214,6 +232,11 @@ class _Body extends StatelessWidget {
           return ClayCard(
             child: Row(
               children: [
+                ClayIconBadge(
+                  icon: Icons.event_busy_outlined,
+                  color: _timeOffColor(item.statusLabel),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

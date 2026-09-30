@@ -8,6 +8,7 @@ import '../models/service_ticket.dart';
 import '../services/device_capture.dart';
 import '../services/technician_api.dart';
 import 'animated_gradient_border.dart';
+import 'clay_date_field.dart';
 
 /// Hoja modal de check-out. Reglas de campos obligatorios espejo de
 /// checkoutFormValid en MyWorkView.vue:
@@ -289,20 +290,11 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                         ),
                       ),
                     ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    shape: const RoundedRectangleBorder(
-                      side: BorderSide(color: AppColors.neutralSoft),
-                    ),
-                    title: Text(
-                      _counterDate == null
-                          ? 'Fecha de la lectura (opcional)'
-                          : 'Fecha: ${_counterDate!.toIso8601String().split('T').first}',
-                    ),
-                    trailing: const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 18,
-                    ),
+                  ClayDateField(
+                    label: 'Fecha de la lectura (opcional)',
+                    value: _counterDate == null
+                        ? 'Sin definir'
+                        : _counterDate!.toIso8601String().split('T').first,
                     onTap: () async {
                       final firstDate = _firstCounterDate;
                       final lastDate = _lastCounterDate;

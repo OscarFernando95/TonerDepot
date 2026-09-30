@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../services/api_client.dart';
 import '../../state/asset_brands_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../common/placeholder_screen.dart';
 
@@ -105,11 +106,11 @@ class AssetBrandsListScreen extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.category_outlined,
+                            const ClayIconBadge(
+                              icon: Icons.category_outlined,
                               color: AppColors.signalBlue,
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 brand.name,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/my_assets_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
@@ -64,6 +66,15 @@ class _MyAssetsBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // Mismo ícono/color que _AssetItem en
+                        // assets_list_screen.dart (vista de Staff).
+                        ClayIconBadge(
+                          icon: Icons.print_outlined,
+                          color: StatusLabels.assetLifecycleColor(
+                            asset.lifecycleStatus,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             '${asset.assetBrandName} ${asset.model}',

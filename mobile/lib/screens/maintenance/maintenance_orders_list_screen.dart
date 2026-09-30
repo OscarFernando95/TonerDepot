@@ -3,9 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/maintenance_order.dart';
+import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/maintenance_orders_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_choice_chip.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
@@ -34,26 +37,22 @@ class MaintenanceOrdersListScreen extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Todas'),
-                        selected: state.statusFilter == null,
-                        onSelected: (_) => state.setFilter(null),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ClayChoiceChip(
+                      label: const Text('Todas'),
+                      selected: state.statusFilter == null,
+                      onSelected: (_) => state.setFilter(null),
+                    ),
+                    for (final status in _statuses)
+                      ClayChoiceChip(
+                        label: Text(status),
+                        selected: state.statusFilter == status,
+                        onSelected: (_) => state.setFilter(status),
                       ),
-                      for (final status in _statuses)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 6),
-                          child: ChoiceChip(
-                            label: Text(status),
-                            selected: state.statusFilter == status,
-                            onSelected: (_) => state.setFilter(status),
-                          ),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
               Expanded(
@@ -115,6 +114,11 @@ class _OrderListItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(
+                icon: Icons.build_outlined,
+                color: StatusLabels.colorFor(order.status),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '${order.assetBrandName} ${order.assetModel}',

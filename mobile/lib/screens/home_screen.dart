@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../state/my_work_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/clay_icon_badge.dart';
 import '../widgets/clay_surface.dart';
 
 /// Contenido de "/dashboard" para el rol Tecnico (ver DashboardHomeScreen) —
@@ -121,17 +122,26 @@ class HomeScreen extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _StatTile(label: 'Tickets', value: pendingTickets),
+                child: _StatTile(
+                  label: 'Tickets',
+                  value: pendingTickets,
+                  icon: Icons.confirmation_number_outlined,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _StatTile(label: 'Órdenes', value: pendingOrders),
+                child: _StatTile(
+                  label: 'Órdenes',
+                  value: pendingOrders,
+                  icon: Icons.build_outlined,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _StatTile(
                   label: 'Instalaciones',
                   value: pendingInstallations,
+                  icon: Icons.move_to_inbox_outlined,
                 ),
               ),
             ],
@@ -161,9 +171,10 @@ class HomeScreen extends StatelessWidget {
 }
 
 class _StatTile extends StatelessWidget {
-  const _StatTile({required this.label, required this.value});
+  const _StatTile({required this.label, required this.value, required this.icon});
   final String label;
   final int value;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -172,6 +183,16 @@ class _StatTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Insignia: ámbar cuando hay pendientes por atender (mismo criterio
+          // de "atención" que el punto de estado de arriba), gris cuando el
+          // conteo está en cero.
+          ClayIconBadge(
+            icon: icon,
+            color: value > 0 ? AppColors.signalAmber : AppColors.neutral,
+            size: 28,
+            iconSize: 14,
+          ),
+          const SizedBox(height: 8),
           Text(
             label.toUpperCase(),
             style: const TextStyle(

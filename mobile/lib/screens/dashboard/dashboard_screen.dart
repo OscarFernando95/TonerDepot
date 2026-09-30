@@ -5,6 +5,8 @@ import '../../models/dashboard_summary.dart';
 import '../../services/api_client.dart';
 import '../../state/dashboard_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
+import '../../widgets/clay_segmented_control.dart';
 import '../../widgets/clay_surface.dart';
 
 /// Espejo de DashboardView.vue para Administrador/Coordinador — recortado a
@@ -42,22 +44,17 @@ class _DashboardBody extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Row(
-            children: [
-              Text(
-                'Indicadores',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const Spacer(),
+          Text(
+            'Indicadores',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          ClaySegmentedControl<int>(
+            selected: state.periodDays,
+            onChanged: state.setPeriod,
+            segments: [
               for (final days in _periods)
-                Padding(
-                  padding: const EdgeInsets.only(left: 6),
-                  child: ChoiceChip(
-                    label: Text('$days d'),
-                    selected: state.periodDays == days,
-                    onSelected: (_) => state.setPeriod(days),
-                  ),
-                ),
+                ClaySegment(value: days, label: '$days días'),
             ],
           ),
           const SizedBox(height: 16),
@@ -90,38 +87,61 @@ class _DashboardBody extends StatelessWidget {
     );
 
     return [
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.5,
+      // Dos Row en vez de GridView.count: cada tarjeta alta según su propio
+      // contenido (el valor puede ser "Sin datos" o un número corto), un
+      // aspect ratio fijo se desbordaba verticalmente con la insignia de
+      // ícono nueva en cualquier tarjeta cuyo texto fuera más alto.
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _KpiCard(
-            label: 'MTTR',
-            value: _formatHours(summary.mttr.averageResolutionHours),
-            sub: '${summary.mttr.resolvedTicketCount} resueltos',
-          ),
-          _KpiCard(
-            label: 'Cumplimiento SLA',
-            value: _formatPercentage(
-              summary.slaCompliance.overallCompliancePercentage,
+          Expanded(
+            child: _KpiCard(
+              icon: Icons.timer_outlined,
+              color: AppColors.signalBlue,
+              label: 'MTTR',
+              value: _formatHours(summary.mttr.averageResolutionHours),
+              sub: '${summary.mttr.resolvedTicketCount} resueltos',
             ),
-            sub: 'Del período',
           ),
-          _KpiCard(
-            label: 'Mantenimientos a tiempo',
-            value: _formatPercentage(
-              summary.maintenanceCompliance.onTimePercentage,
+          const SizedBox(width: 12),
+          Expanded(
+            child: _KpiCard(
+              icon: Icons.verified_outlined,
+              color: AppColors.signalBlue,
+              label: 'Cumplimiento SLA',
+              value: _formatPercentage(
+                summary.slaCompliance.overallCompliancePercentage,
+              ),
+              sub: 'Del período',
             ),
-            sub:
-                '${summary.maintenanceCompliance.onTimeCount} / ${summary.maintenanceCompliance.completedCount}',
           ),
-          _KpiCard(
-            label: 'Backlog',
-            value: '$backlogTotal',
-            sub: '${summary.ticketsByCity.length} ciudad(es)',
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: _KpiCard(
+              icon: Icons.build_outlined,
+              color: AppColors.signalAmber,
+              label: 'Mantenimientos a tiempo',
+              value: _formatPercentage(
+                summary.maintenanceCompliance.onTimePercentage,
+              ),
+              sub:
+                  '${summary.maintenanceCompliance.onTimeCount} / ${summary.maintenanceCompliance.completedCount}',
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _KpiCard(
+              icon: Icons.confirmation_number_outlined,
+              color: AppColors.signalRed,
+              label: 'Backlog',
+              value: '$backlogTotal',
+              sub: '${summary.ticketsByCity.length} ciudad(es)',
+            ),
           ),
         ],
       ),
@@ -200,8 +220,16 @@ class _DashboardBody extends StatelessWidget {
 }
 
 class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.label, required this.value, required this.sub});
+  const _KpiCard({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+    required this.sub,
+  });
 
+  final IconData icon;
+  final Color color;
   final String label;
   final String value;
   final String sub;
@@ -213,6 +241,8 @@ class _KpiCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          ClayIconBadge(icon: icon, color: color, size: 28, iconSize: 14),
+          const SizedBox(height: 8),
           Text(
             label.toUpperCase(),
             style: const TextStyle(
