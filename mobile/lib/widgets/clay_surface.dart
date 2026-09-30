@@ -37,18 +37,26 @@ class ClaySurface extends StatelessWidget {
         border: borderColor == null
             ? null
             : Border.all(color: borderColor!, width: 1.5),
+        // Elevación "Clay elevado": sombra dual más profunda que el clay
+        // original (blur/spread mayores, offset más grande) — la tarjeta
+        // se lee como si flotara sobre el fondo en vez de estar pegada.
         boxShadow: [
           BoxShadow(
-            color: AppColors.inkPrimary.withValues(alpha: 0.10),
-            offset: const Offset(6, 6),
-            blurRadius: 16,
-            spreadRadius: -6,
+            color: AppColors.inkPrimary.withValues(alpha: 0.14),
+            offset: const Offset(0, 10),
+            blurRadius: 26,
+            spreadRadius: -10,
+          ),
+          BoxShadow(
+            color: AppColors.inkPrimary.withValues(alpha: 0.06),
+            offset: const Offset(0, 1),
+            blurRadius: 3,
           ),
           BoxShadow(
             color: Colors.white.withValues(alpha: 0.9),
             offset: const Offset(-6, -6),
-            blurRadius: 16,
-            spreadRadius: -6,
+            blurRadius: 18,
+            spreadRadius: -8,
           ),
         ],
       ),

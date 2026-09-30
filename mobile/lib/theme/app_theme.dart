@@ -161,6 +161,134 @@ class AppTheme {
           borderRadius: BorderRadius.all(Radius.circular(22)),
         ),
       ),
+      // Tema único para TODO calendario/selector de hora de la app — ningún
+      // `showDatePicker`/`showTimePicker` pasa un `builder` propio (ver
+      // grep en el repo), así que reskinear esto una sola vez alcanza para
+      // los ~10 sitios que piden fecha (festivos, contratos, lecturas de
+      // contador, órdenes, fuera de la oficina, checkout).
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: AppColors.claySurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 6,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+        ),
+        headerBackgroundColor: AppColors.signalBlue,
+        headerForegroundColor: Colors.white,
+        headerHeadlineStyle: const TextStyle(
+          fontSize: 26,
+          fontWeight: FontWeight.w800,
+        ),
+        weekdayStyle: const TextStyle(
+          color: AppColors.inkSecondary,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+        todayBorder: const BorderSide(color: AppColors.signalBlue, width: 1.4),
+        todayForegroundColor: const WidgetStatePropertyAll(
+          AppColors.signalBlue,
+        ),
+        dayShape: const WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10)),
+          ),
+        ),
+        dayForegroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : AppColors.inkPrimary,
+        ),
+        dayBackgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.signalBlue
+              : Colors.transparent,
+        ),
+        dayOverlayColor: WidgetStateProperty.all(
+          AppColors.signalBlue.withValues(alpha: 0.08),
+        ),
+        yearShape: const WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(999)),
+          ),
+        ),
+        yearForegroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : AppColors.inkPrimary,
+        ),
+        yearBackgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.signalBlue
+              : Colors.transparent,
+        ),
+        rangePickerBackgroundColor: AppColors.claySurface,
+        rangePickerHeaderBackgroundColor: AppColors.signalBlue,
+        rangePickerHeaderForegroundColor: Colors.white,
+        rangeSelectionBackgroundColor: AppColors.signalBlueWash,
+        dividerColor: AppColors.neutralSoft,
+        cancelButtonStyle: TextButton.styleFrom(
+          foregroundColor: AppColors.inkSecondary,
+        ),
+        confirmButtonStyle: TextButton.styleFrom(
+          foregroundColor: AppColors.signalBlueBright,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: AppColors.canvasBg,
+          border: OutlineInputBorder(
+            borderRadius: _radius,
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: AppColors.claySurface,
+        elevation: 6,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+        ),
+        dialBackgroundColor: AppColors.canvasBg,
+        dialHandColor: AppColors.signalBlue,
+        // TimePickerThemeData tipa estos como `Color?`, no
+        // `WidgetStateProperty<Color>?` como DatePickerThemeData arriba —
+        // `WidgetStateColor` es un `Color` que se resuelve por estado.
+        dialTextColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : AppColors.inkPrimary,
+        ),
+        hourMinuteShape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+        ),
+        hourMinuteColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.signalBlue
+              : AppColors.canvasBg,
+        ),
+        hourMinuteTextColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.white
+              : AppColors.inkPrimary,
+        ),
+        dayPeriodShape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(14)),
+        ),
+        dayPeriodColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.signalBlueWash
+              : Colors.transparent,
+        ),
+        dayPeriodTextColor: WidgetStateColor.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.signalBlue
+              : AppColors.inkSecondary,
+        ),
+        entryModeIconColor: AppColors.inkSecondary,
+        helpTextStyle: const TextStyle(
+          color: AppColors.inkSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         shape: RoundedRectangleBorder(
