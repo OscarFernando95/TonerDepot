@@ -12,6 +12,22 @@ class ClientsListState extends ChangeNotifier {
   bool loading = false;
   String? error;
   List<Client> clients = [];
+  String? cityFilter;
+
+  /// Espejo de ClientsListView.vue: filtro client-side por ciudad.
+  List<Client> get filtered => cityFilter == null
+      ? clients
+      : clients.where((c) => c.cityNames.contains(cityFilter)).toList();
+
+  /// Opciones de ciudad derivadas de lo ya cargado, igual que cityOptions en
+  /// ClientsListView.vue.
+  List<String> get cityOptions =>
+      ({for (final c in clients) ...c.cityNames}.toList())..sort();
+
+  void setCityFilter(String? city) {
+    cityFilter = city;
+    notifyListeners();
+  }
 
   Future<void> load() async {
     loading = true;

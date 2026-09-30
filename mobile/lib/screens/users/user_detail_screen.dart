@@ -4,14 +4,35 @@ import 'package:provider/provider.dart';
 
 import '../../models/city.dart';
 import '../../models/managed_user.dart';
+import '../../models/role_names.dart';
 import '../../services/api_client.dart';
 import '../../services/city_api.dart';
 import '../../state/auth_state.dart';
 import '../../state/user_detail_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/phone_input.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/department_city_picker.dart';
 import '../../widgets/status_chip.dart';
+
+// Espejo de _roleIcon en users_list_screen.dart.
+IconData _roleIcon(String roleName) {
+  switch (roleName) {
+    case RoleNames.administrador:
+      return Icons.admin_panel_settings_outlined;
+    case RoleNames.coordinador:
+      return Icons.supervisor_account_outlined;
+    case RoleNames.tecnico:
+      return Icons.engineering_outlined;
+    case RoleNames.cliente:
+      return Icons.storefront_outlined;
+    case RoleNames.ventas:
+      return Icons.point_of_sale_outlined;
+    default:
+      return Icons.person_outline;
+  }
+}
 
 class UserDetailScreen extends StatelessWidget {
   const UserDetailScreen({super.key, required this.user});
@@ -44,6 +65,10 @@ class _UserDetailBody extends StatelessWidget {
     final phoneController = TextEditingController(text: user.phone ?? '');
     final addressController = TextEditingController(text: user.address ?? '');
     String? cityId = user.cityId;
+    // Cascada Departamento→Ciudad: se deriva de la ciudad actual del
+    // usuario una vez carguen los municipios (mismo patrón que
+    // UsersView.vue al abrir el diálogo de edición).
+    String? departmentName;
     List<City> cities = [];
     bool loading = true;
 
@@ -54,6 +79,10 @@ class _UserDetailBody extends StatelessWidget {
           if (loading) {
             CityApi(ApiClient.instance).list().then((loaded) {
               cities = loaded;
+              departmentName = cities
+                  .where((c) => c.id == cityId)
+                  .map((c) => c.stateOrProvince)
+                  .firstOrNull;
               setDialogState(() => loading = false);
             });
             return const AlertDialog(
@@ -115,22 +144,14 @@ class _UserDetailBody extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: cityId,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Ciudad *'),
-                      items: [
-                        for (final c in cities)
-                          DropdownMenuItem(
-                            value: c.id,
-                            child: Text(
-                              '${c.name} — ${c.stateOrProvince}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: (value) =>
-                          setDialogState(() => cityId = value),
+                    DepartmentCityPicker(
+                      cities: cities,
+                      initialDepartmentName: departmentName,
+                      initialCityId: cityId,
+                      onChanged: (newDepartment, newCityId) => setDialogState(() {
+                        departmentName = newDepartment;
+                        cityId = newCityId;
+                      }),
                     ),
                   ],
                 ),
@@ -300,6 +321,15 @@ class _UserDetailBody extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  // Insignia de cabecera — mismo ícono por rol que
+                  // users_list_screen.dart, color según si está activo.
+                  ClayIconBadge(
+                    icon: _roleIcon(user.roleName),
+                    color: user.isActive
+                        ? AppColors.signalBlue
+                        : AppColors.neutral,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       user.fullName,

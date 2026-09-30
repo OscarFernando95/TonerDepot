@@ -11,6 +11,15 @@ import '../../theme/app_theme.dart';
 /// Se crea referenciando un AssetModel ya existente (no hay marca/modelo
 /// libres) — de ahí el selector en cascada marca → modelo. Arranca en
 /// EnBodega siempre.
+///
+/// Espejo de AssetsListView.vue (diálogo "Nuevo activo" con los botones `+`
+/// "Nueva marca"/"Nuevo modelo" junto a esos selectores) — reusa los mismos
+/// diálogos inline que ya existen en asset_brands_list_screen.dart
+/// (`_showAddBrandDialog`) y asset_brand_detail_screen.dart
+/// (`_showModelDialog`), en vez de navegar a otra pantalla: no hay una ruta
+/// que devuelva la marca/modelo creado, y ambas pantallas de origen dependen
+/// de un ChangeNotifierProvider (AssetBrandsState/AssetBrandDetailState) que
+/// no tiene sentido montar solo para este atajo.
 class AssetCreateScreen extends StatefulWidget {
   const AssetCreateScreen({super.key});
 
@@ -92,6 +101,194 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
     }
   }
 
+  /// Espejo de openQuickBrandDialog/saveQuickBrand en AssetsListView.vue —
+  /// mismo diálogo inline (solo nombre) que ya usa
+  /// asset_brands_list_screen.dart, con try/catch propio porque acá no hay
+  /// un AssetBrandsState detrás.
+  Future<void> _createBrand() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Nueva marca'),
+          content: TextField(
+            controller: controller,
+            onChanged: (_) => setDialogState(() {}),
+            decoration: const InputDecoration(labelText: 'Nombre *'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: controller.text.trim().isEmpty
+                  ? null
+                  : () =>
+                        Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Crear'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (name == null || !mounted) return;
+    try {
+      final brand = await AssetBrandApi(ApiClient.instance).create(name);
+      setState(() {
+        _brands = [..._brands, brand];
+        _selectedBrandId = brand.id;
+        _selectedModelId = null;
+        _models = [];
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'No se pudo crear la marca.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Espejo de openQuickModelDialog/saveQuickModel en AssetsListView.vue —
+  /// mismo diálogo inline (nombre + 5 umbrales/intervalos) que ya usa
+  /// asset_brand_detail_screen.dart, con try/catch propio porque acá no hay
+  /// un AssetBrandDetailState detrás.
+  Future<void> _createModel() async {
+    if (_selectedBrandId == null) return;
+    final brandId = _selectedBrandId!;
+    final nameController = TextEditingController();
+    final generalPrintController = TextEditingController();
+    final generalMonthsController = TextEditingController();
+    final unitsPrintController = TextEditingController();
+    final unitsMonthsController = TextEditingController();
+    final consumablesController = TextEditingController();
+
+    bool isValid() =>
+        nameController.text.trim().isNotEmpty &&
+        int.tryParse(generalPrintController.text.trim()) != null &&
+        int.tryParse(generalMonthsController.text.trim()) != null &&
+        int.tryParse(unitsPrintController.text.trim()) != null &&
+        int.tryParse(unitsMonthsController.text.trim()) != null &&
+        int.tryParse(consumablesController.text.trim()) != null;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Nuevo modelo'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(labelText: 'Nombre *'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: generalPrintController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Umbral mantenimiento general (impresiones) *',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: generalMonthsController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Intervalo mantenimiento general (meses) *',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: unitsPrintController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Umbral unidades (impresiones) *',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: unitsMonthsController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Intervalo unidades (meses) *',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: consumablesController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Umbral insumos (impresiones) *',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: isValid()
+                  ? () => Navigator.of(dialogContext).pop(true)
+                  : null,
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result != true || !mounted) return;
+    try {
+      final model = await AssetModelApi(ApiClient.instance).create(
+        brandId,
+        name: nameController.text.trim(),
+        generalPrintThreshold: int.parse(generalPrintController.text.trim()),
+        generalMonthsInterval: int.parse(
+          generalMonthsController.text.trim(),
+        ),
+        unitsPrintThreshold: int.parse(unitsPrintController.text.trim()),
+        unitsMonthsInterval: int.parse(unitsMonthsController.text.trim()),
+        consumablesPrintThreshold: int.parse(
+          consumablesController.text.trim(),
+        ),
+      );
+      setState(() {
+        _models = [..._models, model];
+        _selectedModelId = model.id;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is ApiException ? e.message : 'No se pudo crear el modelo.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   bool get _isValid =>
       _selectedModelId != null && _serialController.text.trim().isNotEmpty;
 
@@ -136,15 +333,33 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedBrandId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Marca *'),
-                  items: [
-                    for (final b in _brands)
-                      DropdownMenuItem(value: b.id, child: Text(b.name)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedBrandId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Marca *',
+                        ),
+                        items: [
+                          for (final b in _brands)
+                            DropdownMenuItem(value: b.id, child: Text(b.name)),
+                        ],
+                        onChanged: _onBrandChanged,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: IconButton.outlined(
+                        onPressed: _createBrand,
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Crear marca',
+                      ),
+                    ),
                   ],
-                  onChanged: _onBrandChanged,
                 ),
                 const SizedBox(height: 12),
                 if (_loadingModels)
@@ -153,17 +368,41 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
                     child: LinearProgressIndicator(),
                   )
                 else
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedModelId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Modelo *'),
-                    items: [
-                      for (final m in _models)
-                        DropdownMenuItem(value: m.id, child: Text(m.name)),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: _selectedModelId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Modelo *',
+                          ),
+                          items: [
+                            for (final m in _models)
+                              DropdownMenuItem(
+                                value: m.id,
+                                child: Text(m.name),
+                              ),
+                          ],
+                          onChanged: _selectedBrandId == null
+                              ? null
+                              : (value) =>
+                                    setState(() => _selectedModelId = value),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: IconButton.outlined(
+                          onPressed: _selectedBrandId == null
+                              ? null
+                              : _createModel,
+                          icon: const Icon(Icons.add),
+                          tooltip: 'Crear modelo',
+                        ),
+                      ),
                     ],
-                    onChanged: _selectedBrandId == null
-                        ? null
-                        : (value) => setState(() => _selectedModelId = value),
                   ),
                 const SizedBox(height: 12),
                 TextField(

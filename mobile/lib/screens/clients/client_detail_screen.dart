@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../../models/city.dart';
 import '../common/location_picker_screen.dart';
 import '../../models/client.dart' show supportCoverageLabels;
 import '../../models/client_location.dart';
@@ -11,7 +10,9 @@ import '../../services/device_capture.dart';
 import '../../state/client_detail_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/phone_input.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/department_city_picker.dart';
 import '../../widgets/status_chip.dart';
 
 class ClientDetailScreen extends StatelessWidget {
@@ -169,6 +170,15 @@ class _ClientDetailBody extends StatelessWidget {
     ClientLocation? existing,
   }) async {
     String? cityId = existing?.cityId;
+    // Cascada Departamento→Ciudad: al editar una sede existente, se deriva
+    // el departamento de su ciudad actual (mismo patrón que UsersView.vue
+    // al abrir el diálogo de edición).
+    String? departmentName = cityId == null
+        ? null
+        : state.cities
+            .where((c) => c.id == cityId)
+            .map((c) => c.stateOrProvince)
+            .firstOrNull;
     final nameController = TextEditingController(text: existing?.name ?? '');
     final addressController = TextEditingController(
       text: existing?.address ?? '',
@@ -215,21 +225,14 @@ class _ClientDetailBody extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: cityId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Ciudad *'),
-                    items: [
-                      for (final City city in state.cities)
-                        DropdownMenuItem(
-                          value: city.id,
-                          child: Text(
-                            '${city.name} — ${city.stateOrProvince}',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                    onChanged: (value) => setDialogState(() => cityId = value),
+                  DepartmentCityPicker(
+                    cities: state.cities,
+                    initialDepartmentName: departmentName,
+                    initialCityId: cityId,
+                    onChanged: (newDepartment, newCityId) => setDialogState(() {
+                      departmentName = newDepartment;
+                      cityId = newCityId;
+                    }),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -429,6 +432,16 @@ class _ClientDetailBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // Insignia de cabecera — mismo ícono que
+                        // clients_list_screen.dart (edificio), color según
+                        // si el cliente está activo.
+                        ClayIconBadge(
+                          icon: Icons.business_outlined,
+                          color: client.isActive
+                              ? AppColors.signalBlue
+                              : AppColors.neutral,
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             client.name,

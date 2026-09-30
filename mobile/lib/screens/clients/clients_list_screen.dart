@@ -6,11 +6,14 @@ import '../../models/client.dart';
 import '../../services/api_client.dart';
 import '../../state/clients_list_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/list_filter_dropdown.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
-/// Espejo de ClientsListView.vue.
+/// Espejo de ClientsListView.vue — incluye el filtro por ciudad
+/// (client-side sobre lo ya cargado, igual que la web).
 class ClientsListScreen extends StatelessWidget {
   const ClientsListScreen({super.key});
 
@@ -26,8 +29,8 @@ class ClientsListScreen extends StatelessWidget {
           backgroundColor: Colors.transparent,
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () async {
-              final created = await context.push<bool>('/clients/new');
-              if (created == true && context.mounted) {
+              final created = await context.push<Client>('/clients/new');
+              if (created != null && context.mounted) {
                 context.read<ClientsListState>().load();
               }
             },
@@ -57,14 +60,49 @@ class ClientsListScreen extends StatelessWidget {
                   message: 'Todavía no hay clientes registrados.',
                 );
               }
-              return RefreshIndicator(
-                onRefresh: state.load,
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: state.clients.length,
-                  itemBuilder: (context, index) =>
-                      _ClientItem(client: state.clients[index]),
-                ),
+              final clients = state.filtered;
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          ListFilterDropdown(
+                            label: 'Ciudad',
+                            value: state.cityFilter,
+                            options: [
+                              for (final c in state.cityOptions) (c, c),
+                            ],
+                            onChanged: state.setCityFilter,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: clients.isEmpty
+                        ? const PlaceholderScreen(
+                            title: 'Sin clientes',
+                            message: 'No hay clientes en esa ciudad.',
+                          )
+                        : RefreshIndicator(
+                            onRefresh: state.load,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                4,
+                                16,
+                                96,
+                              ),
+                              itemCount: clients.length,
+                              itemBuilder: (context, index) =>
+                                  _ClientItem(client: clients[index]),
+                            ),
+                          ),
+                  ),
+                ],
               );
             },
           ),
@@ -88,6 +126,13 @@ class _ClientItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(
+                icon: Icons.business_outlined,
+                color: client.isActive
+                    ? AppColors.signalBlue
+                    : AppColors.neutral,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   client.name,

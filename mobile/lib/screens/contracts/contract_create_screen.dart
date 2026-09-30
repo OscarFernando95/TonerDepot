@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/client.dart';
 import '../../services/api_client.dart';
@@ -6,7 +7,12 @@ import '../../services/client_api.dart';
 import '../../services/contract_api.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_only.dart';
+import '../../widgets/clay_date_field.dart';
 
+/// Espejo de ContractsListView.vue (diálogo "Nuevo contrato") — el botón `+`
+/// junto al selector de cliente abre CreateClientDialog ahí; acá reusa el
+/// mismo patrón `context.push<Client>('/clients/new')` que ya usa
+/// ticket_create_sheet.dart, para no forzar al usuario a salir del flujo.
 class ContractCreateScreen extends StatefulWidget {
   const ContractCreateScreen({super.key});
 
@@ -55,6 +61,16 @@ class _ContractCreateScreenState extends State<ContractCreateScreen> {
     _priceController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _createClient() async {
+    final created = await context.push<Client>('/clients/new');
+    if (created != null && mounted) {
+      setState(() {
+        _clients = [..._clients, created];
+        _clientId = created.id;
+      });
+    }
   }
 
   bool get _isValid => _clientId != null;
@@ -125,42 +141,51 @@ class _ContractCreateScreenState extends State<ContractCreateScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                DropdownButtonFormField<String>(
-                  initialValue: _clientId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Cliente *'),
-                  items: [
-                    for (final c in _clients)
-                      DropdownMenuItem(
-                        value: c.id,
-                        child: Text(c.name, overflow: TextOverflow.ellipsis),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _clientId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Cliente *',
+                        ),
+                        items: [
+                          for (final c in _clients)
+                            DropdownMenuItem(
+                              value: c.id,
+                              child: Text(
+                                c.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _clientId = value),
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: IconButton.outlined(
+                        onPressed: _createClient,
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Crear cliente',
+                      ),
+                    ),
                   ],
-                  onChanged: (value) => setState(() => _clientId = value),
                 ),
                 const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  shape: const RoundedRectangleBorder(
-                    side: BorderSide(color: AppColors.neutralSoft),
-                  ),
-                  title: const Text('Fecha de inicio'),
-                  subtitle: Text(formatDateOnly(_startDate)),
-                  trailing: const Icon(Icons.calendar_today_outlined, size: 18),
+                ClayDateField(
+                  label: 'Fecha de inicio',
+                  value: formatDateOnly(_startDate),
                   onTap: _pickStartDate,
                 ),
                 const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  shape: const RoundedRectangleBorder(
-                    side: BorderSide(color: AppColors.neutralSoft),
-                  ),
-                  title: const Text('Fecha de fin (opcional)'),
-                  subtitle: Text(
-                    _endDate == null
-                        ? 'Sin definir'
-                        : formatDateOnly(_endDate!),
-                  ),
+                ClayDateField(
+                  label: 'Fecha de fin (opcional)',
+                  value: _endDate == null ? 'Sin definir' : formatDateOnly(_endDate!),
                   trailing: _endDate == null
                       ? const Icon(Icons.calendar_today_outlined, size: 18)
                       : IconButton(

@@ -8,13 +8,21 @@ import '../../services/api_client.dart';
 import '../../state/auth_state.dart';
 import '../../state/maintenance_schedules_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_choice_chip.dart';
+import '../../widgets/clay_icon_badge.dart';
+import '../../widgets/clay_segmented_control.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/grouped_collapse.dart';
+import '../../widgets/list_filter_dropdown.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
 /// Espejo de MaintenanceSchedulesView.vue. Las acciones globales
 /// (regenerar faltantes / evaluar ahora) van en una barra de botones bajo el
 /// AppBar del shell; "Evaluar ahora" solo para Administrador, como en la web.
+/// Los filtros de ciudad/cliente/contrato son también client-side sobre lo
+/// ya cargado, igual que urgencia. El toggle de agrupación ciudad → cliente
+/// → contrato replica exactamente el de Activos (mismo patrón de la web).
 class MaintenanceSchedulesListScreen extends StatelessWidget {
   const MaintenanceSchedulesListScreen({super.key});
 
@@ -67,27 +75,63 @@ class MaintenanceSchedulesListScreen extends StatelessWidget {
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Todos'),
-                            selected: state.urgencyFilter == null,
-                            onSelected: (_) => state.setUrgencyFilter(null),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        ClayChoiceChip(
+                          label: const Text('Todos'),
+                          selected: state.urgencyFilter == null,
+                          onSelected: (_) => state.setUrgencyFilter(null),
+                        ),
+                        for (final entry in _urgencies.entries)
+                          ClayChoiceChip(
+                            label: Text(entry.value),
+                            selected: state.urgencyFilter == entry.key,
+                            onSelected: (_) =>
+                                state.setUrgencyFilter(entry.key),
                           ),
-                          for (final entry in _urgencies.entries)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: ChoiceChip(
-                                label: Text(entry.value),
-                                selected: state.urgencyFilter == entry.key,
-                                onSelected: (_) =>
-                                    state.setUrgencyFilter(entry.key),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ListFilterDropdown(
+                          label: 'Ciudad',
+                          value: state.cityFilter,
+                          options: [
+                            for (final c in state.cityOptions) (c, c),
+                          ],
+                          onChanged: state.setCityFilter,
+                        ),
+                        ListFilterDropdown(
+                          label: 'Cliente',
+                          value: state.clientFilter,
+                          options: state.clientOptions,
+                          onChanged: state.setClientFilter,
+                        ),
+                        ListFilterDropdown(
+                          label: 'Contrato',
+                          value: state.contractFilter,
+                          options: state.contractOptions,
+                          onChanged: state.setContractFilter,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: ClaySegmentedControl<String>(
+                      selected: state.viewMode,
+                      onChanged: state.setViewMode,
+                      segments: const [
+                        ClaySegment(value: 'grouped', label: 'Agrupar por ciudad'),
+                        ClaySegment(value: 'flat', label: 'Ver como lista'),
+                      ],
                     ),
                   ),
                   Expanded(child: _Body(state: state)),
@@ -141,6 +185,15 @@ class _Body extends StatelessWidget {
         message: 'No hay cronogramas que coincidan con el filtro.',
       );
     }
+    if (state.viewMode == 'grouped') {
+      return RefreshIndicator(
+        onRefresh: state.load,
+        child: GroupedCollapseList<MaintenanceSchedule>(
+          groups: state.groupedByCity,
+          itemBuilder: (context, schedule) => _ScheduleItem(schedule: schedule),
+        ),
+      );
+    }
     return RefreshIndicator(
       onRefresh: state.load,
       child: NotificationListener<ScrollNotification>(
@@ -174,6 +227,20 @@ class _ScheduleItem extends StatelessWidget {
 
   final MaintenanceSchedule schedule;
 
+  /// Mismos colores/cortes que StatusChip.urgency (far/soon/urgent/overdue).
+  Color get _urgencyColor {
+    switch (schedule.urgency) {
+      case 'soon':
+        return AppColors.signalAmber;
+      case 'urgent':
+        return const Color(0xFFE8730C);
+      case 'overdue':
+        return AppColors.signalRed;
+      default:
+        return AppColors.signalBlue;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final prints = schedule.printsRemaining;
@@ -185,6 +252,8 @@ class _ScheduleItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(icon: Icons.build_outlined, color: _urgencyColor),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '${schedule.assetBrandName} ${schedule.assetModel}',

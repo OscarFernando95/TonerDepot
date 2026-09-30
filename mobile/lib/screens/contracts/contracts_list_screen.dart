@@ -6,13 +6,18 @@ import '../../models/contract.dart';
 import '../../services/api_client.dart';
 import '../../state/contracts_list_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_choice_chip.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/list_filter_dropdown.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
 /// Espejo de ContractsListView.vue — GET /contracts no tiene filtros
 /// server-side, igual patrón que Activos: pagina de verdad y filtra estado
-/// client-side.
+/// + ciudad + cliente client-side. ContractsListView.vue no tiene toggle de
+/// agrupación por ciudad, así que esta pantalla solo recibe el pulido visual
+/// "Clay elevado" (insignia de ícono por estado), no agrupación.
 class ContractsListScreen extends StatelessWidget {
   const ContractsListScreen({super.key});
 
@@ -43,26 +48,45 @@ class ContractsListScreen extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Todos'),
-                            selected: state.statusFilter == null,
-                            onSelected: (_) => state.setFilter(null),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        ClayChoiceChip(
+                          label: const Text('Todos'),
+                          selected: state.statusFilter == null,
+                          onSelected: (_) => state.setFilter(null),
+                        ),
+                        for (final status in _statuses)
+                          ClayChoiceChip(
+                            label: Text(status),
+                            selected: state.statusFilter == status,
+                            onSelected: (_) => state.setFilter(status),
                           ),
-                          for (final status in _statuses)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: ChoiceChip(
-                                label: Text(status),
-                                selected: state.statusFilter == status,
-                                onSelected: (_) => state.setFilter(status),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ListFilterDropdown(
+                          label: 'Ciudad',
+                          value: state.cityFilter,
+                          options: [
+                            for (final c in state.cityOptions) (c, c),
+                          ],
+                          onChanged: state.setCityFilter,
+                        ),
+                        ListFilterDropdown(
+                          label: 'Cliente',
+                          value: state.clientFilter,
+                          options: state.clientOptions,
+                          onChanged: state.setClientFilter,
+                        ),
+                      ],
                     ),
                   ),
                   Expanded(
@@ -106,7 +130,10 @@ class ContractsListScreen extends StatelessWidget {
                               return false;
                             },
                             child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              // 96 abajo, no 16: deja espacio para que el FAB
+                              // "+ Contrato" no quede montado sobre la última
+                              // tarjeta (mismo criterio que ClientsListScreen).
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                               itemCount:
                                   contracts.length + (state.hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
@@ -145,6 +172,18 @@ class _ContractItem extends StatelessWidget {
 
   String _formatDate(String iso) => iso.split('T').first;
 
+  /// Activo=azul señal, Vencido=ámbar, Cancelado=neutral.
+  Color get _statusColor {
+    switch (contract.status) {
+      case 'Activo':
+        return AppColors.signalBlue;
+      case 'Vencido':
+        return AppColors.signalAmber;
+      default:
+        return AppColors.neutral;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClayCard(
@@ -154,6 +193,11 @@ class _ContractItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(
+                icon: Icons.description_outlined,
+                color: _statusColor,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   contract.clientName,

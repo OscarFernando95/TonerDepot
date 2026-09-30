@@ -10,6 +10,7 @@ import '../../services/client_api.dart';
 import '../../services/user_api.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/phone_input.dart';
+import '../../widgets/department_city_picker.dart';
 
 /// Crear usuario — el backend genera la contraseña y la manda por correo
 /// cifrado (nunca se acepta una escrita a mano acá); si el rol es Tecnico,
@@ -33,6 +34,9 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
   String? _loadError;
   List<City> _cities = [];
   List<Client> _clients = [];
+  /// Cascada Departamento→Ciudad: local al formulario, nunca se manda al
+  /// backend (mismo comentario que UsersView.vue).
+  String? _departmentName;
   String? _cityId;
   String _roleName = RoleNames.tecnico;
   String? _clientId;
@@ -213,21 +217,14 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
                   decoration: const InputDecoration(labelText: 'Dirección *'),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _cityId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Ciudad *'),
-                  items: [
-                    for (final c in _cities)
-                      DropdownMenuItem(
-                        value: c.id,
-                        child: Text(
-                          '${c.name} — ${c.stateOrProvince}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                  onChanged: (value) => setState(() => _cityId = value),
+                DepartmentCityPicker(
+                  cities: _cities,
+                  initialDepartmentName: _departmentName,
+                  initialCityId: _cityId,
+                  onChanged: (departmentName, cityId) => setState(() {
+                    _departmentName = departmentName;
+                    _cityId = cityId;
+                  }),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(

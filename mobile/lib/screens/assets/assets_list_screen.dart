@@ -7,13 +7,19 @@ import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/assets_list_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_choice_chip.dart';
+import '../../widgets/clay_icon_badge.dart';
+import '../../widgets/clay_segmented_control.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/grouped_collapse.dart';
+import '../../widgets/list_filter_dropdown.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
 /// Espejo de AssetsListView.vue — GET /assets no tiene filtros server-side,
-/// así que el filtro por estado es client-side sobre lo ya cargado (ver
-/// AssetsListState, que sí pagina de verdad para no truncar el catálogo).
+/// así que el filtro por estado + ciudad + cliente es client-side sobre lo
+/// ya cargado (ver AssetsListState, que sí pagina de verdad para no truncar
+/// el catálogo).
 class AssetsListScreen extends StatelessWidget {
   const AssetsListScreen({super.key});
 
@@ -43,28 +49,58 @@ class AssetsListScreen extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Todos'),
-                            selected: state.statusFilter == null,
-                            onSelected: (_) => state.setFilter(null),
-                          ),
-                          for (final status in StatusLabels.assetLifecycle.keys)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: ChoiceChip(
-                                label: Text(
-                                  StatusLabels.assetLifecycle[status]!,
-                                ),
-                                selected: state.statusFilter == status,
-                                onSelected: (_) => state.setFilter(status),
-                              ),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        ClayChoiceChip(
+                          label: const Text('Todos'),
+                          selected: state.statusFilter == null,
+                          onSelected: (_) => state.setFilter(null),
+                        ),
+                        for (final status in StatusLabels.assetLifecycle.keys)
+                          ClayChoiceChip(
+                            label: Text(
+                              StatusLabels.assetLifecycle[status]!,
                             ),
-                        ],
-                      ),
+                            selected: state.statusFilter == status,
+                            onSelected: (_) => state.setFilter(status),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ListFilterDropdown(
+                          label: 'Ciudad',
+                          value: state.cityFilter,
+                          options: [
+                            for (final c in state.cityOptions) (c, c),
+                          ],
+                          onChanged: state.setCityFilter,
+                        ),
+                        ListFilterDropdown(
+                          label: 'Cliente',
+                          value: state.clientFilter,
+                          options: state.clientOptions,
+                          onChanged: state.setClientFilter,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: ClaySegmentedControl<String>(
+                      selected: state.viewMode,
+                      onChanged: state.setViewMode,
+                      segments: const [
+                        ClaySegment(value: 'grouped', label: 'Agrupar por ciudad'),
+                        ClaySegment(value: 'flat', label: 'Ver como lista'),
+                      ],
                     ),
                   ),
                   Expanded(
@@ -97,6 +133,20 @@ class AssetsListScreen extends StatelessWidget {
                                 'No hay activos que coincidan con el filtro.',
                           );
                         }
+                        if (state.viewMode == 'grouped') {
+                          return RefreshIndicator(
+                            onRefresh: state.load,
+                            child: GroupedCollapseList<Asset>(
+                              // 96 abajo: deja espacio para que el FAB
+                              // "+ Activo" no quede montado sobre el último
+                              // grupo (mismo criterio que ClientsListScreen).
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                              groups: state.groupedByCity,
+                              itemBuilder: (context, asset) =>
+                                  _AssetItem(asset: asset),
+                            ),
+                          );
+                        }
                         return RefreshIndicator(
                           onRefresh: state.load,
                           child: NotificationListener<ScrollNotification>(
@@ -108,7 +158,7 @@ class AssetsListScreen extends StatelessWidget {
                               return false;
                             },
                             child: ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
                               itemCount:
                                   assets.length + (state.hasMore ? 1 : 0),
                               itemBuilder: (context, index) {
@@ -143,6 +193,20 @@ class _AssetItem extends StatelessWidget {
 
   final Asset asset;
 
+  Color get _statusColor {
+    switch (asset.lifecycleStatus) {
+      case 'Instalado':
+        return AppColors.signalBlue;
+      case 'EnMantenimiento':
+      case 'PendienteInstalacion':
+        return AppColors.signalAmber;
+      case 'DadoDeBaja':
+        return AppColors.signalRed;
+      default:
+        return AppColors.neutral;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClayCard(
@@ -152,6 +216,8 @@ class _AssetItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(icon: Icons.print_outlined, color: _statusColor),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '${asset.assetBrandName} ${asset.model}',

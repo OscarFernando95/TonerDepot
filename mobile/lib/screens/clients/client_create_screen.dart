@@ -9,6 +9,7 @@ import '../../services/client_api.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/phone_input.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/department_city_picker.dart';
 
 /// Crear cliente — el backend exige al menos una sede (locations no puede
 /// venir vacío, ver CreateClientRequestValidator), por eso el form arranca
@@ -25,6 +26,9 @@ class _LocationDraft {
   final addressController = TextEditingController();
   final contactNameController = TextEditingController();
   final contactPhoneController = TextEditingController();
+  /// Cascada Departamento→Ciudad: es local al formulario, nunca se manda al
+  /// backend (mismo comentario que CreateClientDialog.vue/UsersView.vue).
+  String? departmentName;
   String? cityId;
   double? latitude;
   double? longitude;
@@ -102,7 +106,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
     if (!_isValid) return;
     setState(() => _submitting = true);
     try {
-      await ClientApi(ApiClient.instance).create(
+      final created = await ClientApi(ApiClient.instance).create(
         name: _nameController.text.trim(),
         taxId: _taxIdController.text.trim().isEmpty
             ? null
@@ -135,7 +139,7 @@ class _ClientCreateScreenState extends State<ClientCreateScreen> {
             ),
         ],
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop(created);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -333,22 +337,13 @@ class _LocationForm extends StatelessWidget {
                 ),
             ],
           ),
-          DropdownButtonFormField<String>(
-            initialValue: draft.cityId,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Ciudad *'),
-            items: [
-              for (final city in cities)
-                DropdownMenuItem(
-                  value: city.id,
-                  child: Text(
-                    '${city.name} — ${city.stateOrProvince}',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-            ],
-            onChanged: (value) {
-              draft.cityId = value;
+          DepartmentCityPicker(
+            cities: cities,
+            initialDepartmentName: draft.departmentName,
+            initialCityId: draft.cityId,
+            onChanged: (departmentName, cityId) {
+              draft.departmentName = departmentName;
+              draft.cityId = cityId;
               onChanged();
             },
           ),
