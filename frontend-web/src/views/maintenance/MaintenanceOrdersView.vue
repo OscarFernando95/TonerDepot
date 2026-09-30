@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ordersApi from '../../api/maintenanceOrders'
 import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto } from '../../api/types'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 
 const router = useRouter()
 
