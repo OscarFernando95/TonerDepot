@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/assignment_history.dart';
 import '../models/paged_result.dart';
 import '../models/service_ticket.dart';
 import 'api_client.dart';
@@ -58,6 +59,53 @@ class TicketApi {
       return ServiceTicket.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('TicketApi.create failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Staff únicamente (RoleNames.StaffRoles en el backend).
+  Future<ServiceTicket> assign(
+    String id, {
+    required String technicianId,
+    String? reason,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        '/tickets/$id/assign',
+        data: {'technicianId': technicianId, 'reason': ?reason},
+      );
+      return ServiceTicket.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('TicketApi.assign failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Staff únicamente. `status` debe ser una transición válida desde el
+  /// estado actual (ver TicketAllowedTransitions en status_labels.dart).
+  Future<ServiceTicket> setStatus(String id, String status) async {
+    try {
+      final response = await _client.dio.patch(
+        '/tickets/$id/status',
+        data: {'status': status},
+      );
+      return ServiceTicket.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('TicketApi.setStatus failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  Future<List<AssignmentHistory>> getAssignmentHistory(String id) async {
+    try {
+      final response = await _client.dio.get('/tickets/$id/assignment-history');
+      final page = PagedResult<AssignmentHistory>.fromJson(
+        response.data as Map<String, dynamic>,
+        AssignmentHistory.fromJson,
+      );
+      return page.items;
+    } catch (e, st) {
+      debugPrint('TicketApi.getAssignmentHistory failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

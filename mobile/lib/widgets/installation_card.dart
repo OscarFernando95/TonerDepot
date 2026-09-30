@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/pending_installation.dart';
 import '../theme/app_theme.dart';
 import 'animated_gradient_border.dart';
+import 'clay_icon_badge.dart';
 import 'clay_surface.dart';
 
 class InstallationCard extends StatelessWidget {
@@ -31,6 +32,15 @@ class InstallationCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              // Mismo lenguaje que el resto de las tarjetas de "Mi trabajo" —
+              // ámbar si otro técnico ya la tomó, azul señal si sigue libre.
+              ClayIconBadge(
+                icon: Icons.move_to_inbox_outlined,
+                color: installation.takenByAnotherTechnician
+                    ? AppColors.signalAmber
+                    : AppColors.signalBlue,
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '${installation.assetBrandName} ${installation.model}',

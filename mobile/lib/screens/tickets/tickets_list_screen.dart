@@ -2,21 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/role_names.dart';
 import '../../models/service_ticket.dart';
+import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/auth_state.dart';
 import '../../state/tickets_list_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 import 'ticket_create_sheet.dart';
 
-/// Lista de tickets para Cliente/Administrador/Coordinador — espejo de
-/// TicketsListView.vue. El FAB de crear solo se muestra para Cliente por
-/// ahora: crear como Staff necesita elegir cliente+sede (requiere ClientApi,
-/// que todavía no existe — llega junto con el catálogo de clientes de la
-/// Fase F). Staff mientras tanto ve la lista en modo solo lectura.
+/// Lista de tickets para Cliente/Administrador/Coordinador/Técnico — espejo
+/// de TicketsListView.vue. El FAB de crear aparece para Cliente (reporta
+/// sobre su propia sede) y para Staff (elige cliente+sede+activo, con
+/// creación rápida de cliente).
 class TicketsListScreen extends StatelessWidget {
   const TicketsListScreen({super.key});
 
@@ -34,7 +36,8 @@ class _TicketsListBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canCreate = context.watch<AuthState>().currentUser?.clientId != null;
+    final auth = context.watch<AuthState>();
+    final canCreate = auth.currentUser?.clientId != null || auth.hasAnyRole(RoleNames.staffRoles);
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: canCreate
@@ -101,6 +104,11 @@ class _TicketListItem extends StatelessWidget {
         children: [
           Row(
             children: [
+              ClayIconBadge(
+                icon: Icons.confirmation_number_outlined,
+                color: StatusLabels.priorityColor(ticket.priority),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   ticket.clientName,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/service_ticket.dart';
+import '../models/status_labels.dart';
 import '../theme/app_theme.dart';
+import 'clay_icon_badge.dart';
 import 'clay_surface.dart';
 import 'status_chip.dart';
 import 'animated_gradient_border.dart';
@@ -32,6 +34,13 @@ class TicketCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              // Mismo ícono/color que _TicketListItem en tickets_list_screen.dart
+              // (icono del dominio + color por prioridad).
+              ClayIconBadge(
+                icon: Icons.confirmation_number_outlined,
+                color: StatusLabels.priorityColor(ticket.priority),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   ticket.clientName,

@@ -20,6 +20,18 @@ class StatusLabels {
     'Cancelado': 'Cancelado',
   };
 
+  /// Espejo de ServiceTicketAllowedTransitions (frontend-web/src/api/types.ts)
+  /// — qué estados puede elegir Staff desde el detalle de un ticket.
+  static const Map<String, List<String>> ticketAllowedTransitions = {
+    'Abierto': ['Cancelado'],
+    'SinAsignar': ['Cancelado'],
+    'Asignado': ['EnProceso', 'Cancelado'],
+    'EnProceso': ['Resuelto', 'Cancelado'],
+    'Resuelto': ['Cerrado', 'EnProceso'],
+    'Cerrado': [],
+    'Cancelado': [],
+  };
+
   static const Map<String, String> order = {
     'Pendiente': 'Pendiente',
     'Asignada': 'Asignada',

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/maintenance_order.dart';
+import '../models/status_labels.dart';
 import '../theme/app_theme.dart';
+import 'clay_icon_badge.dart';
 import 'clay_surface.dart';
 import 'status_chip.dart';
 import 'animated_gradient_border.dart';
@@ -32,6 +34,13 @@ class OrderCard extends StatelessWidget {
         children: [
           Row(
             children: [
+              // Mismo ícono/color que _OrderListItem en
+              // maintenance_orders_list_screen.dart.
+              ClayIconBadge(
+                icon: Icons.build_outlined,
+                color: StatusLabels.colorFor(order.status),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   '${order.assetBrandName} ${order.assetModel}',
