@@ -6,6 +6,7 @@ import '../../models/asset_brand.dart';
 import '../../models/asset_model.dart';
 import '../../models/client.dart';
 import '../../models/client_location.dart';
+import '../../models/role_names.dart';
 import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../services/asset_brand_api.dart';
@@ -13,10 +14,16 @@ import '../../services/asset_model_api.dart';
 import '../../services/client_api.dart';
 import '../../services/client_location_api.dart';
 import '../../state/asset_detail_state.dart';
+import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 
+/// Detalle de activo — Administrador/Coordinador (única puerta de entrada es
+/// el destino "Activos" del drawer, roles: staffRoles). La sección de
+/// lecturas de contador es espejo de AssetDetailView.vue, igual que el
+/// historial de estados que ya vivía acá.
 class AssetDetailScreen extends StatelessWidget {
   const AssetDetailScreen({super.key, required this.assetId});
 
@@ -24,8 +31,13 @@ class AssetDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isStaff = context.read<AuthState>().hasAnyRole(
+      RoleNames.staffRoles,
+    );
     return ChangeNotifierProvider(
-      create: (_) => AssetDetailState(ApiClient.instance, assetId)..load(),
+      create: (_) =>
+          AssetDetailState(ApiClient.instance, assetId, isStaff: isStaff)
+            ..load(),
       child: Scaffold(
         appBar: AppBar(title: const Text('Activo')),
         body: const _AssetDetailBody(),
@@ -358,6 +370,109 @@ class _AssetDetailBody extends StatelessWidget {
     );
   }
 
+  /// Bottom sheet para registrar una lectura — un solo campo entero, con el
+  /// último valor como hint (mismo patrón visual que meter_readings_screen.dart,
+  /// pero acá el contador es `int` puro: el backend usa `long` y no acepta
+  /// fracción).
+  Future<void> _openRegisterMeterReadingSheet(
+    BuildContext context,
+    AssetDetailState state,
+  ) async {
+    final asset = state.asset!;
+    final counterController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.claySurface,
+      shape: const RoundedRectangleBorder(),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            MediaQuery.of(sheetContext).viewInsets.bottom +
+                MediaQuery.of(sheetContext).padding.bottom +
+                20,
+          ),
+          child: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Registrar lectura',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                  if (asset.lastMeterReading != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Último contador registrado: ${asset.lastMeterReading}',
+                        style: const TextStyle(
+                          color: AppColors.inkSecondary,
+                        ).merge(AppTextStyles.tabularNumber),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: counterController,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: false,
+                    ),
+                    style: AppTextStyles.tabularNumber,
+                    decoration: InputDecoration(
+                      labelText: 'Valor del contador',
+                      hintText: asset.lastMeterReading != null
+                          ? '${asset.lastMeterReading}'
+                          : null,
+                    ),
+                    validator: (v) {
+                      final value = int.tryParse(v ?? '');
+                      if (value == null) return 'Ingresa un número entero válido.';
+                      if (asset.lastMeterReading != null &&
+                          value < asset.lastMeterReading!) {
+                        return 'No puede ser menor al último registrado.';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        if (formKey.currentState!.validate()) {
+                          Navigator.of(sheetContext).pop(true);
+                        }
+                      },
+                      child: const Text('Registrar'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed == true && context.mounted) {
+      final value = int.parse(counterController.text.trim());
+      final error = await state.addMeterReading(value);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error ?? 'Lectura registrada.')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AssetDetailState>(
@@ -391,6 +506,16 @@ class _AssetDetailBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // Insignia de cabecera del detalle — ícono del
+                        // dominio (impresora) con el color del estado
+                        // principal del activo.
+                        ClayIconBadge(
+                          icon: Icons.print_outlined,
+                          color: StatusLabels.assetLifecycleColor(
+                            asset.lifecycleStatus,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             '${asset.assetBrandName} ${asset.model}',
@@ -502,6 +627,73 @@ class _AssetDetailBody extends StatelessWidget {
                       ),
                     ),
                   ),
+              if (state.isStaff) ...[
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Lecturas de contador',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: state.busyWithAction
+                          ? null
+                          : () => _openRegisterMeterReadingSheet(
+                              context,
+                              state,
+                            ),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Registrar lectura'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (state.meterReadings.isEmpty)
+                  const ClaySurface(
+                    child: Text(
+                      'Sin lecturas de contador registradas.',
+                      style: TextStyle(color: AppColors.inkSecondary),
+                    ),
+                  )
+                else
+                  for (final reading in state.meterReadings)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: ClaySurface(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${reading.counterValue}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ).merge(AppTextStyles.tabularNumber),
+                                  ),
+                                  Text(
+                                    '${_formatDate(reading.readingDate)}'
+                                    '${reading.registeredByUserName != null ? ' — ${reading.registeredByUserName}' : ''}',
+                                    style: const TextStyle(
+                                      color: AppColors.inkSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              ],
             ],
           ),
         );

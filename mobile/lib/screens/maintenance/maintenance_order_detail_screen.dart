@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/assignment_history.dart';
+import '../../models/role_names.dart';
+import '../../models/status_labels.dart';
 import '../../models/technician.dart';
 import '../../services/api_client.dart';
+import '../../state/auth_state.dart';
 import '../../state/maintenance_order_detail_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/clay_date_field.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/evidence_gallery.dart';
 import '../../widgets/status_chip.dart';
 
 /// Detalle de orden de mantenimiento — Coordinador/Administrador. Espejo de
 /// MaintenanceOrderDetailView.vue: asignar/completar/cancelar solo visibles
-/// cuando `order.canManage` (Pendiente/Asignada), igual que la web.
+/// cuando `order.canManage` (Pendiente/Asignada), igual que la web. El
+/// historial de asignación también es espejo de esa vista (tabla técnico/
+/// tipo/asignado por/fecha/motivo), StaffRoles únicamente.
 class MaintenanceOrderDetailScreen extends StatelessWidget {
   const MaintenanceOrderDetailScreen({super.key, required this.orderId});
 
@@ -19,9 +27,16 @@ class MaintenanceOrderDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isStaff = context.read<AuthState>().hasAnyRole(
+      RoleNames.staffRoles,
+    );
     return ChangeNotifierProvider(
       create: (_) =>
-          MaintenanceOrderDetailState(ApiClient.instance, orderId)..load(),
+          MaintenanceOrderDetailState(
+            ApiClient.instance,
+            orderId,
+            isStaff: isStaff,
+          )..load(),
       child: Scaffold(
         appBar: AppBar(title: const Text('Orden de mantenimiento')),
         body: const _OrderDetailBody(),
@@ -129,12 +144,10 @@ class _OrderDetailBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  'Fecha: ${readingDate!.day}/${readingDate!.month}/${readingDate!.year}',
-                ),
-                trailing: const Icon(Icons.calendar_today_outlined, size: 18),
+              ClayDateField(
+                label: 'Fecha',
+                value:
+                    '${readingDate!.day}/${readingDate!.month}/${readingDate!.year}',
                 onTap: () async {
                   final picked = await showDatePicker(
                     context: dialogContext,
@@ -238,6 +251,14 @@ class _OrderDetailBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // Insignia de cabecera — mismo ícono que
+                        // maintenance_orders_list_screen.dart (llave
+                        // inglesa), color por estado de la orden.
+                        ClayIconBadge(
+                          icon: Icons.build_outlined,
+                          color: StatusLabels.colorFor(order.status),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             '${order.assetBrandName} ${order.assetModel}',
@@ -336,10 +357,103 @@ class _OrderDetailBody extends StatelessWidget {
                   ],
                 ),
               ),
+              if (state.isStaff) ...[
+                const SizedBox(height: 16),
+                ClaySurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Historial de asignación',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      if (state.assignmentHistory.isEmpty)
+                        const Text(
+                          'Sin asignaciones registradas.',
+                          style: TextStyle(color: AppColors.inkSecondary),
+                        )
+                      else
+                        for (final entry in state.assignmentHistory)
+                          _AssignmentHistoryRow(entry: entry),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _AssignmentHistoryRow extends StatelessWidget {
+  const _AssignmentHistoryRow({required this.entry});
+
+  final AssignmentHistory entry;
+
+  String _formatDateTime(String iso) {
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return iso;
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: SizedBox(
+              width: 8,
+              height: 8,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.signalBlue,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.technicianName ?? 'Sin asignar',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${entry.assignmentType == 'Manual' ? 'Manual' : 'Automático'} · '
+                  '${entry.assignedByUserName ?? 'Sistema (automático)'} · '
+                  '${_formatDateTime(entry.assignedAt)}',
+                  style: const TextStyle(
+                    color: AppColors.inkSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                if (entry.reason != null && entry.reason!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      entry.reason!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

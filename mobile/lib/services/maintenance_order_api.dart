@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/assignment_history.dart';
 import '../models/maintenance_order.dart';
 import '../models/paged_result.dart';
 import 'api_client.dart';
@@ -81,6 +82,25 @@ class MaintenanceOrderApi {
       return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
       debugPrint('MaintenanceOrderApi.cancel failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Staff únicamente (endpoint [Authorize(Roles = StaffRoles)] en el
+  /// backend). Espejo de getMaintenanceOrderAssignmentHistory en
+  /// frontend-web/src/api/maintenanceOrders.ts.
+  Future<List<AssignmentHistory>> getAssignmentHistory(String id) async {
+    try {
+      final response = await _client.dio.get(
+        '/maintenance-orders/$id/assignment-history',
+      );
+      final page = PagedResult<AssignmentHistory>.fromJson(
+        response.data as Map<String, dynamic>,
+        AssignmentHistory.fromJson,
+      );
+      return page.items;
+    } catch (e, st) {
+      debugPrint('MaintenanceOrderApi.getAssignmentHistory failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

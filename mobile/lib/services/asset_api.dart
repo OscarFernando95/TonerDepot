@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/asset.dart';
 import '../models/asset_status_log.dart';
+import '../models/meter_reading.dart';
 import '../models/paged_result.dart';
 import 'api_client.dart';
 
@@ -140,6 +141,41 @@ class AssetApi {
       return page.items;
     } catch (e, st) {
       debugPrint('AssetApi.getStatusHistory failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Historial de lecturas de contador de UN activo (detalle de Administrador/
+  /// Coordinador) — distinto del flujo POST /meter-readings/{assetId} del
+  /// técnico (ver MeterReadingApi).
+  Future<List<MeterReading>> getMeterReadings(String id) async {
+    try {
+      final response = await _client.dio.get('/assets/$id/meter-readings');
+      final page = PagedResult<MeterReading>.fromJson(
+        response.data as Map<String, dynamic>,
+        MeterReading.fromJson,
+      );
+      return page.items;
+    } catch (e, st) {
+      debugPrint('AssetApi.getMeterReadings failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// `counterValue` viaja como `int` (nunca `double`): el backend usa `long`
+  /// y rechaza un JSON con fracción (ej. 6004.0).
+  Future<MeterReading> addMeterReading(
+    String id, {
+    required int counterValue,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        '/assets/$id/meter-readings',
+        data: {'counterValue': counterValue},
+      );
+      return MeterReading.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('AssetApi.addMeterReading failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

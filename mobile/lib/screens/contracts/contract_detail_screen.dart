@@ -8,9 +8,12 @@ import '../../services/api_client.dart';
 import '../../services/asset_api.dart';
 import '../../services/client_location_api.dart';
 import '../../models/paged_result.dart';
+import '../../models/status_labels.dart';
 import '../../state/contract_detail_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_only.dart';
+import '../../widgets/clay_date_field.dart';
+import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 
@@ -65,14 +68,9 @@ class _ContractDetailBody extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Fecha de inicio'),
-                    subtitle: Text(formatDateOnly(startDate)),
-                    trailing: const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 18,
-                    ),
+                  ClayDateField(
+                    label: 'Fecha de inicio',
+                    value: formatDateOnly(startDate),
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: dialogContext,
@@ -85,18 +83,10 @@ class _ContractDetailBody extends StatelessWidget {
                       }
                     },
                   ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Fecha de fin'),
-                    subtitle: Text(
-                      endDate == null
-                          ? 'Sin definir'
-                          : formatDateOnly(endDate!),
-                    ),
-                    trailing: const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 18,
-                    ),
+                  const SizedBox(height: 12),
+                  ClayDateField(
+                    label: 'Fecha de fin',
+                    value: endDate == null ? 'Sin definir' : formatDateOnly(endDate!),
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: dialogContext,
@@ -428,6 +418,13 @@ class _ContractDetailBody extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        // Insignia de cabecera — mismo ícono que
+                        // contracts_list_screen.dart, color por estado.
+                        ClayIconBadge(
+                          icon: Icons.description_outlined,
+                          color: StatusLabels.contractColor(contract.status),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             contract.clientName,
@@ -556,6 +553,14 @@ class _ContractDetailBody extends StatelessWidget {
                                 color: AppColors.inkSecondary,
                                 fontSize: 12,
                               ),
+                            ),
+                          if (ca.lastMeterReading != null)
+                            Text(
+                              'Última lectura: ${ca.lastMeterReading}',
+                              style: const TextStyle(
+                                color: AppColors.inkSecondary,
+                                fontSize: 12,
+                              ).merge(AppTextStyles.tabularNumber),
                             ),
                           if (ca.averageMonthlyPrints != null)
                             Text(
