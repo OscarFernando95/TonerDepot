@@ -45,7 +45,7 @@ class MeterReadingApi {
 
   Future<void> register(
     String assetId, {
-    required double counterValue,
+    required int counterValue,
     DateTime? readingDate,
   }) async {
     try {
