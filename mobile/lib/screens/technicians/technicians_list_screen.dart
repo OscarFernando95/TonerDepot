@@ -12,7 +12,7 @@ import '../../utils/date_only.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
-/// Espejo de TechniciansView.vue — gestión de cobertura geográfica, no CRUD
+/// Espejo de TechniciansView.vue — gestión de zonas (cobertura geográfica), no CRUD
 /// de la persona/usuario técnico (eso vive en Usuarios, Fase F).
 class TechniciansListScreen extends StatelessWidget {
   const TechniciansListScreen({super.key});
@@ -140,9 +140,22 @@ class _TechnicianItem extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.map_outlined, size: 16, color: AppColors.signalBlue),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  technician.zoneNames.isEmpty ? 'Sin zona' : technician.zoneNames.join(', '),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
           Text(
             technician.coverageCityNames.isEmpty
-                ? 'Sin ciudades de cobertura'
+                ? 'Sin municipios de cobertura'
                 : technician.coverageCityNames.join(', '),
             style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
           ),

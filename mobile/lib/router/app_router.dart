@@ -15,7 +15,7 @@ import '../screens/contracts/contract_detail_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/maintenance/maintenance_order_detail_screen.dart';
 import '../screens/maintenance/maintenance_schedule_detail_screen.dart';
-import '../screens/technicians/technician_coverage_screen.dart';
+import '../screens/technicians/technician_zones_screen.dart';
 import '../screens/technicians/technician_schedule_screen.dart';
 import '../screens/technicians/technician_time_off_screen.dart';
 import '../screens/technicians/technician_visits_screen.dart';
@@ -37,7 +37,7 @@ const _extraRouteRoles = {
   'ticket-detail': RoleNames.staffAndClientRoles,
   'maintenance-order-detail': RoleNames.staffRoles,
   'maintenance-schedule-detail': RoleNames.staffRoles,
-  'technician-coverage': RoleNames.staffRoles,
+  'technician-zones': RoleNames.staffRoles,
   'technician-schedule': RoleNames.staffRoles,
   'technician-visits': RoleNames.staffRoles,
   'technician-time-off': RoleNames.staffRoles,
@@ -149,8 +149,8 @@ GoRouter buildAppRouter(AuthState auth) {
       ),
       _pushedRoute(
         path: '/technicians/:id',
-        name: 'technician-coverage',
-        builder: (context, state) => TechnicianCoverageScreen(
+        name: 'technician-zones',
+        builder: (context, state) => TechnicianZonesScreen(
           technicianId: state.pathParameters['id']!,
           technicianName: state.extra as String?,
         ),

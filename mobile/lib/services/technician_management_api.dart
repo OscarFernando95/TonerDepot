@@ -3,12 +3,12 @@ import 'package:flutter/foundation.dart';
 import '../models/paged_result.dart';
 import '../models/technician.dart';
 import '../models/technician_asset.dart';
-import '../models/technician_coverage.dart';
 import '../models/technician_schedule.dart';
 import '../models/technician_visit.dart';
+import '../models/zone.dart';
 import 'api_client.dart';
 
-/// Gestión de técnicos y su cobertura geográfica — solo Staff. Distinto de
+/// Gestión de técnicos y sus zonas — solo Staff. Distinto de
 /// technician_api.dart, que es el self-service del propio técnico
 /// (`/technicians/me/*`). Este pega a `/technicians/{id}/...` de gestión.
 class TechnicianManagementApi {
@@ -29,47 +29,36 @@ class TechnicianManagementApi {
     }
   }
 
-  Future<List<TechnicianCoverage>> getCoverage(String technicianId) async {
+  Future<List<TechnicianZone>> getZones(String technicianId) async {
     try {
-      final response = await _client.dio.get(
-        '/technicians/$technicianId/coverage',
-      );
-      final items = response.data as List<dynamic>;
-      return items
-          .map((e) => TechnicianCoverage.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final response = await _client.dio.get('/technicians/$technicianId/zones');
+      return _parseZones(response.data);
     } catch (e, st) {
-      debugPrint('TechnicianManagementApi.getCoverage failed: $e\n$st');
+      debugPrint('TechnicianManagementApi.getZones failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
 
-  Future<TechnicianCoverage> addCoverage(
+  /// Reemplaza el conjunto completo de zonas del técnico.
+  Future<List<TechnicianZone>> setZones(
     String technicianId,
-    String cityId,
+    List<String> zoneIds,
   ) async {
     try {
-      final response = await _client.dio.post(
-        '/technicians/$technicianId/coverage',
-        data: {'cityId': cityId},
+      final response = await _client.dio.put(
+        '/technicians/$technicianId/zones',
+        data: {'zoneIds': zoneIds},
       );
-      return TechnicianCoverage.fromJson(response.data as Map<String, dynamic>);
+      return _parseZones(response.data);
     } catch (e, st) {
-      debugPrint('TechnicianManagementApi.addCoverage failed: $e\n$st');
+      debugPrint('TechnicianManagementApi.setZones failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
 
-  Future<void> removeCoverage(String technicianId, String coverageId) async {
-    try {
-      await _client.dio.delete(
-        '/technicians/$technicianId/coverage/$coverageId',
-      );
-    } catch (e, st) {
-      debugPrint('TechnicianManagementApi.removeCoverage failed: $e\n$st');
-      throw ApiClient.translate(e);
-    }
-  }
+  List<TechnicianZone> _parseZones(dynamic data) => (data as List<dynamic>)
+      .map((e) => TechnicianZone.fromJson(e as Map<String, dynamic>))
+      .toList();
 
   Future<TechnicianSchedule> getSchedule(String technicianId) async {
     try {

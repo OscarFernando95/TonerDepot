@@ -9,7 +9,7 @@ import '../services/technician_management_api.dart';
 
 /// Activos vinculados explícitamente a un técnico — gobierna qué ve en
 /// "Lectura de contadores" en la app (ver AssetService.ListForMeterReadingAsync,
-/// backend). Independiente de TechnicianCoverageState: la cobertura por
+/// backend). Independiente de TechnicianZonesState: la cobertura por
 /// ciudad ya no otorga visibilidad de activos por sí sola.
 ///
 /// GET /assets no tiene filtro server-side (mismo comentario que

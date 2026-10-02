@@ -27,7 +27,7 @@ class MeterReadingApi {
   }
 
   /// Pestaña de respaldo — activos instalados en las ciudades de cobertura
-  /// del técnico (TechnicianCoverage), vinculados o no a él o a otro
+  /// del técnico (derivadas de sus zonas), vinculados o no a él o a otro
   /// técnico. Ver AssetService.ListForMeterReadingByCoverageAsync, backend.
   Future<List<MeterReadingAsset>> listAssetsByCoverage() async {
     try {

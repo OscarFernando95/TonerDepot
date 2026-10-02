@@ -36,7 +36,7 @@ class MeterCityGroup {
 /// - `assets` ("Vinculados"): activos que un administrador vinculó
 ///   explícitamente al técnico (TechnicianAsset).
 /// - `coverageAssets` ("Por cobertura", respaldo): todos los activos
-///   instalados en las ciudades de cobertura del técnico (TechnicianCoverage),
+///   instalados en las ciudades de cobertura del técnico (derivada de sus zonas),
 ///   estén o no vinculados a él o a otro técnico — para cuando el técnico
 ///   titular de un activo no está disponible (vacaciones, incapacidad,
 ///   renuncia/despido) y de otro modo nadie más podría registrarle lecturas.

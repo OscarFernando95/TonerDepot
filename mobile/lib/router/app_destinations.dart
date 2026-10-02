@@ -11,6 +11,7 @@ import '../screens/clients/clients_list_screen.dart';
 import '../screens/contracts/contracts_list_screen.dart';
 import '../screens/holidays/holidays_screen.dart';
 import '../screens/users/users_list_screen.dart';
+import '../screens/zones/zones_screen.dart';
 import '../screens/maintenance/maintenance_orders_list_screen.dart';
 import '../screens/maintenance/maintenance_schedules_list_screen.dart';
 import '../screens/portal/my_assets_screen.dart';
@@ -107,6 +108,14 @@ final List<AppDestination> kAppDestinations = [
     icon: Icons.engineering_outlined,
     roles: RoleNames.staffRoles,
     builder: (context, state) => const TechniciansListScreen(),
+  ),
+  AppDestination(
+    name: 'zones',
+    path: '/zones',
+    label: 'Zonas',
+    icon: Icons.map_outlined,
+    roles: RoleNames.staffRoles,
+    builder: (context, state) => const ZonesScreen(),
   ),
   AppDestination(
     name: 'clients',

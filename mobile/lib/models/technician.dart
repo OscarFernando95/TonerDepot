@@ -12,6 +12,10 @@ class Technician {
 
   /// Si está fuera de la oficina ahora, hasta cuándo.
   final DateTime? timeOffUntil;
+  /// Zonas asignadas (normalmente una).
+  final List<String> zoneNames;
+
+  /// Municipios que cubre a través de sus zonas.
   final List<String> coverageCityNames;
 
   Technician({
@@ -22,6 +26,7 @@ class Technician {
     required this.isActive,
     required this.isWorkingNow,
     required this.timeOffUntil,
+    this.zoneNames = const [],
     required this.coverageCityNames,
   });
 
@@ -35,6 +40,7 @@ class Technician {
     timeOffUntil: json['timeOffUntil'] == null
         ? null
         : DateTime.parse(json['timeOffUntil'] as String).toLocal(),
+    zoneNames: (json['zoneNames'] as List<dynamic>? ?? []).cast<String>(),
     coverageCityNames: (json['coverageCityNames'] as List<dynamic>? ?? [])
         .cast<String>(),
   );

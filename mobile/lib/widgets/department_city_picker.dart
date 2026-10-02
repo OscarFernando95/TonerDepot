@@ -4,7 +4,7 @@ import '../models/city.dart';
 
 /// Cascada Departamento→Ciudad con autocompletar (busca escribiendo, no solo
 /// desplegando una lista) — mismo patrón que ya usaba
-/// `technician_coverage_screen.dart` con `Autocomplete` nativo de Flutter
+/// `la antigua pantalla de cobertura del técnico` con `Autocomplete` nativo de Flutter
 /// (sin dependencias nuevas), ahora compartido para no repetirlo en cada
 /// formulario que pide una ciudad (crear/editar cliente, crear/editar
 /// usuario). Espejo de `el-select filterable` + cascada en

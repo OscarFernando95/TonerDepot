@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/asset.dart';
-import '../../models/city.dart';
+import '../../models/zone.dart';
 import '../../services/api_client.dart';
-import '../../state/technician_coverage_state.dart';
+import '../../state/technician_zones_state.dart';
 import '../../state/technician_linked_assets_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 
-/// Detalle de gestión de un técnico — cobertura geográfica y activos
+/// Detalle de gestión de un técnico — zonas (de las que se deriva su cobertura de municipios) y activos
 /// vinculados (ver TechnicianLinkedAssetsState: gobierna qué ve el técnico
 /// en "Lectura de contadores"). `extra` del push (ver router/app_router.dart)
 /// trae el nombre para no tener que volver a listar técnicos solo para el
 /// título del AppBar.
-class TechnicianCoverageScreen extends StatelessWidget {
-  const TechnicianCoverageScreen({
+class TechnicianZonesScreen extends StatelessWidget {
+  const TechnicianZonesScreen({
     super.key,
     required this.technicianId,
     this.technicianName,
@@ -29,7 +29,7 @@ class TechnicianCoverageScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => TechnicianCoverageState(ApiClient.instance, technicianId)..load()),
+        ChangeNotifierProvider(create: (_) => TechnicianZonesState(ApiClient.instance, technicianId)..load()),
         ChangeNotifierProvider(create: (_) => TechnicianLinkedAssetsState(ApiClient.instance, technicianId)..load()),
       ],
       child: DefaultTabController(
@@ -39,13 +39,13 @@ class TechnicianCoverageScreen extends StatelessWidget {
             title: Text(technicianName ?? 'Técnico'),
             bottom: const TabBar(
               tabs: [
-                Tab(text: 'Cobertura'),
+                Tab(text: 'Zonas'),
                 Tab(text: 'Activos vinculados'),
               ],
             ),
           ),
           body: const TabBarView(
-            children: [_CoverageBody(), _LinkedAssetsBody()],
+            children: [_ZonesBody(), _LinkedAssetsBody()],
           ),
         ),
       ),
@@ -53,105 +53,118 @@ class TechnicianCoverageScreen extends StatelessWidget {
   }
 }
 
-class _CoverageBody extends StatelessWidget {
-  const _CoverageBody();
+class _ZonesBody extends StatelessWidget {
+  const _ZonesBody();
 
-  // Cascada Departamento→Ciudad con autocompletar (Autocomplete, nativo de
-  // Flutter — sin dependencias nuevas): se escribe la inicial del
-  // departamento para filtrarlo, se elige, y el mismo autocompletar de
-  // Municipio queda acotado a las ciudades de ese departamento.
-  Future<void> _showAddCityDialog(BuildContext context, TechnicianCoverageState state) async {
-    String? departmentName;
-    City? selectedCity;
-    final selected = await showDialog<String>(
+  void _snack(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Elige una zona (selección única) entre las `candidates`. null = cancelado.
+  Future<String?> _pickZone(BuildContext context, List<Zone> candidates, String title) {
+    return showModalBottomSheet<String>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          final departments = {for (final c in state.availableCities) c.stateOrProvince}.toList()..sort();
-          final citiesInDepartment = state.availableCities.where((c) => c.stateOrProvince == departmentName).toList()
-            ..sort((a, b) => a.name.compareTo(b.name));
-          return AlertDialog(
-            title: const Text('Agregar ciudad de cobertura'),
-            // SizedBox: sin esto, el diálogo se dimensiona por el ancho
-            // intrínseco del contenido en vez del ancho acotado del diálogo.
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Autocomplete<String>(
-                    optionsBuilder: (textEditingValue) {
-                      final q = textEditingValue.text.trim().toLowerCase();
-                      if (q.isEmpty) return departments;
-                      return departments.where((d) => d.toLowerCase().contains(q));
-                    },
-                    onSelected: (value) => setDialogState(() {
-                      departmentName = value;
-                      selectedCity = null;
-                    }),
-                    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                      return TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        decoration: const InputDecoration(labelText: 'Departamento', prefixIcon: Icon(Icons.search)),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  // key: fuerza a Flutter a recrear el widget (y su controlador de texto
-                  // interno) cuando cambia el departamento — si no, el texto ya escrito
-                  // de un departamento anterior se quedaría pegado.
-                  Autocomplete<City>(
-                    key: ValueKey(departmentName),
-                    displayStringForOption: (city) => city.name,
-                    optionsBuilder: (textEditingValue) {
-                      if (departmentName == null) return const Iterable<City>.empty();
-                      final q = textEditingValue.text.trim().toLowerCase();
-                      if (q.isEmpty) return citiesInDepartment;
-                      return citiesInDepartment.where((c) => c.name.toLowerCase().contains(q));
-                    },
-                    onSelected: (city) => setDialogState(() => selectedCity = city),
-                    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                      return TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        enabled: departmentName != null,
-                        decoration: const InputDecoration(labelText: 'Municipio', prefixIcon: Icon(Icons.search)),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
-              FilledButton(
-                onPressed: selectedCity == null ? null : () => Navigator.of(dialogContext).pop(selectedCity!.id),
-                child: const Text('Agregar'),
+      isScrollControlled: true,
+      backgroundColor: AppColors.claySurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (sheetContext, scrollController) => Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(sheetContext).padding.bottom + 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: Theme.of(sheetContext).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Expanded(
+                child: candidates.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No hay más zonas disponibles.',
+                          style: TextStyle(color: AppColors.inkSecondary),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: candidates.length,
+                        itemBuilder: (context, index) {
+                          final zone = candidates[index];
+                          return ClayCard(
+                            onTap: () => Navigator.of(sheetContext).pop(zone.id),
+                            child: Row(
+                              children: [
+                                const ClayIconBadge(icon: Icons.map_outlined, color: AppColors.signalBlue),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(zone.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      Text(
+                                        zone.cities.isEmpty
+                                            ? 'Sin municipios'
+                                            : zone.cities.map((c) => c.name).join(', '),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
-          );
-        },
+          ),
+        ),
       ),
     );
-    if (selected != null && context.mounted) {
-      final error = await state.addCity(selected);
-      if (error != null && context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error)));
-      }
-    }
+  }
+
+  Future<void> _assign(BuildContext context, TechnicianZonesState state, {String? replacing}) async {
+    final zoneId = await _pickZone(
+      context,
+      state.availableZones,
+      replacing == null ? 'Elegir zona' : 'Cambiar de zona',
+    );
+    if (zoneId == null || !context.mounted) return;
+    final error = replacing == null ? await state.addZone(zoneId) : await state.replaceZone(replacing, zoneId);
+    if (error != null && context.mounted) _snack(context, error);
+  }
+
+  Future<void> _remove(BuildContext context, TechnicianZonesState state, TechnicianZone zone) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Quitar zona'),
+        content: Text('¿Quitar la zona "${zone.zoneName}" de este técnico? Dejará de cubrir sus municipios.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('Quitar')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final error = await state.removeZone(zone.zoneId);
+    if (error != null && context.mounted) _snack(context, error);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<TechnicianCoverageState>(
+    return Consumer<TechnicianZonesState>(
       builder: (context, state, _) {
-        if (state.loading && state.allCities.isEmpty) {
+        if (state.loading && state.allZones.isEmpty && state.zones.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (state.error != null && state.allCities.isEmpty) {
+        if (state.error != null && state.allZones.isEmpty && state.zones.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -163,55 +176,81 @@ class _CoverageBody extends StatelessWidget {
             ),
           );
         }
+        final canAssign = !state.busyWithAction && state.availableZones.isNotEmpty;
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (state.allZones.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Todavía no hay zonas creadas. Créalas en "Zonas" del menú.',
+                    style: TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                  ),
+                ),
               FilledButton.icon(
-                onPressed: state.busyWithAction || state.availableCities.isEmpty
-                    ? null
-                    : () => _showAddCityDialog(context, state),
-                icon: const Icon(Icons.add_location_alt_outlined, size: 18),
-                label: const Text('Agregar ciudad de cobertura'),
+                onPressed: canAssign
+                    ? () => _assign(
+                        context,
+                        state,
+                        replacing: state.zones.length == 1 ? state.zones.first.zoneId : null,
+                      )
+                    : null,
+                icon: Icon(state.zones.length == 1 ? Icons.swap_horiz : Icons.map_outlined, size: 18),
+                label: Text(state.zones.length == 1 ? 'Cambiar zona' : 'Asignar zona'),
               ),
-              const SizedBox(height: 16),
+              if (state.zones.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: canAssign ? () => _assign(context, state) : null,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Agregar otra zona'),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
               Expanded(
-                child: state.coverage.isEmpty
+                child: state.zones.isEmpty
                     ? const Center(
                         child: Text(
-                          'Sin ciudades de cobertura todavía.',
+                          'Sin zona asignada todavía.\nNo cubre ningún municipio.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(color: AppColors.inkSecondary),
                         ),
                       )
                     : ListView.builder(
-                        itemCount: state.coverage.length,
+                        itemCount: state.zones.length,
                         itemBuilder: (context, index) {
-                          final item = state.coverage[index];
+                          final item = state.zones[index];
                           return ClayCard(
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const ClayIconBadge(
-                                  icon: Icons.location_city_outlined,
-                                  color: AppColors.signalBlue,
-                                ),
+                                const ClayIconBadge(icon: Icons.map_outlined, color: AppColors.signalBlue),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
-                                    item.cityName,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item.zoneName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.cityNames.isEmpty
+                                            ? 'Sin municipios en esta zona'
+                                            : item.cityNames.join(', '),
+                                        style: const TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: AppColors.signalRed,
-                                  ),
-                                  onPressed: state.busyWithAction
-                                      ? null
-                                      : () => state.removeCoverage(item.id),
+                                  icon: const Icon(Icons.delete_outline, color: AppColors.signalRed),
+                                  tooltip: 'Quitar zona',
+                                  onPressed: state.busyWithAction ? null : () => _remove(context, state, item),
                                 ),
                               ],
                             ),
