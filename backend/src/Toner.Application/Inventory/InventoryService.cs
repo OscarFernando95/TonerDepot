@@ -89,9 +89,12 @@ public class InventoryService : IInventoryService
 
     // ── Ubicaciones ──────────────────────────────────────────────────────────────────────────────
 
+    // Se ordena sobre la entidad ANTES de proyectar: ordenar por el DTO (Kind = enum.ToString()) no se traduce a SQL.
     public async Task<IReadOnlyList<InventoryLocationDto>> ListLocationsAsync(CancellationToken cancellationToken = default) =>
-        await LocationProjection(_db.InventoryLocations)
-            .OrderBy(l => l.Kind).ThenBy(l => l.Name)
+        await LocationProjection(
+                _db.InventoryLocations
+                    .OrderBy(l => l.Kind)
+                    .ThenBy(l => l.Zone != null ? l.Zone.Name : l.Name))
             .ToListAsync(cancellationToken);
 
     public async Task<InventoryLocationDto> UpdateMainLocationAsync(UpdateMainLocationRequest request, CancellationToken cancellationToken = default)
@@ -133,32 +136,41 @@ public class InventoryService : IInventoryService
             .GroupBy(m => new { m.InventoryLocationId, m.InventoryItemId })
             .Select(g => new { g.Key.InventoryLocationId, g.Key.InventoryItemId, Quantity = g.Sum(m => m.Delta) });
 
-        var rows = from b in balances
-                   join i in _db.InventoryItems on b.InventoryItemId equals i.Id
-                   join l in _db.InventoryLocations on b.InventoryLocationId equals l.Id
-                   select new StockRowDto
-                   {
-                       ItemId = i.Id,
-                       ItemName = i.Name,
-                       Category = i.Category.ToString(),
-                       LocationId = l.Id,
-                       LocationName = l.Zone != null ? l.Zone.Name : (l.Name ?? "Bodega principal"),
-                       Quantity = b.Quantity,
-                       MinimumStock = i.MinimumStock,
-                       IsLow = b.Quantity < 0 || (i.MinimumStock > 0 && b.Quantity <= i.MinimumStock)
-                   };
+        var joined = from b in balances
+                     join i in _db.InventoryItems on b.InventoryItemId equals i.Id
+                     join l in _db.InventoryLocations on b.InventoryLocationId equals l.Id
+                     select new { b.Quantity, Item = i, Location = l };
 
-        if (locationId.HasValue) rows = rows.Where(r => r.LocationId == locationId.Value);
-        if (itemId.HasValue) rows = rows.Where(r => r.ItemId == itemId.Value);
+        // Los filtros van sobre las entidades (no sobre el DTO proyectado): comparar Category.ToString() o campos
+        // calculados después del Select no siempre se traduce a SQL.
+        if (locationId.HasValue) joined = joined.Where(r => r.Location.Id == locationId.Value);
+        if (itemId.HasValue) joined = joined.Where(r => r.Item.Id == itemId.Value);
         if (!string.IsNullOrWhiteSpace(category))
         {
-            var parsed = EnumParsing.ParseOrThrow<InventoryCategory>(category, nameof(category)).ToString();
-            rows = rows.Where(r => r.Category == parsed);
+            var parsed = EnumParsing.ParseOrThrow<InventoryCategory>(category, nameof(category));
+            joined = joined.Where(r => r.Item.Category == parsed);
         }
 
-        if (onlyLow) rows = rows.Where(r => r.IsLow);
+        if (onlyLow)
+        {
+            joined = joined.Where(r => r.Quantity < 0 || (r.Item.MinimumStock > 0 && r.Quantity <= r.Item.MinimumStock));
+        }
 
-        return await rows.OrderBy(r => r.ItemName).ThenBy(r => r.LocationName).ToOffsetPageAsync(page, pageSize, cancellationToken);
+        return await joined
+            .OrderBy(r => r.Item.Name)
+            .ThenBy(r => r.Location.Zone != null ? r.Location.Zone.Name : r.Location.Name)
+            .Select(r => new StockRowDto
+            {
+                ItemId = r.Item.Id,
+                ItemName = r.Item.Name,
+                Category = r.Item.Category.ToString(),
+                LocationId = r.Location.Id,
+                LocationName = r.Location.Zone != null ? r.Location.Zone.Name : (r.Location.Name ?? "Bodega principal"),
+                Quantity = r.Quantity,
+                MinimumStock = r.Item.MinimumStock,
+                IsLow = r.Quantity < 0 || (r.Item.MinimumStock > 0 && r.Quantity <= r.Item.MinimumStock)
+            })
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<PagedResult<InventoryMovementDto>> ListMovementsAsync(

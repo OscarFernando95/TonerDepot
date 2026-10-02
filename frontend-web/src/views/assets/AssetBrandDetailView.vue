@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import * as assetBrandsApi from '../../api/assetBrands'
 import * as assetModelsApi from '../../api/assetModels'
+import * as inventoryApi from '../../api/inventory'
 import type { AssetBrandDto, AssetModelDto } from '../../api/types'
+import type { InventoryItemDto, ModelKitItemDto } from '../../api/inventory'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,8 +100,166 @@ async function saveModel(modelId: string) {
   }
 }
 
-onMounted(loadAll)
+// ── Kit base de consumibles ────────────────────────────────────────────────────────────────────
+// Se define por marca; cada modelo lo hereda y lo puede ajustar (excluir, cambiar cantidad/grupo, agregar).
+interface KitRow {
+  itemId: string
+  itemName: string
+  groupName: string
+  quantity: number
+}
+
+const brandKit = ref<KitRow[]>([])
+const savingKit = ref(false)
+const itemOptions = ref<InventoryItemDto[]>([])
+const searchingItems = ref(false)
+const kitGroups = computed(() => [...new Set(brandKit.value.map((r) => r.groupName).filter(Boolean))])
+
+async function searchItems(query: string) {
+  searchingItems.value = true
+  try {
+    const { data } = await inventoryApi.listItems({ search: query || undefined, activeOnly: true, pageSize: 20 })
+    itemOptions.value = data.items
+  } catch (err) {
+    console.error('AssetBrandDetailView.searchItems failed', err)
+  } finally {
+    searchingItems.value = false
+  }
+}
+
+function toRows(data: { itemId: string; itemName: string; groupName: string; quantity: number }[]): KitRow[] {
+  return data.map((k) => ({ itemId: k.itemId, itemName: k.itemName, groupName: k.groupName, quantity: k.quantity }))
+}
+
+async function loadBrandKit() {
+  try {
+    const { data } = await inventoryApi.getBrandKit(brandId)
+    brandKit.value = toRows(data)
+  } catch (err: any) {
+    console.error('AssetBrandDetailView.loadBrandKit failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el kit base.')
+  }
+}
+
+const newKitItem = reactive({ itemId: '', groupName: '', quantity: 1 })
+
+function addKitItem() {
+  if (!newKitItem.itemId || !newKitItem.groupName.trim()) return
+  if (brandKit.value.some((r) => r.itemId === newKitItem.itemId)) {
+    ElMessage.warning('Ese ítem ya está en el kit.')
+    return
+  }
+  const option = itemOptions.value.find((i) => i.id === newKitItem.itemId)
+  brandKit.value.push({ itemId: newKitItem.itemId, itemName: option?.name ?? '', groupName: newKitItem.groupName.trim(), quantity: newKitItem.quantity })
+  newKitItem.itemId = ''
+  newKitItem.quantity = 1
+}
+
+function removeKitItem(row: KitRow) {
+  brandKit.value = brandKit.value.filter((r) => r.itemId !== row.itemId)
+}
+
+async function saveBrandKit() {
+  savingKit.value = true
+  try {
+    const { data } = await inventoryApi.setBrandKit(
+      brandId,
+      brandKit.value.map((r) => ({ itemId: r.itemId, groupName: r.groupName.trim(), quantity: r.quantity }))
+    )
+    brandKit.value = toRows(data)
+    ElMessage.success('Kit base de la marca guardado.')
+  } catch (err: any) {
+    console.error('AssetBrandDetailView.saveBrandKit failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo guardar el kit base.')
+  } finally {
+    savingKit.value = false
+  }
+}
+
+// Kit efectivo de un modelo: lo heredado de la marca + sus ajustes.
+interface ModelKitRow extends ModelKitItemDto {
+  fromBrand: boolean
+  brandGroup: string
+  brandQuantity: number
+}
+
+const kitDialogVisible = ref(false)
+const kitModel = ref<AssetModelDto | null>(null)
+const modelKit = ref<ModelKitRow[]>([])
+const loadingModelKit = ref(false)
+const savingModelKit = ref(false)
+const addModelItem = reactive({ itemId: '', groupName: '', quantity: 1 })
+
+async function openModelKit(model: AssetModelDto) {
+  kitModel.value = model
+  kitDialogVisible.value = true
+  loadingModelKit.value = true
+  try {
+    const { data } = await inventoryApi.getModelKit(brandId, model.id)
+    const brandById = new Map(brandKit.value.map((r) => [r.itemId, r]))
+    modelKit.value = data.map((k) => {
+      const b = brandById.get(k.itemId)
+      return { ...k, fromBrand: !!b, brandGroup: b?.groupName ?? '', brandQuantity: b?.quantity ?? 1 }
+    })
+  } catch (err: any) {
+    console.error('AssetBrandDetailView.openModelKit failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el kit del modelo.')
+  } finally {
+    loadingModelKit.value = false
+  }
+}
+
+function addToModel() {
+  if (!addModelItem.itemId || !addModelItem.groupName.trim()) return
+  if (modelKit.value.some((r) => r.itemId === addModelItem.itemId)) {
+    ElMessage.warning('Ese ítem ya está en el kit del modelo.')
+    return
+  }
+  const option = itemOptions.value.find((i) => i.id === addModelItem.itemId)
+  modelKit.value.push({
+    itemId: addModelItem.itemId, itemName: option?.name ?? '', category: option?.category ?? 'Repuesto',
+    groupName: addModelItem.groupName.trim(), quantity: addModelItem.quantity, source: 'Modelo', excluded: false,
+    fromBrand: false, brandGroup: '', brandQuantity: 1
+  })
+  addModelItem.itemId = ''
+  addModelItem.quantity = 1
+}
+
+function removeModelOnly(row: ModelKitRow) {
+  modelKit.value = modelKit.value.filter((r) => r.itemId !== row.itemId)
+}
+
+async function saveModelKit() {
+  if (!kitModel.value) return
+  // Solo se mandan los ajustes: lo heredado sin tocar no genera fila.
+  const overrides = modelKit.value
+    .filter((r) => !r.fromBrand || r.excluded || r.groupName !== r.brandGroup || r.quantity !== r.brandQuantity)
+    .map((r) => ({
+      itemId: r.itemId,
+      excluded: r.excluded,
+      groupName: !r.fromBrand || r.groupName !== r.brandGroup ? r.groupName : null,
+      quantity: !r.fromBrand || r.quantity !== r.brandQuantity ? r.quantity : null
+    }))
+  savingModelKit.value = true
+  try {
+    await inventoryApi.setModelKit(brandId, kitModel.value.id, overrides)
+    ElMessage.success('Kit del modelo guardado.')
+    kitDialogVisible.value = false
+  } catch (err: any) {
+    console.error('AssetBrandDetailView.saveModelKit failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo guardar el kit del modelo.')
+  } finally {
+    savingModelKit.value = false
+  }
+}
+
+onMounted(async () => {
+  await loadAll()
+  await loadBrandKit()
+  await searchItems('')
+})
 </script>
+
 
 <template>
   <div v-loading="loading">
@@ -148,16 +308,94 @@ onMounted(loadAll)
             <el-input-number v-model="editableModels[row.id].consumablesPrintThreshold" :min="1" style="width: 100%" />
           </template>
         </el-table-column>
-        <el-table-column label="" width="110">
+        <el-table-column label="" width="190">
           <template #default="{ row }">
             <el-button type="primary" size="small" :loading="savingModelId === row.id" @click="saveModel(row.id)">
               Guardar
             </el-button>
+            <el-button size="small" @click="openModelKit(row)">Kit</el-button>
           </template>
         </el-table-column>
       </el-table>
       <p v-if="!loading && models.length === 0" class="muted">Esta marca todavía no tiene modelos registrados.</p>
+
+      <el-card class="kit-card">
+        <template #header>Kit base de consumibles de la marca</template>
+        <p class="hint">
+          Piezas que se revisan en cada cambio de consumibles, agrupadas por unidad (por ejemplo, "Unidad fusora").
+          Todos los modelos de la marca lo heredan y cada uno puede ajustarlo con el botón Kit.
+        </p>
+        <el-table :data="brandKit" stripe size="small" empty-text="La marca todavía no tiene kit base.">
+          <el-table-column prop="itemName" label="Ítem" min-width="180" />
+          <el-table-column label="Unidad / grupo" width="220">
+            <template #default="{ row }">
+              <el-autocomplete
+                v-model="row.groupName"
+                :fetch-suggestions="(q: string, cb: (r: { value: string }[]) => void) => cb(kitGroups.filter((g) => g.toLowerCase().includes(q.toLowerCase())).map((g) => ({ value: g })))"
+                style="width: 100%"
+              />
+            </template>
+          </el-table-column>
+          <el-table-column label="Cantidad" width="130">
+            <template #default="{ row }"><el-input-number v-model="row.quantity" :min="1" :max="100" size="small" /></template>
+          </el-table-column>
+          <el-table-column label="" width="90">
+            <template #default="{ row }"><el-button link type="danger" @click="removeKitItem(row)">Quitar</el-button></template>
+          </el-table-column>
+        </el-table>
+        <div class="kit-add">
+          <el-select v-model="newKitItem.itemId" filterable remote :remote-method="searchItems" :loading="searchingItems" placeholder="Agregar ítem del catálogo" style="flex: 2">
+            <el-option v-for="i in itemOptions" :key="i.id" :label="i.name" :value="i.id" />
+          </el-select>
+          <el-input v-model="newKitItem.groupName" placeholder="Unidad / grupo" style="flex: 1" />
+          <el-input-number v-model="newKitItem.quantity" :min="1" :max="100" />
+          <el-button :disabled="!newKitItem.itemId || !newKitItem.groupName.trim()" @click="addKitItem">Agregar</el-button>
+        </div>
+        <div class="kit-actions">
+          <el-button type="primary" :loading="savingKit" :disabled="brandKit.some((r) => !r.groupName.trim())" @click="saveBrandKit">
+            Guardar kit de la marca
+          </el-button>
+        </div>
+      </el-card>
     </template>
+
+    <el-dialog v-model="kitDialogVisible" :title="`Kit base — ${kitModel?.name}`" width="680px">
+      <div v-loading="loadingModelKit">
+        <p class="hint">Hereda el kit de la marca. Desmarca lo que este modelo no usa, ajusta cantidades o agrega piezas solo para este modelo.</p>
+        <el-table :data="modelKit" stripe size="small" empty-text="Ni la marca ni el modelo tienen kit base.">
+          <el-table-column label="Incluir" width="80">
+            <template #default="{ row }"><el-checkbox :model-value="!row.excluded" @change="(v: boolean | string | number) => (row.excluded = !v)" /></template>
+          </el-table-column>
+          <el-table-column prop="itemName" label="Ítem" min-width="160" />
+          <el-table-column label="Unidad / grupo" width="180">
+            <template #default="{ row }"><el-input v-model="row.groupName" :disabled="row.excluded" /></template>
+          </el-table-column>
+          <el-table-column label="Cant." width="120">
+            <template #default="{ row }"><el-input-number v-model="row.quantity" :min="1" :max="100" size="small" :disabled="row.excluded" /></template>
+          </el-table-column>
+          <el-table-column label="Origen" width="130">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.fromBrand && row.groupName === row.brandGroup && row.quantity === row.brandQuantity && !row.excluded ? 'info' : 'warning'">
+                {{ !row.fromBrand ? 'Solo este modelo' : row.excluded || row.groupName !== row.brandGroup || row.quantity !== row.brandQuantity ? 'Ajustado' : 'Heredado' }}
+              </el-tag>
+              <el-button v-if="!row.fromBrand" link type="danger" size="small" @click="removeModelOnly(row)">Quitar</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="kit-add">
+          <el-select v-model="addModelItem.itemId" filterable remote :remote-method="searchItems" :loading="searchingItems" placeholder="Agregar solo a este modelo" style="flex: 2">
+            <el-option v-for="i in itemOptions" :key="i.id" :label="i.name" :value="i.id" />
+          </el-select>
+          <el-input v-model="addModelItem.groupName" placeholder="Unidad / grupo" style="flex: 1" />
+          <el-input-number v-model="addModelItem.quantity" :min="1" :max="100" />
+          <el-button :disabled="!addModelItem.itemId || !addModelItem.groupName.trim()" @click="addToModel">Agregar</el-button>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="kitDialogVisible = false">Cancelar</el-button>
+        <el-button type="primary" :loading="savingModelKit" @click="saveModelKit">Guardar</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="dialogVisible" title="Nuevo modelo" width="480px">
       <el-form :model="form" label-position="top">
@@ -191,6 +429,23 @@ onMounted(loadAll)
 </template>
 
 <style scoped>
+.kit-card {
+  margin-top: 1.5rem;
+}
+
+.kit-add {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.kit-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
 .page-header {
   display: flex;
   align-items: center;

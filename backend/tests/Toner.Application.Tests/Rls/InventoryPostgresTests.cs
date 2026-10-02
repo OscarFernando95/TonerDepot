@@ -48,6 +48,17 @@ public class InventoryPostgresTests
 
             Assert.Single((await service.ListStockAsync(null, itemId, null, onlyLow: true, null, null)).Items);
 
+            // Filtros y listados que antes solo se probaban en memoria: deben traducirse a SQL.
+            Assert.Equal(2, (await service.ListStockAsync(null, itemId, "Repuesto", false, null, null)).Items.Count);
+            Assert.Empty((await service.ListStockAsync(null, itemId, "Toner", false, null, null)).Items);
+            Assert.Single((await service.ListStockAsync(zoneLocationId, itemId, null, false, null, null)).Items);
+
+            var locations = await service.ListLocationsAsync();
+            Assert.Equal("Principal", locations[0].Kind);   // la principal primero
+            Assert.Contains(locations, l => l.Id == zoneLocationId && l.Name.StartsWith("Zona PG inv"));
+
+            Assert.Single((await service.ListItemsAsync(itemName[..8], "Repuesto", true, null, null)).Items);
+
             var first = await service.ListMovementsAsync(null, itemId, null, 2);
             Assert.Equal(2, first.Items.Count);
             var second = await service.ListMovementsAsync(null, itemId, first.NextCursor, 2);

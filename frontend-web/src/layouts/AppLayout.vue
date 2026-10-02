@@ -19,6 +19,7 @@ import {
   Expand,
   Odometer,
   Location,
+  Box,
   SwitchButton,
   Menu as MenuIcon,
   Close
@@ -67,6 +68,7 @@ const menuItems: MenuItem[] = [
   { index: 'my-contracts', route: 'my-contracts', icon: Files, label: 'Mis contratos', description: 'Tus contratos vigentes', visible: () => canSeeClientPortal.value },
   { index: 'tickets', route: 'tickets', icon: Tickets, label: 'Tickets', description: 'Soporte correctivo y su seguimiento', visible: () => canSeeTickets.value },
   { index: 'technicians', route: 'technicians', icon: UserFilled, label: 'Técnicos', description: 'Directorio y cobertura de técnicos de campo', visible: () => canSeeClients.value },
+  { index: 'inventory', route: 'inventory', icon: Box, label: 'Inventario', description: 'Bodega principal e inventario por zona', visible: () => canSeeClients.value },
   { index: 'zones', route: 'zones', icon: Location, label: 'Zonas', description: 'Zonas de cobertura y sus municipios', visible: () => canSeeClients.value },
   { index: 'my-work', route: 'my-work', icon: Suitcase, label: 'Mi trabajo', description: 'Tus tickets, mantenimientos e instalaciones', visible: () => canSeeMyWork.value },
   { index: 'users', route: 'users', icon: User, label: 'Usuarios', description: 'Cuentas y roles del sistema', visible: () => canSeeUsers.value }
