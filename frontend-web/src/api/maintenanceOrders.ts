@@ -1,9 +1,19 @@
 import { getList } from './paging'
 import { http } from './http'
-import type { AssignmentHistoryDto, CompleteMaintenanceOrderRequest, MaintenanceOrderDto } from './types'
+import type {
+  AssignmentHistoryDto,
+  CompleteMaintenanceOrderRequest,
+  CreateManualMaintenanceOrderRequest,
+  MaintenanceOrderDto
+} from './types'
 
 export function listMaintenanceOrders() {
   return getList<MaintenanceOrderDto>('/maintenance-orders')
+}
+
+// Mantenimiento a demanda de un activo instalado, fuera de los umbrales del cronograma.
+export function createManualMaintenanceOrder(request: CreateManualMaintenanceOrderRequest) {
+  return http.post<MaintenanceOrderDto>('/maintenance-orders', request)
 }
 
 export function getMaintenanceOrder(id: string) {

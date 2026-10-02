@@ -118,7 +118,10 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
         <template #default="{ row }">{{ row.assetBrandName }} {{ row.assetModel }} — {{ row.assetSerialNumber }}</template>
       </el-table-column>
       <el-table-column label="Tipo" width="190">
-        <template #default="{ row }">{{ orderComboLabel(row) }}</template>
+        <template #default="{ row }">
+          {{ orderComboLabel(row) }}
+          <el-tag v-if="row.isManual" size="small" type="warning" effect="plain" :title="row.reason ?? ''">Manual</el-tag>
+        </template>
       </el-table-column>
       <el-table-column prop="technicianName" label="Técnico" width="150" sortable>
         <template #default="{ row }">{{ row.technicianName ?? '—' }}</template>

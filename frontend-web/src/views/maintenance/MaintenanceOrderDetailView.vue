@@ -142,6 +142,10 @@ useRealtimeUpdates(['MaintenanceOrder'], (event) => {
         <dl class="detail-grid">
           <dt>Tipo</dt>
           <dd>{{ orderComboLabel(order) }}</dd>
+          <template v-if="order.isManual">
+            <dt>Origen</dt>
+            <dd>Pedida a demanda<template v-if="order.reason"> — {{ order.reason }}</template></dd>
+          </template>
           <dt>Técnico asignado</dt>
           <dd>{{ order.technicianName ?? '—' }}</dd>
           <dt>Programada</dt>

@@ -418,9 +418,20 @@ export interface MaintenanceOrderDto {
   includesGeneral: boolean
   includesUnits: boolean
   includesConsumables: boolean
+  // Pedida a demanda por el staff (no por umbral del cronograma), con el motivo que dio.
+  isManual: boolean
+  reason: string | null
   scheduledDate: string
   completedAt: string | null
   createdAt: string
+}
+
+export interface CreateManualMaintenanceOrderRequest {
+  assetId: string
+  includesGeneral: boolean
+  includesUnits: boolean
+  includesConsumables: boolean
+  reason?: string | null
 }
 
 export interface MeterReadingAssetDto {
