@@ -96,6 +96,9 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
   // Foto del contador: respalda la lectura obligatoria al completar una orden (las instalaciones no llevan fotos).
   bool get _requiresCounterPhoto => _resolved && _hasOrder;
 
+  // Tickets de clientes sin contrato (equipo sin catalogar): la foto del contador es opcional.
+  bool get _offersOptionalCounterPhoto => _isExternalTicket;
+
   bool get _isExternalTicket => widget.activeTicket?.isExternal ?? false;
   bool get _hasOrder => widget.activeOrder != null;
   bool get _hasInstallation => widget.activeInstallation != null;
@@ -174,7 +177,9 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
               : null,
         ),
         _requiresPhoto ? _photo : null,
-        _requiresCounterPhoto ? _counterPhoto : null,
+        (_requiresCounterPhoto || _offersOptionalCounterPhoto)
+            ? _counterPhoto
+            : null,
       ),
     );
   }
@@ -437,6 +442,34 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Contador'),
                   ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          final photo = await DeviceCapture.takePhoto();
+                          if (photo != null) {
+                            setModalState(() => _counterPhoto = photo);
+                          }
+                        },
+                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: Text(
+                          _counterPhoto == null
+                              ? 'Foto del contador (opcional)'
+                              : 'Cambiar foto',
+                        ),
+                      ),
+                      if (_counterPhoto != null) ...[
+                        const SizedBox(width: 12),
+                        const Icon(
+                          Icons.check_circle,
+                          color: AppColors.signalBlue,
+                        ),
+                        const SizedBox(width: 4),
+                        const Text('Foto lista'),
+                      ],
+                    ],
+                  ),
                 ],
                 const SizedBox(height: 16),
                 AnimatedGradientBorder(
@@ -454,7 +487,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                     child: Text(
                       _hasInstallation
                           ? 'Completa área, lectura de contador y tipo de mantenimiento para cerrar esta instalación.'
-                          : 'Completa la lectura de contador para cerrar esta orden.',
+                          : 'Completa la lectura y la foto del contador para cerrar esta orden.',
                       style: const TextStyle(
                         color: AppColors.signalRed,
                         fontSize: 12,

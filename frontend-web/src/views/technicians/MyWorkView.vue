@@ -32,7 +32,8 @@ function closePhotoDialog(file: File | null) {
 
 // Foto "después" del check-out (obligatoria al resolver un ticket u orden).
 const afterPhoto = ref<File | null>(null)
-// Foto del contador: obligatoria cuando el cierre de un ticket u orden registra una lectura (la respalda).
+// Foto del contador: obligatoria cuando el cierre de un ticket u orden de un equipo bajo contrato registra una
+// lectura (la respalda); opcional en tickets de clientes sin contrato (equipo sin catalogar).
 const counterPhoto = ref<File | null>(null)
 
 const status = ref<selfApi.TechnicianSelfStatusDto | null>(null)
@@ -291,7 +292,7 @@ async function doCheckOut() {
       getCurrentPosition()
     ])
     const counterEvidence =
-      counterPhotoRequired.value && visitTarget && counterPhoto.value
+      (counterPhotoRequired.value || isExternalTicket.value) && visitTarget && counterPhoto.value
         ? await selfApi.uploadEvidence(counterPhoto.value, 'Contador', visitTarget)
         : null
     await selfApi.checkOut({
@@ -440,6 +441,9 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
         </el-form-item>
 
         <el-form-item v-if="counterPhotoRequired" label="Foto del contador (obligatoria)">
+          <PhotoPicker v-model="counterPhoto" />
+        </el-form-item>
+        <el-form-item v-else-if="isExternalTicket" label="Foto del contador (opcional)">
           <PhotoPicker v-model="counterPhoto" />
         </el-form-item>
 

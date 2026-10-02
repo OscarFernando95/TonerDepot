@@ -394,4 +394,46 @@ public class EvidenceAndLocationTests
             Resolved = true, AfterEvidenceId = after
         });
     }
+
+    private static async Task<Scenario> SeedTicketSinContratoEnCursoAsync()
+    {
+        var s = await SeedAsync();
+        var before = await UploadAsync(s, EvidenceKind.Antes);
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        await TestCheckIn.Create(db, requirePhotos: true).CheckInAsync(s.TechnicianId, new CheckInRequest { ServiceTicketId = s.TicketId, BeforeEvidenceId = before });
+        return s;
+    }
+
+    [Fact]
+    public async Task CheckOut_TicketDeClienteSinContrato_LaFotoDelContadorEsOpcional()
+    {
+        var s = await SeedTicketSinContratoEnCursoAsync();
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        await TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+        {
+            Resolved = true, AfterEvidenceId = after, ExternalAssetBrand = "Epson", ExternalAssetCounter = 5000
+        });
+    }
+
+    [Fact]
+    public async Task CheckOut_TicketDeClienteSinContrato_SiMandaFotoDelContador_QuedaAtada()
+    {
+        var s = await SeedTicketSinContratoEnCursoAsync();
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+        var counter = await UploadAsync(s, EvidenceKind.Contador);
+
+        using (var db = TonerTestDb.CreateContext(s.DbName))
+        {
+            await TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+            {
+                Resolved = true, AfterEvidenceId = after, ExternalAssetCounter = 5000, CounterEvidenceId = counter
+            });
+        }
+
+        using var check = TonerTestDb.CreateContext(s.DbName);
+        var log = await check.TimeLogs.SingleAsync();
+        Assert.Equal(log.Id, (await check.Evidences.SingleAsync(e => e.Id == counter)).TimeLogId);
+    }
 }

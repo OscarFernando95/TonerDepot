@@ -18,7 +18,7 @@ Pendientes por aplicar y cambios
 1. ~~Limitar a 10 caracteres el numero de contacto de todo usuario, tecnico, cliente.~~ | HECHO (PhoneRules en backend, phone.ts en web, phone_input.dart en app)
 2. ~~Vincular, automaticamente, un activo al tecnico que realiza una instalacion por primera vez. En caso de se un favor que se pida, la re-vincuacion se debe hacer por el administrador.~~ | HECHO (TechnicianAssets: se vincula en el check-out de instalacion; gestion manual por Administrador)
 3. ~~Actualizaciones en tiempo real en Web y App (sockets o algo)~~ | CORREGIDO en codigo, falta prueba en vivo: hoy no funciona bien, si estoy en una ventana o en el navegador y hay cambios no se actualizan correctamente. Debe cubrir todo lo que pueda cambiar de estado.
-4. ~~Pedir foto del contador en un servicio o mantenimiento.~~ | HECHO en codigo (tipo de evidencia Contador, obligatoria al registrar lectura en ticket u orden; instalaciones no, porque no llevan evidencias), falta prueba en vivo
+4. ~~Pedir foto del contador en un servicio o mantenimiento.~~ | HECHO en codigo (tipo de evidencia Contador, obligatoria en tickets/ordenes de equipos bajo contrato, opcional en tickets de clientes sin contrato; instalaciones no, porque no llevan evidencias), falta prueba en vivo
 5. Control del horario para las instalaciones: hoy no se controla.
 6. Inventario de consumibles y repuestos, con checks al atender un mantenimiento o ticket de un cliente.
 7. Control de uso de toner: contabilizar toner usados y su duracion comparado con las impresiones (BI para administradores).
