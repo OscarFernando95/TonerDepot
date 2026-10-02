@@ -2,12 +2,27 @@ import 'package:flutter/foundation.dart';
 
 import '../models/technician_schedule.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/holiday_api.dart';
 
 class HolidaysState extends ChangeNotifier {
-  HolidaysState(ApiClient client) : _api = HolidayApi(client);
+  HolidaysState(ApiClient client) : _api = HolidayApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['Holiday'], (e) {
+      if (saving) return;
+      load(null, true);
+    });
+  }
 
   final HolidayApi _api;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   String? error;
@@ -16,18 +31,22 @@ class HolidaysState extends ChangeNotifier {
 
   bool saving = false;
 
-  Future<void> load([int? newYear]) async {
+  Future<void> load([int? newYear, bool silent = false]) async {
     if (newYear != null) year = newYear;
-    loading = true;
-    error = null;
-    notifyListeners();
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       holidays = await _api.list(year);
     } catch (e, st) {
       debugPrint('HolidaysState.load failed: $e\n$st');
-      error = e is ApiException
-          ? e.message
-          : 'No se pudieron cargar los festivos.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los festivos.';
+      }
     } finally {
       loading = false;
       notifyListeners();

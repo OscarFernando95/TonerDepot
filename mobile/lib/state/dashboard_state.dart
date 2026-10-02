@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/dashboard_summary.dart';
@@ -9,10 +10,13 @@ import '../services/realtime_service.dart';
 class DashboardState extends ChangeNotifier {
   DashboardState(ApiClient client) : _api = DashboardApi(client) {
     // Son agregados (SLA, MTTR, utilización): no vale la pena recalcular en cada ticket, así que se espacía un poco.
-    _unsubscribe = RealtimeService.instance.subscribe(['Ticket', 'MaintenanceOrder', 'Visit'], (_) {
-      _debounce?.cancel();
-      _debounce = Timer(const Duration(seconds: 3), load);
-    });
+    _unsubscribe = RealtimeService.instance.subscribe(
+      ['Ticket', 'MaintenanceOrder', 'Visit'],
+      (_) {
+        _debounce?.cancel();
+        _debounce = Timer(const Duration(seconds: 3), () => load(silent: true));
+      },
+    );
   }
 
   final DashboardApi _api;
@@ -31,17 +35,21 @@ class DashboardState extends ChangeNotifier {
   DashboardSummary? summary;
   int periodDays = 30;
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       summary = await _api.getSummary(periodDays);
     } catch (e, st) {
       debugPrint('DashboardState.load failed: $e\n$st');
-      error = e is ApiException
-          ? e.message
-          : 'No se pudieron cargar los indicadores.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los indicadores.';
+      }
     } finally {
       loading = false;
       notifyListeners();

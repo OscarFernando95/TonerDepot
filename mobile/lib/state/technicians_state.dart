@@ -8,7 +8,9 @@ import '../services/technician_management_api.dart';
 class TechniciansState extends ChangeNotifier {
   TechniciansState(ApiClient client) : _api = TechnicianManagementApi(client) {
     // Disponibilidad, cobertura y estado del técnico cambian solos (check-in/out, fuera de la oficina).
-    _unsubscribe = RealtimeService.instance.subscribe(['Technician'], (_) => load());
+    _unsubscribe = RealtimeService.instance.subscribe([
+      'Technician',
+    ], (_) => load(silent: true));
   }
 
   final TechnicianManagementApi _api;
@@ -24,17 +26,21 @@ class TechniciansState extends ChangeNotifier {
   String? error;
   List<Technician> technicians = [];
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       technicians = await _api.list();
     } catch (e, st) {
       debugPrint('TechniciansState.load failed: $e\n$st');
-      error = e is ApiException
-          ? e.message
-          : 'No se pudieron cargar los técnicos.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los técnicos.';
+      }
     } finally {
       loading = false;
       notifyListeners();

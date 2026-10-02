@@ -5,6 +5,7 @@ import '../models/contract.dart';
 import '../models/grouping.dart';
 import '../models/paged_result.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/asset_api.dart';
 import '../services/contract_api.dart';
 
@@ -20,11 +21,27 @@ const _noContract = 'Sin contrato';
 class AssetsListState extends ChangeNotifier {
   AssetsListState(ApiClient client)
     : _api = AssetApi(client),
-      _contractApi = ContractApi(client);
+      _contractApi = ContractApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['Asset', 'Contract'], (
+      e,
+    ) {
+      if (loadingMore) return;
+      load(silent: true);
+    });
+  }
 
   final AssetApi _api;
   final ContractApi _contractApi;
   static const _pageSize = 50;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool loadingMore = false;
@@ -47,9 +64,16 @@ class AssetsListState extends ChangeNotifier {
   /// lista de un cliente que ya no aplica). Espejo exacto de `matches(a,
   /// exclude)` en AssetsListView.vue.
   bool _matches(Asset a, String exclude) {
-    final cityOk = exclude == 'city' || cityFilter == null || a.cityName == cityFilter;
-    final clientOk = exclude == 'client' || clientFilter == null || a.currentClientId == clientFilter;
-    final statusOk = exclude == 'status' || statusFilter == null || a.lifecycleStatus == statusFilter;
+    final cityOk =
+        exclude == 'city' || cityFilter == null || a.cityName == cityFilter;
+    final clientOk =
+        exclude == 'client' ||
+        clientFilter == null ||
+        a.currentClientId == clientFilter;
+    final statusOk =
+        exclude == 'status' ||
+        statusFilter == null ||
+        a.lifecycleStatus == statusFilter;
     return cityOk && clientOk && statusOk;
   }
 
@@ -110,8 +134,9 @@ class AssetsListState extends ChangeNotifier {
     clientKey: (a) => a.currentClientId ?? _noClient,
     clientLabel: (a) => a.currentClientName ?? _noClient,
     contractKey: (a) => a.activeContractId ?? _noContract,
-    contractLabel: (a) =>
-        a.activeContractId != null ? _contractLabel(a.activeContractId!) : _noContract,
+    contractLabel: (a) => a.activeContractId != null
+        ? _contractLabel(a.activeContractId!)
+        : _noContract,
   );
 
   void setViewMode(String mode) {
@@ -119,11 +144,13 @@ class AssetsListState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
+  Future<void> load({bool silent = false}) async {
     _page = 1;
-    notifyListeners();
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _api.listCatalog(page: _page, pageSize: _pageSize),
@@ -135,9 +162,11 @@ class AssetsListState extends ChangeNotifier {
       _contracts = (results[1] as PagedResult<Contract>).items;
     } catch (e, st) {
       debugPrint('AssetsListState.load failed: $e\n$st');
-      error = e is ApiException
-          ? e.message
-          : 'No se pudieron cargar los activos.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los activos.';
+      }
     } finally {
       loading = false;
       notifyListeners();

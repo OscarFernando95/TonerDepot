@@ -3,17 +3,32 @@ import 'package:flutter/foundation.dart';
 import '../models/city.dart';
 import '../models/technician_coverage.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/city_api.dart';
 import '../services/technician_management_api.dart';
 
 class TechnicianCoverageState extends ChangeNotifier {
   TechnicianCoverageState(ApiClient client, this.technicianId)
     : _api = TechnicianManagementApi(client),
-      _cityApi = CityApi(client);
+      _cityApi = CityApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['Technician'], (e) {
+      if (busyWithAction) return;
+      load(silent: true);
+    });
+  }
 
   final TechnicianManagementApi _api;
   final CityApi _cityApi;
   final String technicianId;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -25,10 +40,12 @@ class TechnicianCoverageState extends ChangeNotifier {
       .where((c) => !coverage.any((cov) => cov.cityId == c.id))
       .toList();
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _api.getCoverage(technicianId),
@@ -38,7 +55,11 @@ class TechnicianCoverageState extends ChangeNotifier {
       allCities = results[1] as List<City>;
     } catch (e, st) {
       debugPrint('TechnicianCoverageState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar la cobertura.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudo cargar la cobertura.';
+      }
     } finally {
       loading = false;
       notifyListeners();

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/asset.dart';
 import '../models/technician_asset.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/asset_api.dart';
 import '../services/technician_management_api.dart';
 
@@ -16,13 +17,36 @@ import '../services/technician_management_api.dart';
 /// trae paginando hasta el final y el buscador de la UI filtra client-side.
 class TechnicianLinkedAssetsState extends ChangeNotifier {
   TechnicianLinkedAssetsState(ApiClient client, this.technicianId)
-      : _api = TechnicianManagementApi(client),
-        _assetApi = AssetApi(client);
+    : _api = TechnicianManagementApi(client),
+      _assetApi = AssetApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(
+      ['TechnicianAsset', 'Asset'],
+      (e) {
+        if (busyWithAction) return;
+        // Un vínculo nuevo solo cambia la lista de vinculados; un activo que cambia de estado puede
+        // cambiar también los candidatos (instalados), que es la parte cara.
+        if (e.entity == 'TechnicianAsset') {
+          _reloadLinked();
+        } else {
+          load(silent: true);
+        }
+      },
+    );
+  }
 
   final TechnicianManagementApi _api;
   final AssetApi _assetApi;
   final String technicianId;
   static const _pageSize = 100;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -36,12 +60,14 @@ class TechnicianLinkedAssetsState extends ChangeNotifier {
     var candidates = _installedAssets.where((a) => !linkedIds.contains(a.id));
     final q = searchQuery.trim().toLowerCase();
     if (q.isNotEmpty) {
-      candidates = candidates.where((a) =>
-          a.serialNumber.toLowerCase().contains(q) ||
-          a.model.toLowerCase().contains(q) ||
-          (a.currentClientName?.toLowerCase().contains(q) ?? false) ||
-          (a.currentClientLocationName?.toLowerCase().contains(q) ?? false) ||
-          (a.cityName?.toLowerCase().contains(q) ?? false));
+      candidates = candidates.where(
+        (a) =>
+            a.serialNumber.toLowerCase().contains(q) ||
+            a.model.toLowerCase().contains(q) ||
+            (a.currentClientName?.toLowerCase().contains(q) ?? false) ||
+            (a.currentClientLocationName?.toLowerCase().contains(q) ?? false) ||
+            (a.cityName?.toLowerCase().contains(q) ?? false),
+      );
     }
     return candidates.toList();
   }
@@ -51,19 +77,37 @@ class TechnicianLinkedAssetsState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
-      final results = await Future.wait([_api.getLinkedAssets(technicianId), _loadAllInstalledAssets()]);
+      final results = await Future.wait([
+        _api.getLinkedAssets(technicianId),
+        _loadAllInstalledAssets(),
+      ]);
       linked = results[0] as List<TechnicianAsset>;
     } catch (e, st) {
       debugPrint('TechnicianLinkedAssetsState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudieron cargar los activos vinculados.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los activos vinculados.';
+      }
     } finally {
       loading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _reloadLinked() async {
+    try {
+      linked = await _api.getLinkedAssets(technicianId);
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('TechnicianLinkedAssetsState._reloadLinked failed: $e\n$st');
     }
   }
 
@@ -71,7 +115,10 @@ class TechnicianLinkedAssetsState extends ChangeNotifier {
     final all = <Asset>[];
     var page = 1;
     while (true) {
-      final result = await _assetApi.listCatalog(page: page, pageSize: _pageSize);
+      final result = await _assetApi.listCatalog(
+        page: page,
+        pageSize: _pageSize,
+      );
       all.addAll(result.items.where((a) => a.lifecycleStatus == 'Instalado'));
       if (!result.hasMore) break;
       page += 1;
@@ -112,7 +159,9 @@ class TechnicianLinkedAssetsState extends ChangeNotifier {
       return null;
     } catch (e, st) {
       debugPrint('TechnicianLinkedAssetsState.linkAllVisible failed: $e\n$st');
-      return e is ApiException ? e.message : 'No se pudieron vincular todos los activos.';
+      return e is ApiException
+          ? e.message
+          : 'No se pudieron vincular todos los activos.';
     } finally {
       busyWithAction = false;
       notifyListeners();

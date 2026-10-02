@@ -4,6 +4,7 @@ import '../models/asset.dart';
 import '../models/asset_status_log.dart';
 import '../models/meter_reading.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/asset_api.dart';
 
 class AssetDetailState extends ChangeNotifier {
@@ -11,11 +12,29 @@ class AssetDetailState extends ChangeNotifier {
   /// [Authorize(Roles = StaffRoles)] que status-history, pero se pide aparte
   /// por si algún día un rol ve estado sin ver lecturas.
   AssetDetailState(ApiClient client, this.assetId, {required this.isStaff})
-    : _api = AssetApi(client);
+    : _api = AssetApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(
+      ['Asset', 'MeterReading', 'Contract'],
+      (e) {
+        if (busyWithAction) return;
+        if (!(e.entity != 'Asset' || e.affects(assetId))) return;
+        load(silent: true);
+      },
+    );
+  }
 
   final AssetApi _api;
   final String assetId;
   final bool isStaff;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -24,10 +43,12 @@ class AssetDetailState extends ChangeNotifier {
   List<AssetStatusLog> statusHistory = [];
   List<MeterReading> meterReadings = [];
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _api.getById(assetId),
@@ -41,7 +62,9 @@ class AssetDetailState extends ChangeNotifier {
       }
     } catch (e, st) {
       debugPrint('AssetDetailState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar el activo.';
+      if (!silent) {
+        error = e is ApiException ? e.message : 'No se pudo cargar el activo.';
+      }
     } finally {
       loading = false;
       notifyListeners();

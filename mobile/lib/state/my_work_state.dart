@@ -24,9 +24,19 @@ class MyWorkState extends ChangeNotifier {
       _orderApi = MaintenanceOrderApi(client) {
     // Un ticket/orden asignado o quitado desde la web actualiza esta pantalla sola. No mientras hay una
     // acción de check-in/out en curso (busyWithAction): eso ya recarga todo al terminar.
-    _unsubscribe = RealtimeService.instance.subscribe(['Ticket', 'MaintenanceOrder'], (_) {
-      if (!busyWithAction) loadAll();
-    });
+    _unsubscribe = RealtimeService.instance.subscribe(
+      [
+        'Ticket',
+        'MaintenanceOrder',
+        'Visit',
+        'Technician',
+        'TechnicianAsset',
+        'Asset',
+      ],
+      (_) {
+        if (!busyWithAction) loadAll(silent: true);
+      },
+    );
   }
 
   final TechnicianApi _technicianApi;
@@ -93,10 +103,12 @@ class MyWorkState extends ChangeNotifier {
   /// decide cada tarjeta individualmente.
   List<PendingInstallation> get pendingInstallations => installations;
 
-  Future<void> loadAll() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> loadAll({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _technicianApi.getMyStatus(),
@@ -110,7 +122,9 @@ class MyWorkState extends ChangeNotifier {
       installations = results[3] as List<PendingInstallation>;
     } catch (e, st) {
       debugPrint('MyWorkState.loadAll failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar tu trabajo.';
+      if (!silent) {
+        error = e is ApiException ? e.message : 'No se pudo cargar tu trabajo.';
+      }
     } finally {
       loading = false;
       notifyListeners();

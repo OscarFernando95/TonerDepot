@@ -4,6 +4,7 @@ import '../models/city.dart';
 import '../models/client.dart';
 import '../models/client_location.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/city_api.dart';
 import '../services/client_api.dart';
 import '../services/client_location_api.dart';
@@ -15,12 +16,27 @@ class ClientDetailState extends ChangeNotifier {
   ClientDetailState(ApiClient client, this.clientId)
     : _clientApi = ClientApi(client),
       _locationApi = ClientLocationApi(client),
-      _cityApi = CityApi(client);
+      _cityApi = CityApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['Client'], (e) {
+      if (busyWithAction) return;
+      if (!(e.affects(clientId))) return;
+      load(silent: true);
+    });
+  }
 
   final ClientApi _clientApi;
   final ClientLocationApi _locationApi;
   final CityApi _cityApi;
   final String clientId;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -29,10 +45,12 @@ class ClientDetailState extends ChangeNotifier {
   List<ClientLocation> locations = [];
   List<City> cities = [];
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _clientApi.getById(clientId),
@@ -44,7 +62,9 @@ class ClientDetailState extends ChangeNotifier {
       cities = results[2] as List<City>;
     } catch (e, st) {
       debugPrint('ClientDetailState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar el cliente.';
+      if (!silent) {
+        error = e is ApiException ? e.message : 'No se pudo cargar el cliente.';
+      }
     } finally {
       loading = false;
       notifyListeners();

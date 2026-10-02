@@ -4,6 +4,7 @@ import '../models/contract.dart';
 import '../models/grouping.dart';
 import '../models/maintenance_schedule.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/contract_api.dart';
 import '../services/maintenance_schedule_api.dart';
 
@@ -12,11 +13,28 @@ const _noCity = 'Sin ciudad';
 class MaintenanceSchedulesState extends ChangeNotifier {
   MaintenanceSchedulesState(ApiClient client)
     : _api = MaintenanceScheduleApi(client),
-      _contractApi = ContractApi(client);
+      _contractApi = ContractApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(
+      ['Schedule', 'Contract'],
+      (e) {
+        if (busyWithAction || loadingMore) return;
+        load(silent: true);
+      },
+    );
+  }
 
   final MaintenanceScheduleApi _api;
   final ContractApi _contractApi;
   static const _pageSize = 50;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool loadingMore = false;
@@ -24,6 +42,7 @@ class MaintenanceSchedulesState extends ChangeNotifier {
   bool busyWithAction = false;
   String? error;
   List<MaintenanceSchedule> schedules = [];
+
   /// Solo para armar la etiqueta "Cliente (vigencia)" del filtro de contrato
   /// — espejo de `contracts`/`contractLabelById` en MaintenanceSchedulesView.vue.
   List<Contract> contracts = [];
@@ -45,9 +64,16 @@ class MaintenanceSchedulesState extends ChangeNotifier {
   /// aplica — nunca se excluye a sí misma.
   bool _matches(MaintenanceSchedule s, String exclude) {
     final urgencyOk = urgencyFilter == null || s.urgency == urgencyFilter;
-    final cityOk = exclude == 'city' || cityFilter == null || s.cityName == cityFilter;
-    final clientOk = exclude == 'client' || clientFilter == null || s.clientId == clientFilter;
-    final contractOk = exclude == 'contract' || contractFilter == null || s.contractId == contractFilter;
+    final cityOk =
+        exclude == 'city' || cityFilter == null || s.cityName == cityFilter;
+    final clientOk =
+        exclude == 'client' ||
+        clientFilter == null ||
+        s.clientId == clientFilter;
+    final contractOk =
+        exclude == 'contract' ||
+        contractFilter == null ||
+        s.contractId == contractFilter;
     return urgencyOk && cityOk && clientOk && contractOk;
   }
 
@@ -129,11 +155,13 @@ class MaintenanceSchedulesState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
+  Future<void> load({bool silent = false}) async {
     _page = 1;
-    notifyListeners();
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final page = await _api.list(page: _page, pageSize: _pageSize);
       schedules = page.items;
@@ -148,13 +176,17 @@ class MaintenanceSchedulesState extends ChangeNotifier {
         // Solo alimenta la etiqueta bonita del filtro de contrato — si falla
         // no rompemos la carga de cronogramas, el filtro sigue funcionando
         // (con el id crudo como etiqueta).
-        debugPrint('MaintenanceSchedulesState.load (contracts) failed: $e\n$st');
+        debugPrint(
+          'MaintenanceSchedulesState.load (contracts) failed: $e\n$st',
+        );
       }
     } catch (e, st) {
       debugPrint('MaintenanceSchedulesState.load failed: $e\n$st');
-      error = e is ApiException
-          ? e.message
-          : 'No se pudieron cargar los cronogramas.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los cronogramas.';
+      }
     } finally {
       loading = false;
       notifyListeners();

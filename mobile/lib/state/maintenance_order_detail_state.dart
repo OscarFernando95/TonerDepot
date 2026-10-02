@@ -4,6 +4,7 @@ import '../models/assignment_history.dart';
 import '../models/maintenance_order.dart';
 import '../models/technician.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/maintenance_order_api.dart';
 import '../services/technician_management_api.dart';
 
@@ -16,12 +17,29 @@ class MaintenanceOrderDetailState extends ChangeNotifier {
     this.orderId, {
     required this.isStaff,
   }) : _orderApi = MaintenanceOrderApi(client),
-       _technicianApi = TechnicianManagementApi(client);
+       _technicianApi = TechnicianManagementApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['MaintenanceOrder'], (
+      e,
+    ) {
+      if (busyWithAction) return;
+      if (!(e.affects(orderId))) return;
+      load(silent: true);
+    });
+  }
 
   final MaintenanceOrderApi _orderApi;
   final TechnicianManagementApi _technicianApi;
   final String orderId;
   final bool isStaff;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -30,10 +48,12 @@ class MaintenanceOrderDetailState extends ChangeNotifier {
   List<Technician> technicians = [];
   List<AssignmentHistory> assignmentHistory = [];
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _orderApi.getById(orderId),
@@ -47,7 +67,9 @@ class MaintenanceOrderDetailState extends ChangeNotifier {
       }
     } catch (e, st) {
       debugPrint('MaintenanceOrderDetailState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar la orden.';
+      if (!silent) {
+        error = e is ApiException ? e.message : 'No se pudo cargar la orden.';
+      }
     } finally {
       loading = false;
       notifyListeners();

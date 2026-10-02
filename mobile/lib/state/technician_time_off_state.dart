@@ -2,29 +2,48 @@ import 'package:flutter/foundation.dart';
 
 import '../models/technician_schedule.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/technician_management_api.dart';
 
 class TechnicianTimeOffState extends ChangeNotifier {
   TechnicianTimeOffState(ApiClient client, this.technicianId)
-    : _api = TechnicianManagementApi(client);
+    : _api = TechnicianManagementApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['Technician'], (e) {
+      if (busy) return;
+      load(silent: true);
+    });
+  }
 
   final TechnicianManagementApi _api;
   final String technicianId;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busy = false;
   String? error;
   List<TimeOff> items = [];
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       items = await _api.listTimeOff(technicianId);
     } catch (e, st) {
       debugPrint('TechnicianTimeOffState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar el listado.';
+      if (!silent) {
+        error = e is ApiException ? e.message : 'No se pudo cargar el listado.';
+      }
     } finally {
       loading = false;
       notifyListeners();

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/meter_reading_asset.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/meter_reading_api.dart';
 
 class CityGroup {
@@ -42,11 +43,29 @@ class MeterCityGroup {
 /// Nunca se fusionan: un mismo activo puede aparecer en ambas si, además de
 /// estar vinculado a este técnico, también cae en su cobertura.
 class MeterReadingState extends ChangeNotifier {
-  MeterReadingState(ApiClient client) : _api = MeterReadingApi(client);
+  MeterReadingState(ApiClient client) : _api = MeterReadingApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(
+      ['MeterReading', 'Asset'],
+      (e) {
+        if (saving) return;
+        if (_coverageLoaded) loadCoverage(silent: true);
+        if (!_coverageLoaded || assets.isNotEmpty) load(silent: true);
+      },
+    );
+  }
 
   final MeterReadingApi _api;
   static const _noCity = 'Sin ciudad';
   static const _noClient = 'Sin cliente';
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool saving = false;
@@ -70,8 +89,12 @@ class MeterReadingState extends ChangeNotifier {
   String? clientFilter;
 
   bool _matches(MeterReadingAsset a, String exclude) {
-    final cityOk = exclude == 'city' || cityFilter == null || a.cityName == cityFilter;
-    final clientOk = exclude == 'client' || clientFilter == null || a.clientId == clientFilter;
+    final cityOk =
+        exclude == 'city' || cityFilter == null || a.cityName == cityFilter;
+    final clientOk =
+        exclude == 'client' ||
+        clientFilter == null ||
+        a.clientId == clientFilter;
     return cityOk && clientOk;
   }
 
@@ -121,18 +144,18 @@ class MeterReadingState extends ChangeNotifier {
       byClient.putIfAbsent(clientKey, () => []).add(a);
     }
     final cities = byCity.entries.map((cityEntry) {
-      final clientGroups = cityEntry.value.entries
-          .map(
-            (clientEntry) => MeterClientGroup(
-              clientLabels[clientEntry.key] ?? _noClient,
-              clientEntry.value,
-            ),
-          )
-          .toList()
-        ..sort((a, b) => a.clientLabel.compareTo(b.clientLabel));
+      final clientGroups =
+          cityEntry.value.entries
+              .map(
+                (clientEntry) => MeterClientGroup(
+                  clientLabels[clientEntry.key] ?? _noClient,
+                  clientEntry.value,
+                ),
+              )
+              .toList()
+            ..sort((a, b) => a.clientLabel.compareTo(b.clientLabel));
       return MeterCityGroup(cityEntry.key, clientGroups);
-    }).toList()
-      ..sort((a, b) => a.city.compareTo(b.city));
+    }).toList()..sort((a, b) => a.city.compareTo(b.city));
     return cities;
   }
 
@@ -153,32 +176,45 @@ class MeterReadingState extends ChangeNotifier {
     ];
   }
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       assets = await _api.listAssets();
     } catch (e, st) {
       debugPrint('MeterReadingState.load failed: $e\n$st');
-      error = e is ApiException
-          ? e.message
-          : 'No se pudieron cargar los equipos.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los equipos.';
+      }
     } finally {
       loading = false;
       notifyListeners();
     }
   }
 
-  Future<void> loadCoverage() async {
-    loadingCoverage = true;
-    coverageError = null;
-    notifyListeners();
+  bool _coverageLoaded = false;
+
+  Future<void> loadCoverage({bool silent = false}) async {
+    _coverageLoaded = true;
+    if (!silent) {
+      loadingCoverage = true;
+      coverageError = null;
+      notifyListeners();
+    }
     try {
       coverageAssets = await _api.listAssetsByCoverage();
     } catch (e, st) {
       debugPrint('MeterReadingState.loadCoverage failed: $e\n$st');
-      coverageError = e is ApiException ? e.message : 'No se pudieron cargar los equipos de tu cobertura.';
+      if (!silent) {
+        coverageError = e is ApiException
+            ? e.message
+            : 'No se pudieron cargar los equipos de tu cobertura.';
+      }
     } finally {
       loadingCoverage = false;
       notifyListeners();

@@ -4,6 +4,7 @@ import '../models/assignment_history.dart';
 import '../models/service_ticket.dart';
 import '../models/technician.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/technician_management_api.dart';
 import '../services/ticket_api.dart';
 
@@ -15,12 +16,27 @@ import '../services/ticket_api.dart';
 class TicketDetailState extends ChangeNotifier {
   TicketDetailState(ApiClient client, this.ticketId, {required this.isStaff})
     : _api = TicketApi(client),
-      _technicianApi = TechnicianManagementApi(client);
+      _technicianApi = TechnicianManagementApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(['Ticket'], (e) {
+      if (assigning || changingStatus) return;
+      if (!(e.affects(ticketId))) return;
+      load(silent: true);
+    });
+  }
 
   final TicketApi _api;
   final TechnicianManagementApi _technicianApi;
   final String ticketId;
   final bool isStaff;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   String? error;
@@ -32,14 +48,19 @@ class TicketDetailState extends ChangeNotifier {
   bool changingStatus = false;
   String? actionError;
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _api.getById(ticketId),
-        if (isStaff) _api.getAssignmentHistory(ticketId) else Future.value(<AssignmentHistory>[]),
+        if (isStaff)
+          _api.getAssignmentHistory(ticketId)
+        else
+          Future.value(<AssignmentHistory>[]),
         if (isStaff) _technicianApi.list() else Future.value(<Technician>[]),
       ]);
       ticket = results[0] as ServiceTicket;
@@ -49,7 +70,9 @@ class TicketDetailState extends ChangeNotifier {
       }
     } catch (e, st) {
       debugPrint('TicketDetailState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar el ticket.';
+      if (!silent) {
+        error = e is ApiException ? e.message : 'No se pudo cargar el ticket.';
+      }
     } finally {
       loading = false;
       notifyListeners();
@@ -61,7 +84,11 @@ class TicketDetailState extends ChangeNotifier {
     assigning = true;
     notifyListeners();
     try {
-      ticket = await _api.assign(ticketId, technicianId: technicianId, reason: reason);
+      ticket = await _api.assign(
+        ticketId,
+        technicianId: technicianId,
+        reason: reason,
+      );
       history = await _api.getAssignmentHistory(ticketId);
       return null;
     } catch (e) {

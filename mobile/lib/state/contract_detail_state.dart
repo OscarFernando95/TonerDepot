@@ -3,17 +3,36 @@ import 'package:flutter/foundation.dart';
 import '../models/contract.dart';
 import '../models/contract_asset.dart';
 import '../services/api_client.dart';
+import '../services/realtime_service.dart';
 import '../services/contract_api.dart';
 import '../services/contract_asset_api.dart';
 
 class ContractDetailState extends ChangeNotifier {
   ContractDetailState(ApiClient client, this.contractId)
     : _contractApi = ContractApi(client),
-      _contractAssetApi = ContractAssetApi(client);
+      _contractAssetApi = ContractAssetApi(client) {
+    // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    _unsubscribe = RealtimeService.instance.subscribe(
+      ['Contract', 'MeterReading'],
+      (e) {
+        if (busyWithAction) return;
+        if (!(e.entity != 'Contract' || e.affects(contractId))) return;
+        load(silent: true);
+      },
+    );
+  }
 
   final ContractApi _contractApi;
   final ContractAssetApi _contractAssetApi;
   final String contractId;
+
+  late final VoidCallback _unsubscribe;
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
 
   bool loading = false;
   bool busyWithAction = false;
@@ -21,10 +40,12 @@ class ContractDetailState extends ChangeNotifier {
   Contract? contract;
   List<ContractAsset> contractAssets = [];
 
-  Future<void> load() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> load({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final results = await Future.wait([
         _contractApi.getById(contractId),
@@ -34,7 +55,11 @@ class ContractDetailState extends ChangeNotifier {
       contractAssets = results[1] as List<ContractAsset>;
     } catch (e, st) {
       debugPrint('ContractDetailState.load failed: $e\n$st');
-      error = e is ApiException ? e.message : 'No se pudo cargar el contrato.';
+      if (!silent) {
+        error = e is ApiException
+            ? e.message
+            : 'No se pudo cargar el contrato.';
+      }
     } finally {
       loading = false;
       notifyListeners();
