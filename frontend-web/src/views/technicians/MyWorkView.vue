@@ -32,6 +32,8 @@ function closePhotoDialog(file: File | null) {
 
 // Foto "después" del check-out (obligatoria al resolver un ticket u orden).
 const afterPhoto = ref<File | null>(null)
+// Foto del contador: obligatoria cuando el cierre de un ticket u orden registra una lectura (la respalda).
+const counterPhoto = ref<File | null>(null)
 
 const status = ref<selfApi.TechnicianSelfStatusDto | null>(null)
 const tickets = ref<ServiceTicketDto[]>([])
@@ -137,7 +139,16 @@ function isCounterDateDisabled(date: Date) {
   return false
 }
 
-const checkoutFormValid = computed(() => {
+const counterPhotoRequired = computed(
+  () =>
+    (!!activeTicket.value || !!activeOrder.value) &&
+    (checkoutForm.resolved || !!activeTicket.value) &&
+    checkoutForm.initialCounterValue != null
+)
+
+const checkoutFormValid = computed(() => baseCheckoutValid.value && (!counterPhotoRequired.value || !!counterPhoto.value))
+
+const baseCheckoutValid = computed(() => {
   if (!checkoutForm.resolved) {
     return true
   }
@@ -279,8 +290,13 @@ async function doCheckOut() {
       checkoutForm.resolved && visitTarget && afterPhoto.value ? selfApi.uploadEvidence(afterPhoto.value, 'Despues', visitTarget) : null,
       getCurrentPosition()
     ])
+    const counterEvidence =
+      counterPhotoRequired.value && visitTarget && counterPhoto.value
+        ? await selfApi.uploadEvidence(counterPhoto.value, 'Contador', visitTarget)
+        : null
     await selfApi.checkOut({
       afterEvidenceId: evidence?.data.id ?? null,
+      counterEvidenceId: counterEvidence?.data.id ?? null,
       latitude: position?.latitude ?? null,
       longitude: position?.longitude ?? null,
       accuracyMeters: position?.accuracyMeters ?? null,
@@ -312,6 +328,7 @@ async function doCheckOut() {
     checkoutForm.externalAssetModel = ''
     checkoutForm.externalAssetCounter = undefined
     afterPhoto.value = null
+    counterPhoto.value = null
     await loadAll()
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-out.')
@@ -420,6 +437,10 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
 
         <el-form-item v-if="checkoutForm.resolved && (activeTicket || activeOrder)" label="Foto del resultado (obligatoria)">
           <PhotoPicker v-model="afterPhoto" />
+        </el-form-item>
+
+        <el-form-item v-if="counterPhotoRequired" label="Foto del contador (obligatoria)">
+          <PhotoPicker v-model="counterPhoto" />
         </el-form-item>
 
         <el-form-item label="Notas (opcional)">

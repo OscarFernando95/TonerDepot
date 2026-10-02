@@ -29,6 +29,8 @@ export interface CheckOutRequest {
   accuracyMeters?: number | null
   // Foto "después" — obligatoria al resolver un ticket u orden.
   afterEvidenceId?: string | null
+  // Foto del contador — obligatoria cuando el cierre de un ticket u orden registra una lectura.
+  counterEvidenceId?: string | null
   resolved?: boolean
   notes?: string | null
   area?: string | null
@@ -103,7 +105,7 @@ export function claimTicket(id: string) {
 
 export interface EvidenceDto {
   id: string
-  kind: 'Antes' | 'Despues'
+  kind: 'Antes' | 'Despues' | 'Contador'
   contentType: string
   sizeBytes: number
   uploadedAt: string
@@ -113,7 +115,7 @@ export interface EvidenceDto {
 }
 
 // Sube la foto de evidencia (antes / después) de un ticket u orden asignado; devuelve el id que se envía en el check-in/out.
-export function uploadEvidence(file: File, kind: 'Antes' | 'Despues', target: { ticketId?: string; orderId?: string }) {
+export function uploadEvidence(file: File, kind: 'Antes' | 'Despues' | 'Contador', target: { ticketId?: string; orderId?: string }) {
   const form = new FormData()
   form.append('file', file)
   form.append('kind', kind)

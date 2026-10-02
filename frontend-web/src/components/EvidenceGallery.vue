@@ -8,10 +8,16 @@ const props = defineProps<{ ticketId?: string; orderId?: string }>()
 
 interface Photo {
   id: string
-  kind: 'Antes' | 'Despues'
+  kind: 'Antes' | 'Despues' | 'Contador'
   uploadedAt: string
   url: string
 }
+
+const KIND_TAG = {
+  Antes: { label: 'Antes', type: 'warning' },
+  Despues: { label: 'Después', type: 'success' },
+  Contador: { label: 'Contador', type: 'info' }
+} as const
 
 const photos = ref<Photo[]>([])
 const loading = ref(false)
@@ -52,7 +58,7 @@ onBeforeUnmount(() => photos.value.forEach((p) => URL.revokeObjectURL(p.url)))
       <figure v-for="p in photos" :key="p.id" class="photo">
         <el-image :src="p.url" :preview-src-list="photos.map((x) => x.url)" fit="cover" class="thumb" preview-teleported />
         <figcaption>
-          <el-tag size="small" :type="p.kind === 'Antes' ? 'warning' : 'success'">{{ p.kind === 'Antes' ? 'Antes' : 'Después' }}</el-tag>
+          <el-tag size="small" :type="KIND_TAG[p.kind].type">{{ KIND_TAG[p.kind].label }}</el-tag>
           <span class="when">{{ new Date(p.uploadedAt).toLocaleString() }}</span>
         </figcaption>
       </figure>

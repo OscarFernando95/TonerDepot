@@ -2,7 +2,7 @@ import { http } from './http'
 
 export interface EvidenceDto {
   id: string
-  kind: 'Antes' | 'Despues'
+  kind: 'Antes' | 'Despues' | 'Contador'
   contentType: string
   sizeBytes: number
   uploadedAt: string
