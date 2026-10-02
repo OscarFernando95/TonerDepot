@@ -1,5 +1,6 @@
 package com.tonerdepot.toner_tecnico
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// local_auth (huella / Face ID) necesita FlutterFragmentActivity para mostrar el diálogo biométrico.
+class MainActivity : FlutterFragmentActivity()

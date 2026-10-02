@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/biometric_login_service.dart';
 import '../services/cedula_history_store.dart';
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
@@ -21,13 +22,60 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _submitting = false;
   bool _obscure = true;
   List<String> _cedulaHistory = [];
+  bool _biometricReady = false;
+  String _biometricLabel = 'huella';
 
   @override
   void initState() {
     super.initState();
+    _initBiometrics();
     CedulaHistoryStore.instance.load().then((history) {
       if (mounted) setState(() => _cedulaHistory = history);
     });
+    // Aviso pendiente (p. ej. "Contraseña actualizada…"): se muestra una vez al llegar al login.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthState>();
+      final notice = auth.loginNotice;
+      if (notice == null) return;
+      auth.loginNotice = null;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(notice)));
+    });
+  }
+
+  Future<void> _initBiometrics() async {
+    final service = BiometricLoginService.instance;
+    final ready = await service.isAvailable() && await service.isEnabled();
+    if (!ready || !mounted) return;
+    final label = await service.methodLabel();
+    if (!mounted) return;
+    setState(() {
+      _biometricReady = true;
+      _biometricLabel = label;
+    });
+    // Al abrir la app se pide sola; no tras cerrar sesión a propósito ni cuando hay un aviso que leer.
+    final auth = context.read<AuthState>();
+    if (!auth.signedOutByUser && auth.loginNotice == null) {
+      _submitBiometric();
+    }
+  }
+
+  Future<void> _submitBiometric() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    final auth = context.read<AuthState>();
+    final ok = await auth.loginWithBiometrics();
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    // Si falló por la contraseña vencida, auth.lastError lo explica; si solo se canceló, no hay nada que decir.
+    if (!ok && auth.lastError != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(auth.lastError!)));
+      if (auth.lastError!.startsWith('Tu contraseña cambió')) {
+        setState(() => _biometricReady = false);
+      }
+    }
   }
 
   @override
@@ -45,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _submitting = true);
     final auth = context.read<AuthState>();
+    auth.lastError = null;
     final ok = await auth.login(cedula, password);
     if (mounted) setState(() => _submitting = false);
     if (ok) {
@@ -254,6 +303,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                 ),
                               ),
+                              if (_biometricReady) ...[
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _submitting
+                                        ? null
+                                        : _submitBiometric,
+                                    icon: Icon(
+                                      _biometricLabel == 'Face ID'
+                                          ? Icons.face_outlined
+                                          : Icons.fingerprint,
+                                    ),
+                                    label: Text(
+                                      _biometricLabel == 'Face ID'
+                                          ? 'Ingresar con Face ID'
+                                          : 'Ingresar con huella',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),

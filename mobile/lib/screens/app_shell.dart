@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/role_names.dart';
 import '../router/app_destinations.dart';
+import '../services/biometric_login_service.dart';
 import '../state/auth_state.dart';
 import '../state/my_work_state.dart';
 import '../theme/app_theme.dart';
@@ -23,9 +24,16 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  bool _bioAvailable = false;
+  bool _bioEnabled = false;
+  String _bioLabel = 'huella';
+
   @override
   void initState() {
     super.initState();
+    _loadBiometricState();
+    // Tras un login manual, ofrece activar el ingreso con huella / Face ID.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerBiometrics());
     // "Mi trabajo" es 100% self-service de Tecnico (technician_api.dart) —
     // llamarlo para otro rol solo produce errores 403 que nadie va a ver.
     if (context.read<AuthState>().hasRole(RoleNames.tecnico)) {
@@ -33,6 +41,89 @@ class _AppShellState extends State<AppShell> {
         context.read<MyWorkState>().loadAll();
       });
     }
+  }
+
+  Future<void> _loadBiometricState() async {
+    final service = BiometricLoginService.instance;
+    final available = await service.isAvailable();
+    final enabled = available && await service.isEnabled();
+    final label = available ? await service.methodLabel() : 'huella';
+    if (!mounted) return;
+    setState(() {
+      _bioAvailable = available;
+      _bioEnabled = enabled;
+      _bioLabel = label;
+    });
+  }
+
+  Future<void> _offerBiometrics() async {
+    final offer = context.read<AuthState>().takeBiometricOffer();
+    if (offer == null || !mounted) return;
+    final service = BiometricLoginService.instance;
+    final label = await service.methodLabel();
+    if (!mounted) return;
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          label == 'Face ID'
+              ? '¿Ingresar con Face ID?'
+              : '¿Ingresar con tu huella?',
+        ),
+        content: const Text(
+          'La próxima vez entrarás sin escribir la contraseña. Se guarda cifrada solo en este dispositivo y puedes '
+          'desactivarlo desde el menú.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Ahora no'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Activar'),
+          ),
+        ],
+      ),
+    );
+    if (accept == true) {
+      final ok = await service.enable(offer.cedula, offer.password);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ok
+                ? 'Listo: la próxima vez puedes ingresar con ${label == 'Face ID' ? 'Face ID' : 'tu huella'}.'
+                : 'No se activó el ingreso biométrico.',
+          ),
+        ),
+      );
+      await _loadBiometricState();
+    } else {
+      await service.markDeclined(offer.cedula);
+    }
+  }
+
+  Future<void> _toggleBiometrics() async {
+    final service = BiometricLoginService.instance;
+    final cedula = context.read<AuthState>().currentUser?.cedula;
+    Navigator.of(context).pop();
+    if (_bioEnabled) {
+      await service.disable();
+      if (cedula != null) await service.markDeclined(cedula);
+    } else if (cedula != null) {
+      // Activarlo necesita la contraseña, que no guardamos: se ofrece de nuevo en el próximo ingreso con contraseña.
+      await service.clearDeclined(cedula);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _bioEnabled ? 'Ingreso biométrico desactivado.' : 'Te lo ofreceremos la próxima vez que ingreses con tu contraseña.',
+        ),
+      ),
+    );
+    await _loadBiometricState();
   }
 
   void _selectDestination(AppDestination destination) {
@@ -150,6 +241,19 @@ class _AppShellState extends State<AppShell> {
                       ],
                     ),
                   ),
+                  if (_bioAvailable) ...[
+                    const Divider(height: 1, color: AppColors.neutralSoft),
+                    _DrawerItem(
+                      icon: _bioLabel == 'Face ID'
+                          ? Icons.face_outlined
+                          : Icons.fingerprint,
+                      label: _bioEnabled
+                          ? 'Desactivar ingreso con $_bioLabel'
+                          : 'Activar ingreso con $_bioLabel',
+                      selected: false,
+                      onTap: _toggleBiometrics,
+                    ),
+                  ],
                 ],
               ),
             ),

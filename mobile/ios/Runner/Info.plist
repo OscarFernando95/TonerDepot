@@ -66,6 +66,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Toner usa Face ID para que puedas ingresar sin escribir tu contraseña.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Toner usa la cámara para tomar la foto de evidencia de la falla y del trabajo terminado.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
