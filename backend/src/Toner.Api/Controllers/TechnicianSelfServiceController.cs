@@ -104,8 +104,8 @@ public class TechnicianSelfServiceController : ControllerBase
         return Ok(await _serviceTicketService.ClaimAsync(id, CurrentTechnicianId, cancellationToken));
     }
 
-    // Foto de evidencia (antes / después). Se sube ANTES del check-in/out y su id viaja en esa petición.
-    // multipart/form-data: file + kind (Antes|Despues) + exactamente uno de ticketId / orderId.
+    // Foto de evidencia (antes / después / contador). Se sube ANTES del check-in/out y su id viaja en esa petición.
+    // multipart/form-data: file + kind (Antes|Despues|Contador) + exactamente uno de ticketId / orderId.
     [HttpPost("evidence")]
     [RequestSizeLimit(12 * 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = 12 * 1024 * 1024)]

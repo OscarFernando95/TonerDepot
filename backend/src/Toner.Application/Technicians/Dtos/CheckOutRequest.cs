@@ -16,6 +16,10 @@ public class CheckOutRequest
     // Foto "después" ya subida. Obligatoria cuando se resuelve un ticket u orden (Resolved = true).
     public Guid? AfterEvidenceId { get; set; }
 
+    // Foto del contador ya subida (kind Contador). Obligatoria cuando el cierre de un ticket u orden registra una
+    // lectura (InitialCounterValue): la foto es la prueba de que el número es el que marcaba el equipo.
+    public Guid? CounterEvidenceId { get; set; }
+
     // InitialCounterValue/InitialCounterDate: el contador registrado al cerrar la visita. Obligatorios
     // cuando se cierra una instalación de activo o una orden de mantenimiento (Resolved = true) — es el
     // dato que mantiene actualizado el cronograma. Opcionales al cerrar un ticket de soporte (no toda

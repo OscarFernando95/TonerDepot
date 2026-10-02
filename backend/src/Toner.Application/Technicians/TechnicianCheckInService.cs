@@ -289,6 +289,17 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 technician.UserId, "la foto del resultado (después)", cancellationToken);
         }
 
+        // Foto del contador: si la visita (ticket u orden) registra una lectura, debe venir con su foto. Las
+        // instalaciones no entran: no tienen ticket/orden al que atar evidencia (ver CheckIn).
+        var recordsReading = request.InitialCounterValue.HasValue && (isOrderCheckout || ticketAssetId.HasValue);
+        Evidence? counterPhoto = null;
+        if (isVisitCheckout && ((recordsReading && _evidence.RequirePhotos) || request.CounterEvidenceId.HasValue))
+        {
+            counterPhoto = await RequireEvidenceAsync(
+                request.CounterEvidenceId, EvidenceKind.Contador, openLog.ServiceTicketId, openLog.MaintenanceOrderId,
+                technician.UserId, "la foto del contador", cancellationToken);
+        }
+
         var (siteLat, siteLon) = await GetSiteCoordinatesAsync(openLog.ServiceTicketId, openLog.MaintenanceOrderId, openLog.AssetId, cancellationToken);
         var checkOutLocation = LocationEvaluator.Evaluate(siteLat, siteLon, request.Latitude, request.Longitude, _geo.SiteRadiusMeters);
         if (checkOutLocation.Status == LocationStatus.FueraDeSitio)
@@ -308,6 +319,10 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         if (afterPhoto is not null)
         {
             afterPhoto.TimeLogId = openLog.Id;
+        }
+        if (counterPhoto is not null)
+        {
+            counterPhoto.TimeLogId = openLog.Id;
         }
 
         technician.Status = TechnicianStatus.Disponible;

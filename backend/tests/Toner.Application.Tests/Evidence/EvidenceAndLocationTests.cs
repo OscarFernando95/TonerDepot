@@ -302,4 +302,96 @@ public class EvidenceAndLocationTests
         Assert.Equal(LocationStatus.EnSitio, log.CheckOutLocationStatus);
         Assert.All(await check.Evidences.ToListAsync(), e => Assert.Equal(log.Id, e.TimeLogId));
     }
+
+    // ── Foto del contador ────────────────────────────────────────────────────────────────────────
+    // Ticket CON activo en curso (check-in hecho) para ejercitar la rama que registra la lectura.
+    private static async Task<Scenario> SeedTicketConActivoEnCursoAsync()
+    {
+        var s = await SeedAsync();
+        using (var db = TonerTestDb.CreateContext(s.DbName))
+        {
+            var ticket = await db.ServiceTickets.SingleAsync();
+            var brand = TestEntities.AssetBrand();
+            var model = TestEntities.AssetModel(brand);
+            var asset = TestEntities.Asset(model);
+            asset.ClientId = s.ClientId;
+            db.AddRange(brand, model, asset);
+            ticket.AssetId = asset.Id;
+            await db.SaveChangesAsync();
+        }
+
+        var before = await UploadAsync(s, EvidenceKind.Antes);
+        using (var db = TonerTestDb.CreateContext(s.DbName))
+        {
+            await TestCheckIn.Create(db, requirePhotos: true).CheckInAsync(s.TechnicianId, new CheckInRequest { ServiceTicketId = s.TicketId, BeforeEvidenceId = before });
+        }
+
+        return s;
+    }
+
+    [Fact]
+    public async Task CheckOut_ConLecturaSinFotoDelContador_SeRechaza()
+    {
+        var s = await SeedTicketConActivoEnCursoAsync();
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+            {
+                Resolved = true, AfterEvidenceId = after, InitialCounterValue = 1000
+            }));
+        Assert.Contains("foto del contador", ex.Message);
+    }
+
+    [Fact]
+    public async Task CheckOut_ConFotoDelContadorDeOtroTipo_SeRechaza()
+    {
+        var s = await SeedTicketConActivoEnCursoAsync();
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+        var wrongKind = await UploadAsync(s, EvidenceKind.Despues);
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+            {
+                Resolved = true, AfterEvidenceId = after, InitialCounterValue = 1000, CounterEvidenceId = wrongKind
+            }));
+    }
+
+    [Fact]
+    public async Task CheckOut_ConLecturaYFotoDelContador_QuedaAtadaALaVisita()
+    {
+        var s = await SeedTicketConActivoEnCursoAsync();
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+        var counter = await UploadAsync(s, EvidenceKind.Contador);
+
+        using (var db = TonerTestDb.CreateContext(s.DbName))
+        {
+            await TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+            {
+                Resolved = true, AfterEvidenceId = after, InitialCounterValue = 1000, CounterEvidenceId = counter
+            });
+        }
+
+        using var check = TonerTestDb.CreateContext(s.DbName);
+        var log = await check.TimeLogs.SingleAsync();
+        var photo = await check.Evidences.SingleAsync(e => e.Id == counter);
+        Assert.Equal(EvidenceKind.Contador, photo.Kind);
+        Assert.Equal(log.Id, photo.TimeLogId);
+        Assert.Single(await check.MeterReadings.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CheckOut_SinLectura_NoExigeFotoDelContador()
+    {
+        var s = await SeedTicketConActivoEnCursoAsync();
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        await TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+        {
+            Resolved = true, AfterEvidenceId = after
+        });
+    }
 }
