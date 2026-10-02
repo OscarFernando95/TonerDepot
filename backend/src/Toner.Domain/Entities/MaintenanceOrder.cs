@@ -28,6 +28,11 @@ public class MaintenanceOrder : BaseEntity
     public bool IncludesUnits { get; set; }
     public bool IncludesConsumables { get; set; }
 
+    // true si la pidió el staff a demanda (fuera de los umbrales del cronograma). Las generadas por el motor son false.
+    public bool IsManual { get; set; }
+    public Guid? RequestedByUserId { get; set; }
+    public string? Reason { get; set; }
+
     public Guid? TechnicianId { get; set; }
     public Technician? Technician { get; set; }
 

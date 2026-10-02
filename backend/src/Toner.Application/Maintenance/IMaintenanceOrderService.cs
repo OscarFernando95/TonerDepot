@@ -15,6 +15,9 @@ public interface IMaintenanceOrderService
     // Puramente informativo: no da derecho a check-in, solo visibilidad de lo que pasa en su zona.
     Task<PagedResult<MaintenanceOrderDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
+    // Mantenimiento a demanda de un equipo instalado: crea la orden y la asigna por el mismo motor que las
+    // programadas (si no hay técnico disponible queda Pendiente y el job la recoge).
+    Task<MaintenanceOrderDto> CreateManualAsync(CreateManualMaintenanceOrderRequest request, Guid requestedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> AssignAsync(Guid id, AssignMaintenanceOrderRequest request, Guid assignedByUserId, CancellationToken cancellationToken = default);
 
     // El propio técnico se autoasigna una orden Pendiente o asignada a otro técnico que aún no la

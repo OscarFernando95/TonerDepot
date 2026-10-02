@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Assignment;
 using Toner.Application.Common.Paging;
 using Toner.Application.Common;
 using Toner.Application.Common.Dtos;
@@ -20,11 +21,63 @@ public class MaintenanceOrderService : IMaintenanceOrderService
 
     private readonly IApplicationDbContext _db;
     private readonly IMaintenanceScheduleEngine _engine;
+    private readonly IAssignmentEngine _assignmentEngine;
 
-    public MaintenanceOrderService(IApplicationDbContext db, IMaintenanceScheduleEngine engine)
+    public MaintenanceOrderService(IApplicationDbContext db, IMaintenanceScheduleEngine engine, IAssignmentEngine assignmentEngine)
     {
         _db = db;
         _engine = engine;
+        _assignmentEngine = assignmentEngine;
+    }
+
+    public async Task<MaintenanceOrderDto> CreateManualAsync(
+        CreateManualMaintenanceOrderRequest request, Guid requestedByUserId, CancellationToken cancellationToken = default)
+    {
+        var asset = await _db.Assets.FirstOrDefaultAsync(a => a.Id == request.AssetId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Asset), request.AssetId);
+
+        if (asset.LifecycleStatus != AssetLifecycleStatus.Instalado)
+        {
+            throw new ConflictException($"Solo se puede pedir mantenimiento de un activo instalado (estado actual: '{asset.LifecycleStatus}').");
+        }
+
+        // Toda orden cuelga de un cronograma (de ahí salen el cliente y el contrato): un equipo instalado sin
+        // cronograma activo no está bajo contrato.
+        var schedule = await _db.MaintenanceSchedules
+            .FirstOrDefaultAsync(s => s.AssetId == asset.Id && s.IsActive, cancellationToken)
+            ?? throw new ConflictException("Este activo no tiene un cronograma de mantenimiento activo (no está bajo un contrato vigente).");
+
+        var hasOpenOrder = await _db.MaintenanceOrders.AnyAsync(
+            o => o.AssetId == asset.Id
+                && (o.Status == MaintenanceOrderStatus.Pendiente || o.Status == MaintenanceOrderStatus.Asignada || o.Status == MaintenanceOrderStatus.EnProceso),
+            cancellationToken);
+        if (hasOpenOrder)
+        {
+            throw new ConflictException("Este activo ya tiene una orden de mantenimiento abierta. Complétala o cancélala antes de pedir otra.");
+        }
+
+        var order = new MaintenanceOrder
+        {
+            MaintenanceScheduleId = schedule.Id,
+            AssetId = asset.Id,
+            ClientId = schedule.ClientId,
+            Status = MaintenanceOrderStatus.Pendiente,
+            ScheduledDate = DateTime.UtcNow,
+            IncludesGeneral = request.IncludesGeneral,
+            IncludesUnits = request.IncludesUnits,
+            IncludesConsumables = request.IncludesConsumables,
+            IsManual = true,
+            RequestedByUserId = requestedByUserId,
+            Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim()
+        };
+        _db.MaintenanceOrders.Add(order);
+
+        // Mismo patrón que ServiceTicketService.CreateAsync: la asignación corre sobre la entidad sin guardar y
+        // todo cae en un único SaveChanges.
+        await _assignmentEngine.AssignMaintenanceOrderAsync(order, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(order.Id, cancellationToken);
     }
 
     public async Task<PagedResult<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
@@ -287,6 +340,8 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             IncludesGeneral = o.IncludesGeneral,
             IncludesUnits = o.IncludesUnits,
             IncludesConsumables = o.IncludesConsumables,
+            IsManual = o.IsManual,
+            Reason = o.Reason,
             ScheduledDate = o.ScheduledDate,
             CompletedAt = o.CompletedAt,
             CreatedAt = o.CreatedAt

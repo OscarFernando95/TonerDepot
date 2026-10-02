@@ -50,7 +50,7 @@ public static class TestCheckIn
         return new(
             db,
             new ServiceTicketService(db, assignmentEngine),
-            new MaintenanceOrderService(db, scheduleEngine),
+            new MaintenanceOrderService(db, scheduleEngine, assignmentEngine),
             new AssetService(db, scheduleEngine, assignmentEngine),
             scheduleEngine,
             assignmentEngine,

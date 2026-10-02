@@ -17,6 +17,7 @@ public class MaintenanceOrderConfiguration : IEntityTypeConfiguration<Maintenanc
         builder.HasIndex(o => o.ClientId);
 
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(o => o.Reason).HasMaxLength(500);
 
         // CODE_QUALITY_AUDIT.md hallazgo #11: los listados ordenan por CreatedAt DESC sin índice de
         // soporte; el dashboard filtra por CompletedAt (acotado a las órdenes ya completadas).

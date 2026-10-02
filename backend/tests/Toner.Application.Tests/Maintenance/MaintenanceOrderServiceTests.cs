@@ -27,7 +27,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
         var before = DateTime.UtcNow;
 
         var result = await service.CompleteAsync(order.Id, new CompleteMaintenanceOrderRequest { CounterValue = 20000 }, Guid.NewGuid());
@@ -65,7 +65,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await service.CompleteAsync(order.Id, new CompleteMaintenanceOrderRequest { CounterValue = 30000 }, Guid.NewGuid());
 
@@ -94,7 +94,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             service.CompleteAsync(order.Id, new CompleteMaintenanceOrderRequest { CounterValue = 10000 }, Guid.NewGuid()));
@@ -118,7 +118,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             service.CompleteAsync(order.Id, new CompleteMaintenanceOrderRequest { CounterValue = 100 }, Guid.NewGuid()));
@@ -140,7 +140,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() => service.CancelAsync(order.Id));
     }
@@ -161,7 +161,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() => service.AssignAsync(
             order.Id,
@@ -218,7 +218,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = (await service.ListInCoverageAsync(viewerTechnician.Id, null, null)).Items;
 
@@ -250,7 +250,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         var result = await service.ClaimAsync(order.Id, claimingTechnician.Id);
 
@@ -285,7 +285,7 @@ public class MaintenanceOrderServiceTests
         await arrangeDb.SaveChangesAsync();
 
         using var actDb = TonerTestDb.CreateContext(dbName);
-        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb));
+        var service = new MaintenanceOrderService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
         await Assert.ThrowsAsync<ConflictException>(() => service.ClaimAsync(order.Id, claimingTechnician.Id));
     }

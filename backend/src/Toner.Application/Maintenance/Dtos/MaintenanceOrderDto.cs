@@ -16,6 +16,10 @@ public class MaintenanceOrderDto
     public bool IncludesGeneral { get; set; }
     public bool IncludesUnits { get; set; }
     public bool IncludesConsumables { get; set; }
+
+    // Pedida a demanda por el staff (no por umbral del cronograma), con el motivo que dio.
+    public bool IsManual { get; set; }
+    public string? Reason { get; set; }
     public DateTime ScheduledDate { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime CreatedAt { get; set; }

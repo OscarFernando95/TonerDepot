@@ -20,12 +20,15 @@ public class MaintenanceOrdersController : ControllerBase
     private readonly IMaintenanceOrderService _orderService;
     private readonly IValidator<AssignMaintenanceOrderRequest> _assignValidator;
     private readonly IValidator<CompleteMaintenanceOrderRequest> _completeValidator;
+    private readonly IValidator<CreateManualMaintenanceOrderRequest> _createManualValidator;
 
     public MaintenanceOrdersController(
         IMaintenanceOrderService orderService,
         IValidator<AssignMaintenanceOrderRequest> assignValidator,
-        IValidator<CompleteMaintenanceOrderRequest> completeValidator)
+        IValidator<CompleteMaintenanceOrderRequest> completeValidator,
+        IValidator<CreateManualMaintenanceOrderRequest> createManualValidator)
     {
+        _createManualValidator = createManualValidator;
         _orderService = orderService;
         _assignValidator = assignValidator;
         _completeValidator = completeValidator;
@@ -43,6 +46,17 @@ public class MaintenanceOrdersController : ControllerBase
     public async Task<ActionResult<MaintenanceOrderDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _orderService.GetByIdAsync(CurrentUser, id, cancellationToken));
+    }
+
+    // Mantenimiento a demanda de un equipo instalado, fuera de los umbrales del cronograma.
+    [HttpPost]
+    [Authorize(Roles = RoleNames.StaffRoles)]
+    public async Task<ActionResult<MaintenanceOrderDto>> CreateManual([FromBody] CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken)
+    {
+        await _createManualValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var order = await _orderService.CreateManualAsync(request, CurrentUser.UserId, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
     }
 
     [HttpPost("{id:guid}/assign")]
