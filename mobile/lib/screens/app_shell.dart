@@ -134,14 +134,22 @@ class _AppShellState extends State<AppShell> {
                     ),
                   ),
                   const Divider(height: 1, color: AppColors.neutralSoft),
-                  const SizedBox(height: 8),
-                  for (final destination in visibleDestinations)
-                    _DrawerItem(
-                      icon: destination.icon,
-                      label: destination.label,
-                      selected: destination.path == currentPath,
-                      onTap: () => _selectDestination(destination),
+                  // El encabezado queda fijo y los módulos se deslizan: un rol de staff tiene más módulos de los que
+                  // caben en pantalla (y en pantallas bajas ni siquiera los de un técnico).
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: [
+                        for (final destination in visibleDestinations)
+                          _DrawerItem(
+                            icon: destination.icon,
+                            label: destination.label,
+                            selected: destination.path == currentPath,
+                            onTap: () => _selectDestination(destination),
+                          ),
+                      ],
                     ),
+                  ),
                 ],
               ),
             ),
