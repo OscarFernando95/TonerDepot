@@ -27,6 +27,8 @@ public class RealtimeAudienceTests
     [InlineData("Evidence")]
     [InlineData("Schedule")]
     [InlineData("User")]
+    [InlineData("Holiday")]
+    [InlineData("TechnicianAsset")]
     public void EntidadesInternas_NuncaVanAUnCliente(string entity)
     {
         var groups = RealtimeAudience.GroupsFor(new EntityChange(entity, Guid.NewGuid(), "updated", Client, new[] { TechA }));
@@ -40,6 +42,25 @@ public class RealtimeAudienceTests
     {
         var groups = RealtimeAudience.GroupsFor(new EntityChange("Asset", Guid.NewGuid(), "updated", null, Array.Empty<Guid>()));
 
-        Assert.Equal(new[] { RealtimeGroups.Staff }, groups);
+        Assert.Equivalent(new[] { RealtimeGroups.Staff, RealtimeGroups.AllTechnicians }, groups);
+        Assert.DoesNotContain(groups, g => g.StartsWith("client:"));
+    }
+
+    [Theory]
+    [InlineData("Holiday")]
+    [InlineData("MeterReading")]
+    [InlineData("Asset")]
+    public void CosasCompartidasPorElEquipo_VanATodosLosTecnicos(string entity)
+    {
+        var groups = RealtimeAudience.GroupsFor(new EntityChange(entity, Guid.NewGuid(), "updated", Client, Array.Empty<Guid>()));
+
+        Assert.Contains(RealtimeGroups.AllTechnicians, groups);
+    }
+
+    [Fact]
+    public void LecturaDeContador_VaAlClienteDueno()
+    {
+        Assert.Contains(RealtimeGroups.Client(Client),
+            RealtimeAudience.GroupsFor(new EntityChange("MeterReading", Guid.NewGuid(), "created", Client, Array.Empty<Guid>())));
     }
 }

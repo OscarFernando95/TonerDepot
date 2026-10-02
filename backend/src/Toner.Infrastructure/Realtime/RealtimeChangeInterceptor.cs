@@ -130,6 +130,18 @@ public sealed class RealtimeChangeInterceptor : SaveChangesInterceptor
                 case MaintenanceSchedule schedule:
                     pending.Changes.Add(new("Schedule", schedule.Id, action, schedule.ClientId, Array.Empty<Guid>()));
                     break;
+                case MeterReading reading:
+                    pending.Changes.Add(new("MeterReading", reading.Id, action, reading.ClientId, Array.Empty<Guid>()));
+                    break;
+                case CompanyHolidayOverride holiday:
+                    pending.Changes.Add(new("Holiday", holiday.Id, action, null, Array.Empty<Guid>()));
+                    break;
+                case TechnicianAsset link:
+                    pending.Changes.Add(new("TechnicianAsset", link.Id, action, null, new[] { link.TechnicianId }));
+                    break;
+                case ContractAsset contractAsset:
+                    pending.Changes.Add(new("Contract", contractAsset.ContractId, "updated", contractAsset.ClientId, Array.Empty<Guid>()));
+                    break;
                 case User user:
                     pending.Changes.Add(new("User", user.Id, action, null, Array.Empty<Guid>()));
                     break;

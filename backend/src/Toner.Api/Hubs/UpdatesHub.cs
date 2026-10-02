@@ -12,6 +12,7 @@ namespace Toner.Api.Hubs;
 // A qué grupos se une cada conexión lo decide el servidor a partir del token, nunca el cliente:
 //   staff            → Administrador y Coordinador (ven todo lo que la API les deja ver)
 //   tech:{id}        → un Tecnico, solo lo suyo
+//   technicians      → todos los Tecnicos (festivos, lecturas de contador: cosas compartidas por el equipo)
 //   client:{id}      → un Cliente, solo lo de su empresa
 //   session:{jti}    → para poder cortar el canal cuando la sesión se revoca
 [Authorize(Roles = $"{RoleNames.Administrador},{RoleNames.Coordinador},{RoleNames.Tecnico},{RoleNames.Cliente}")]
@@ -37,6 +38,7 @@ public class UpdatesHub : Hub
         else if (role == RoleNames.Tecnico && Guid.TryParse(user.FindFirstValue("technician_id"), out var technicianId))
         {
             groups.Add(RealtimeGroups.Technician(technicianId));
+            groups.Add(RealtimeGroups.AllTechnicians);
         }
         else if (role == RoleNames.Cliente && Guid.TryParse(user.FindFirstValue("client_id"), out var clientId))
         {
@@ -68,6 +70,7 @@ public class UpdatesHub : Hub
 public static class RealtimeGroups
 {
     public const string Staff = "staff";
+    public const string AllTechnicians = "technicians";
     public static string Technician(Guid id) => $"tech:{id}";
     public static string Client(Guid id) => $"client:{id}";
     public static string Session(Guid id) => $"session:{id}";
