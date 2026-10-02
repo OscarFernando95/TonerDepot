@@ -65,6 +65,8 @@ export interface PendingInstallationDto {
   contractStartDate: string | null
   contractEndDate: string | null
   takenByAnotherTechnician: boolean
+  // false si ahora mismo no puede iniciarla por horario (fuera de jornada, festivo o permiso); el backend lo exige igual.
+  canStartNow: boolean
 }
 
 export function getMyStatus() {

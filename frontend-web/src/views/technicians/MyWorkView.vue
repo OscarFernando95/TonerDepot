@@ -613,6 +613,9 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
           <el-table-column label="" width="160">
             <template #default="{ row }">
               <el-tag v-if="row.takenByAnotherTechnician" type="info" size="small">Tomada por otro técnico</el-tag>
+              <el-tooltip v-else-if="!row.canStartNow" content="Fuera de tu horario laboral, festivo o en permiso" placement="left">
+                <el-tag type="warning" size="small">Fuera de horario</el-tag>
+              </el-tooltip>
               <el-button
                 v-else
                 type="primary"
