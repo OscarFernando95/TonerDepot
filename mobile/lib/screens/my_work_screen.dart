@@ -74,6 +74,7 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
   Future<void> _handleCheckOut(MyWorkState state) async {
     final submission = await CheckoutSheet.show(
       context,
+      inventoryApi: state.inventoryApi,
       activeTicket: state.activeTicket,
       activeOrder: state.activeOrder,
       activeInstallation: state.activeInstallation,
@@ -100,7 +101,41 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
           ),
         ),
       );
+      // La visita ya quedó cerrada; los avisos de stock son informativos.
+      if (state.lastStockWarnings.isNotEmpty) {
+        await _showStockWarnings(state.lastStockWarnings);
+      }
     }
+  }
+
+  Future<void> _showStockWarnings(List<String> warnings) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Avisos de inventario'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('La visita ya quedó cerrada.'),
+              const SizedBox(height: 8),
+              for (final w in warnings)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text('• $w'),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

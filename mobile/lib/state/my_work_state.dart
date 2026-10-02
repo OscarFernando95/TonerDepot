@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../services/api_client.dart';
 import '../services/device_capture.dart';
+import '../services/inventory_api.dart';
 import '../services/maintenance_order_api.dart';
 import '../services/realtime_service.dart';
 import '../services/technician_api.dart';
@@ -21,7 +22,8 @@ class MyWorkState extends ChangeNotifier {
   MyWorkState(ApiClient client)
     : _technicianApi = TechnicianApi(client),
       _ticketApi = TicketApi(client),
-      _orderApi = MaintenanceOrderApi(client) {
+      _orderApi = MaintenanceOrderApi(client),
+      inventoryApi = InventoryApi(client) {
     // Un ticket/orden asignado o quitado desde la web actualiza esta pantalla sola. No mientras hay una
     // acción de check-in/out en curso (busyWithAction): eso ya recarga todo al terminar.
     _unsubscribe = RealtimeService.instance.subscribe(
@@ -42,6 +44,9 @@ class MyWorkState extends ChangeNotifier {
   final TechnicianApi _technicianApi;
   final TicketApi _ticketApi;
   final MaintenanceOrderApi _orderApi;
+
+  /// Kit y repuestos del check-out (la hoja los consulta directamente).
+  final InventoryApi inventoryApi;
   late final VoidCallback _unsubscribe;
 
   @override
@@ -53,6 +58,9 @@ class MyWorkState extends ChangeNotifier {
   bool loading = false;
   bool busyWithAction = false;
   String? error;
+
+  /// Avisos de stock negativo del último check-out exitoso (la visita ya está cerrada); vacío si no hubo.
+  List<String> lastStockWarnings = [];
 
   TechnicianSelfStatus? status;
   List<ServiceTicket> tickets = [];
@@ -229,9 +237,11 @@ class MyWorkState extends ChangeNotifier {
     Future<TechnicianSelfStatus> Function() action,
   ) async {
     busyWithAction = true;
+    lastStockWarnings = [];
     notifyListeners();
     try {
-      await action();
+      final result = await action();
+      lastStockWarnings = result.stockWarnings;
       await loadAll();
       return null;
     } catch (e, st) {

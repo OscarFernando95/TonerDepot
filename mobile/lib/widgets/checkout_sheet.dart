@@ -5,10 +5,13 @@ import '../theme/app_theme.dart';
 import '../models/maintenance_order.dart';
 import '../models/pending_installation.dart';
 import '../models/service_ticket.dart';
+import '../models/inventory.dart';
 import '../services/device_capture.dart';
+import '../services/inventory_api.dart';
 import '../services/technician_api.dart';
 import 'animated_gradient_border.dart';
 import 'clay_date_field.dart';
+import 'parts_section.dart';
 
 /// Hoja modal de check-out. Reglas de campos obligatorios espejo de
 /// checkoutFormValid en MyWorkView.vue:
@@ -35,14 +38,18 @@ class CheckoutSheet extends StatefulWidget {
     this.activeTicket,
     this.activeOrder,
     this.activeInstallation,
+    required this.inventoryApi,
   });
 
+  /// Para el kit y la búsqueda de repuestos de "Piezas cambiadas".
+  final InventoryApi inventoryApi;
   final ServiceTicket? activeTicket;
   final MaintenanceOrder? activeOrder;
   final PendingInstallation? activeInstallation;
 
   static Future<CheckoutSubmission?> show(
     BuildContext context, {
+    required InventoryApi inventoryApi,
     ServiceTicket? activeTicket,
     MaintenanceOrder? activeOrder,
     PendingInstallation? activeInstallation,
@@ -61,6 +68,7 @@ class CheckoutSheet extends StatefulWidget {
         ),
       ),
       builder: (_) => CheckoutSheet(
+        inventoryApi: inventoryApi,
         activeTicket: activeTicket,
         activeOrder: activeOrder,
         activeInstallation: activeInstallation,
@@ -88,6 +96,8 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
   bool? _unitsMaintenanceDone;
   XFile? _photo;
   XFile? _counterPhoto;
+  // Piezas cambiadas (kit base marcado + repuestos). Solo tickets y órdenes; nunca bloquea el cierre.
+  final _parts = PartsSelection();
 
   // Foto del resultado: obligatoria al resolver un ticket u orden (no una instalación).
   bool get _requiresPhoto =>
@@ -102,6 +112,16 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
   bool get _isExternalTicket => widget.activeTicket?.isExternal ?? false;
   bool get _hasOrder => widget.activeOrder != null;
   bool get _hasInstallation => widget.activeInstallation != null;
+
+  // Las instalaciones no llevan piezas (el servidor responde 409 si se envían).
+  bool get _offersParts =>
+      !_hasInstallation && (widget.activeTicket != null || _hasOrder);
+
+  // El kit base solo aplica a órdenes que incluyen cambio de consumibles.
+  bool get _loadsKit => _hasOrder && widget.activeOrder!.includesConsumables;
+
+  String? get _partsAssetId =>
+      widget.activeOrder?.assetId ?? widget.activeTicket?.assetId;
 
   // Restringe el selector de fecha a la vigencia del contrato cuando se conoce (instalaciones) — evita
   // que el técnico elija una fecha que el backend va a rechazar de todos modos. Fuera de ese caso
@@ -137,6 +157,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
     _externalBrandController.dispose();
     _externalModelController.dispose();
     _externalCounterController.dispose();
+    _parts.dispose();
     super.dispose();
   }
 
@@ -175,6 +196,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
           externalAssetCounter: _isExternalTicket
               ? int.tryParse(_externalCounterController.text.trim())
               : null,
+          parts: _offersParts ? _parts.toUsedParts() : const [],
         ),
         _requiresPhoto ? _photo : null,
         (_requiresCounterPhoto || _offersOptionalCounterPhoto)
@@ -471,6 +493,24 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                     ],
                   ),
                 ],
+                if (_offersParts && !_resolved)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Cierre parcial: las piezas marcadas abajo se descuentan ahora.',
+                      style: TextStyle(
+                        color: AppColors.signalAmber,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                if (_offersParts)
+                  PartsSection(
+                    selection: _parts,
+                    api: widget.inventoryApi,
+                    assetId: _partsAssetId,
+                    loadKit: _loadsKit,
+                  ),
                 const SizedBox(height: 16),
                 AnimatedGradientBorder(
                   child: SizedBox(

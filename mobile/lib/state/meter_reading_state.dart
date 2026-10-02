@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/meter_reading_asset.dart';
 import '../services/api_client.dart';
+import '../services/inventory_api.dart';
 import '../services/realtime_service.dart';
 import '../services/meter_reading_api.dart';
 
@@ -43,7 +44,9 @@ class MeterCityGroup {
 /// Nunca se fusionan: un mismo activo puede aparecer en ambas si, además de
 /// estar vinculado a este técnico, también cae en su cobertura.
 class MeterReadingState extends ChangeNotifier {
-  MeterReadingState(ApiClient client) : _api = MeterReadingApi(client) {
+  MeterReadingState(ApiClient client)
+    : _api = MeterReadingApi(client),
+      inventoryApi = InventoryApi(client) {
     // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
     _unsubscribe = RealtimeService.instance.subscribe(
       ['MeterReading', 'Asset'],
@@ -56,6 +59,9 @@ class MeterReadingState extends ChangeNotifier {
   }
 
   final MeterReadingApi _api;
+
+  /// Registro e historial de tóner por máquina (lo usa el formulario "Tóner" de cada tarjeta).
+  final InventoryApi inventoryApi;
   static const _noCity = 'Sin ciudad';
   static const _noClient = 'Sin cliente';
 

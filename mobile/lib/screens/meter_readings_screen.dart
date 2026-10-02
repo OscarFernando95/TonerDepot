@@ -10,6 +10,7 @@ import '../widgets/clay_date_field.dart';
 import '../widgets/clay_segmented_control.dart';
 import '../widgets/clay_surface.dart';
 import '../widgets/list_filter_dropdown.dart';
+import '../widgets/toner_sheet.dart';
 
 /// Técnico ve dos pestañas propias de la app, sin equivalente en la web:
 /// "Vinculados" (activos que un admin le asignó explícitamente) y "Por
@@ -166,6 +167,26 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
     }
   }
 
+  /// Registro de tóner: solo sobre las máquinas vinculadas al técnico (el servidor rechaza las demás).
+  Future<void> _openTonerSheet(MeterReadingAsset asset) async {
+    final entry = await TonerSheet.show(
+      context,
+      api: context.read<MeterReadingState>().inventoryApi,
+      asset: asset,
+    );
+    if (entry == null || !mounted) return;
+    final warning = entry.stockWarning;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          warning == null || warning.isEmpty
+              ? 'Tóner registrado.'
+              : 'Tóner registrado. $warning',
+        ),
+      ),
+    );
+  }
+
   Widget _buildList(MeterReadingState state, {required bool coverage}) {
     final loading = coverage ? state.loadingCoverage : state.loading;
     final error = coverage ? state.coverageError : state.error;
@@ -229,7 +250,10 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     ),
                   ),
                 ),
-                children: [for (final asset in group.assets) _assetCard(asset)],
+                children: [
+                  for (final asset in group.assets)
+                    _assetCard(asset, showToner: !coverage),
+                ],
               ),
             ),
         ],
@@ -239,7 +263,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
 
   /// Tarjeta de un activo, con su botón "Registrar" — reutilizada por las
   /// pestañas de Técnico y por la vista de Staff.
-  Widget _assetCard(MeterReadingAsset asset) {
+  Widget _assetCard(MeterReadingAsset asset, {bool showToner = false}) {
     return ClayCard(
       padding: EdgeInsets.zero,
       // Row en vez de ListTile(isThreeLine): el tile tiene alto
@@ -273,9 +297,22 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            FilledButton(
-              onPressed: () => _openRegisterSheet(asset),
-              child: const Text('Registrar'),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton(
+                  onPressed: () => _openRegisterSheet(asset),
+                  child: const Text('Registrar'),
+                ),
+                if (showToner) ...[
+                  const SizedBox(height: 6),
+                  OutlinedButton(
+                    onPressed: () => _openTonerSheet(asset),
+                    child: const Text('Tóner'),
+                  ),
+                ],
+              ],
             ),
           ],
         ),
@@ -371,7 +408,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
         children: [
           for (final cityGroup in groups)
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(horizontal: 4),
                 title: Container(
@@ -397,9 +435,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 0, 8),
                       child: Theme(
-                        data: Theme.of(
-                          context,
-                        ).copyWith(dividerColor: Colors.transparent),
+                        data: Theme.of(context)
+                            .copyWith(dividerColor: Colors.transparent),
                         child: ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           title: Text(
@@ -439,9 +476,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                 ],
               ),
             ),
-            Expanded(
-              child: _buildList(state, coverage: _tab == 'coverage'),
-            ),
+            Expanded(child: _buildList(state, coverage: _tab == 'coverage')),
           ],
         );
       },

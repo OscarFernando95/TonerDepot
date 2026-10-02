@@ -8,10 +8,14 @@ class PagedResult<T> {
   final int pageSize;
   final bool hasMore;
 
+  /// Solo en listados por cursor (keyset): el cursor de la página siguiente.
+  final String? nextCursor;
+
   PagedResult({
     required this.items,
     required this.pageSize,
     required this.hasMore,
+    this.nextCursor,
   });
 
   factory PagedResult.fromJson(
@@ -23,6 +27,7 @@ class PagedResult<T> {
       items: rawItems.map((e) => fromJsonT(e as Map<String, dynamic>)).toList(),
       pageSize: json['pageSize'] as int? ?? rawItems.length,
       hasMore: json['hasMore'] as bool? ?? false,
+      nextCursor: json['nextCursor'] as String?,
     );
   }
 }

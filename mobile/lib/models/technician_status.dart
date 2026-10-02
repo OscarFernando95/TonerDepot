@@ -6,6 +6,9 @@ class TechnicianSelfStatus {
   final String? activeAssetInstallationId;
   final String? checkedInAt;
 
+  /// Avisos de stock insuficiente al cerrar la visita (la visita se cierra igual).
+  final List<String> stockWarnings;
+
   TechnicianSelfStatus({
     required this.technicianId,
     required this.status,
@@ -13,6 +16,7 @@ class TechnicianSelfStatus {
     required this.activeMaintenanceOrderId,
     required this.activeAssetInstallationId,
     required this.checkedInAt,
+    this.stockWarnings = const [],
   });
 
   bool get isBusy => status == 'Ocupado';
@@ -25,5 +29,8 @@ class TechnicianSelfStatus {
         activeMaintenanceOrderId: json['activeMaintenanceOrderId'] as String?,
         activeAssetInstallationId: json['activeAssetInstallationId'] as String?,
         checkedInAt: json['checkedInAt'] as String?,
+        stockWarnings: (json['stockWarnings'] as List<dynamic>? ?? [])
+            .map((e) => e.toString())
+            .toList(),
       );
 }

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/inventory.dart';
 import '../models/paged_result.dart';
 import '../models/pending_installation.dart';
 import '../models/technician_status.dart';
@@ -56,6 +57,9 @@ class CheckOutRequest {
   final String? externalAssetModel;
   final int? externalAssetCounter;
 
+  /// Piezas usadas (kit marcado + repuestos). Solo tickets y órdenes: el servidor responde 409 en instalaciones.
+  final List<UsedPart> parts;
+
   /// Ubicación al cerrar y foto "después" ya subida (obligatoria al resolver un ticket u orden).
   // No son final: MyWorkState los completa (ubicación y foto ya subida) justo antes de enviar.
   PositionFix? position;
@@ -76,6 +80,7 @@ class CheckOutRequest {
     this.externalAssetBrand,
     this.externalAssetModel,
     this.externalAssetCounter,
+    this.parts = const [],
     this.position,
     this.afterEvidenceId,
     this.counterEvidenceId,
@@ -93,6 +98,7 @@ class CheckOutRequest {
     'externalAssetBrand': externalAssetBrand,
     'externalAssetModel': externalAssetModel,
     'externalAssetCounter': externalAssetCounter,
+    if (parts.isNotEmpty) 'parts': parts.map((p) => p.toJson()).toList(),
     if (position != null) ...{
       'latitude': position!.latitude,
       'longitude': position!.longitude,
