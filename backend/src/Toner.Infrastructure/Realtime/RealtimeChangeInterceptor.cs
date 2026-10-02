@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Toner.Application.Realtime;
+using Toner.Domain.Common;
 using Toner.Domain.Entities;
 
 namespace Toner.Infrastructure.Realtime;
@@ -111,6 +112,10 @@ public sealed class RealtimeChangeInterceptor : SaveChangesInterceptor
                     break;
                 case TechnicianZone technicianZone:
                     pending.Changes.Add(new("Technician", technicianZone.TechnicianId, "updated", null, new[] { technicianZone.TechnicianId }));
+                    break;
+                case InventoryMovement or InventoryItem or InventoryLocation:
+                    // Un solo aviso genérico: quien lo recibe vuelve a pedir lo que esté mostrando.
+                    pending.Changes.Add(new("Inventory", ((BaseEntity)entry.Entity).Id, "updated", null, Array.Empty<Guid>()));
                     break;
                 case Zone zone:
                     pending.Changes.Add(new("Zone", zone.Id, action, null, Array.Empty<Guid>()));

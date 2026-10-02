@@ -24,6 +24,11 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public DbSet<ClientLocation> ClientLocations => Set<ClientLocation>();
 
     public DbSet<Technician> Technicians => Set<Technician>();
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+    public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
+    public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<BrandBaseItem> BrandBaseItems => Set<BrandBaseItem>();
+    public DbSet<ModelBaseItem> ModelBaseItems => Set<ModelBaseItem>();
     public DbSet<Zone> Zones => Set<Zone>();
     public DbSet<TechnicianZone> TechnicianZones => Set<TechnicianZone>();
     public DbSet<TechnicianAsset> TechnicianAssets => Set<TechnicianAsset>();

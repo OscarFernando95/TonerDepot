@@ -3,6 +3,7 @@ using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Zones.Dtos;
 using Toner.Domain.Entities;
+using Toner.Domain.Enums;
 
 namespace Toner.Application.Zones;
 
@@ -22,6 +23,8 @@ public class ZoneService : IZoneService
 
         var zone = new Zone { Name = name };
         _db.Zones.Add(zone);
+        // Cada zona lleva su propio inventario: la ubicación nace con ella (mismo SaveChanges).
+        _db.InventoryLocations.Add(new InventoryLocation { Kind = InventoryLocationKind.Zona, Zone = zone });
         await _db.SaveChangesAsync(cancellationToken);
 
         return await GetAsync(zone.Id, cancellationToken);
@@ -75,6 +78,18 @@ public class ZoneService : IZoneService
         if (hasTechnicians)
         {
             throw new ConflictException("No se puede eliminar una zona con técnicos asignados. Reasígnalos primero.");
+        }
+
+        // Una zona con historial de inventario no se borra: se perdería la trazabilidad de sus movimientos.
+        var location = await _db.InventoryLocations.FirstOrDefaultAsync(l => l.ZoneId == id, cancellationToken);
+        if (location is not null)
+        {
+            if (await _db.InventoryMovements.AnyAsync(m => m.InventoryLocationId == location.Id, cancellationToken))
+            {
+                throw new ConflictException("La zona tiene movimientos de inventario y no se puede eliminar.");
+            }
+
+            _db.InventoryLocations.Remove(location);
         }
 
         // Sus municipios quedan sin zona. Se hace explícito (además del SetNull de la FK) para no depender del proveedor.
