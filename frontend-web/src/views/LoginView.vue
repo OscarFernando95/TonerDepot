@@ -13,6 +13,17 @@ const form = reactive({ cedula: '', password: '' })
 const loading = ref(false)
 const loginError = ref('')
 
+// Solo una credencial mala debe decir "incorrectos": un servidor caído o un límite de intentos no tienen nada que ver
+// con la contraseña, y mostrarlos así manda al usuario a sospechar de su cuenta.
+function loginErrorMessage(err: any): string {
+  const status: number | undefined = err?.response?.status
+  if (!err?.response) return 'No se pudo conectar con el servidor. Revisa tu conexión o inténtalo en un momento.'
+  if (status === 409) return err.response.data?.title ?? 'Ya tienes una sesión activa en otro dispositivo.'
+  if (status === 429) return 'Demasiados intentos seguidos. Espera un minuto e inténtalo de nuevo.'
+  if (status === 401 || status === 400) return 'Cédula o contraseña incorrectos.'
+  return 'Ocurrió un error inesperado. Inténtalo de nuevo; si continúa, avisa al administrador.'
+}
+
 async function handleSubmit() {
   loading.value = true
   loginError.value = ''
@@ -21,11 +32,9 @@ async function handleSubmit() {
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
   } catch (err: any) {
-    // 409 = técnico con sesión activa en otro dispositivo: el servidor dice dónde.
-    const message =
-      err?.response?.status === 409 ? err.response.data?.title : 'Cédula o contraseña incorrectos.'
-    loginError.value = message
-    ElMessage.error(message)
+    console.error('LoginView.handleSubmit failed', err)
+    loginError.value = loginErrorMessage(err)
+    ElMessage.error(loginError.value)
   } finally {
     loading.value = false
   }
