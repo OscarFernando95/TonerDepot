@@ -30,9 +30,11 @@ async function handleSubmit() {
   saving.value = true
   try {
     await authApi.changePassword(form.currentPassword, form.newPassword)
-    auth.setMustChangePassword(false)
-    ElMessage.success('Contraseña actualizada.')
-    router.push({ name: 'dashboard' })
+    // El servidor invalida todas las sesiones al cambiar la contraseña: el token que tenemos ya no sirve, así que
+    // se sale y se vuelve a ingresar con la nueva.
+    auth.logout()
+    ElMessage.success('Contraseña actualizada. Ingresa con tu nueva contraseña.')
+    router.push({ name: 'login' })
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo cambiar la contraseña.')
   } finally {
