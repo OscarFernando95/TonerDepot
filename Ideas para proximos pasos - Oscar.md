@@ -10,7 +10,7 @@ Aqui quiero expresar ideas que tengo para el proyecto
 8. Base de drivers, backups de configuraciones, usuarios, etc.
 9. Ir revisando el desarrollo de la app movil con flutter | En progreso (paridad con la web casi completa: tickets, festivos, historiales, filtros en cascada, diseño Clay)
 10. Revisiones de seguridad (Request limit, sql injection, IP limiting, RLS, Encripcion de datos, RLS, Server Side Validation, Input Sanity, Autenticacion con expiracion de sesion, CORS, CI/CD para despliegues automaticos, manejo de excepciones, manejo de errores, controles de fallo) - En progreso (80%)
-11. Aprovechamiento del espacio de Inicio de los tecnicos
+11. ~~Aprovechamiento del espacio de Inicio de los tecnicos~~ | HECHO en codigo (web y app): estado y jornada de hoy, zona, visita en curso con cronometro o siguiente trabajo con 'Como llegar', agenda ordenada por prioridad, visitas y horas del dia, stock bajo de su zona.
 12. ~~calculo de horas en horario laboral para los sla y demas, tambien tener en cuenta festivos y fines de semana~~ | HECHO (WorkCalendarContext.BusinessHours, festivos de Colombia, cobertura HorarioOficina/24x7)
 
 Pendientes por aplicar y cambios
