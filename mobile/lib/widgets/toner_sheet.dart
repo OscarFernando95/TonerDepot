@@ -18,7 +18,7 @@ String _formatDateTime(DateTime utc) {
 }
 
 /// Formulario de tóner por máquina: ítem de tóner, cantidad, entregado al usuario vs. cambiado por el técnico,
-/// fecha (por defecto el momento del registro), contador y notas opcionales; debajo, los últimos registros de la
+/// fecha (por defecto el momento del registro), contador (obligatorio) y notas opcionales; debajo, los últimos registros de la
 /// máquina. Devuelve el [TonerEntry] registrado (con su `stockWarning`, si lo hubo).
 class TonerSheet extends StatefulWidget {
   const TonerSheet({super.key, required this.api, required this.asset});
@@ -144,9 +144,14 @@ class _TonerSheetState extends State<TonerSheet> {
     final item = _item;
     if (item == null || _submitting) return;
     final counterText = _counterController.text.trim();
-    final counter = counterText.isEmpty ? null : int.tryParse(counterText);
-    if (counterText.isNotEmpty && counter == null) {
-      setState(() => _error = 'El contador debe ser un número entero.');
+    // Obligatorio: con el contador de cada cambio se mide cuánto dura un tóner en esa máquina.
+    final counter = int.tryParse(counterText);
+    if (counter == null) {
+      setState(
+        () => _error = counterText.isEmpty
+            ? 'El contador de la máquina es obligatorio.'
+            : 'El contador debe ser un número entero.',
+      );
       return;
     }
     setState(() {
@@ -241,8 +246,9 @@ class _TonerSheetState extends State<TonerSheet> {
             TextField(
               controller: _counterController,
               keyboardType: TextInputType.number,
+              onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
-                labelText: 'Contador (opcional)',
+                labelText: 'Contador de la máquina *',
               ),
             ),
             const SizedBox(height: 8),
@@ -267,7 +273,12 @@ class _TonerSheetState extends State<TonerSheet> {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: _item == null || _submitting ? null : _submit,
+                onPressed:
+                    _item == null ||
+                        _submitting ||
+                        _counterController.text.trim().isEmpty
+                    ? null
+                    : _submit,
                 child: Text(_submitting ? 'Registrando…' : 'Registrar tóner'),
               ),
             ),

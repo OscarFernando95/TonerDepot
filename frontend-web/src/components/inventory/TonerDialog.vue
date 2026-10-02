@@ -59,7 +59,7 @@ function open(target: { id: string; label: string }) {
 }
 
 async function save() {
-  if (!asset.value || !form.itemId) return
+  if (!asset.value || !form.itemId || form.counterValue == null) return
   saving.value = true
   try {
     const { data } = await inventoryApi.registerToner({
@@ -68,7 +68,7 @@ async function save() {
       quantity: form.quantity,
       occurredAt: (form.occurredAt ?? new Date()).toISOString(),
       deliveredToUser: form.deliveredToUser,
-      counterValue: form.counterValue ?? null,
+      counterValue: form.counterValue,
       notes: form.notes.trim() || null
     })
     ElMessage.success('Tóner registrado.')
@@ -76,6 +76,7 @@ async function save() {
     form.itemId = ''
     form.quantity = 1
     form.occurredAt = new Date()
+    form.counterValue = undefined
     form.notes = ''
     await loadHistory()
     emit('saved')
@@ -117,10 +118,10 @@ defineExpose({ open })
         </el-radio-group>
       </el-form-item>
       <div class="grid">
-        <el-form-item label="Contador de la máquina (opcional)"><el-input-number v-model="form.counterValue" :min="0" :controls="false" style="width: 100%" /></el-form-item>
+        <el-form-item label="Contador de la máquina (obligatorio)"><el-input-number v-model="form.counterValue" :min="0" :controls="false" style="width: 100%" /></el-form-item>
         <el-form-item label="Notas (opcional)"><el-input v-model="form.notes" maxlength="500" /></el-form-item>
       </div>
-      <el-button type="primary" :disabled="!form.itemId" :loading="saving" @click="save">Registrar</el-button>
+      <el-button type="primary" :disabled="!form.itemId || form.counterValue == null" :loading="saving" @click="save">Registrar</el-button>
     </el-form>
 
     <h4>Últimos registros de esta máquina</h4>

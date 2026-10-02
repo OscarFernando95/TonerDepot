@@ -104,14 +104,14 @@ async function loadItems() {
 const itemDialogVisible = ref(false)
 const editingItemId = ref<string | null>(null)
 const savingItem = ref(false)
-const itemForm = reactive({ name: '', category: 'ConsumibleBase' as inventoryApi.InventoryCategory, unit: '', unitCost: undefined as number | undefined, minimumStock: 0, isActive: true })
+// Sin precio unitario por ahora (decisión de negocio): el campo existe en la base pero no se captura ni se muestra.
+const itemForm = reactive({ name: '', category: 'ConsumibleBase' as inventoryApi.InventoryCategory, unit: '', minimumStock: 0, isActive: true })
 
 function openItemDialog(item: InventoryItemDto | null) {
   editingItemId.value = item?.id ?? null
   itemForm.name = item?.name ?? ''
   itemForm.category = item?.category ?? 'ConsumibleBase'
   itemForm.unit = item?.unit ?? ''
-  itemForm.unitCost = item?.unitCost ?? undefined
   itemForm.minimumStock = item?.minimumStock ?? 0
   itemForm.isActive = item?.isActive ?? true
   itemDialogVisible.value = true
@@ -124,7 +124,6 @@ async function saveItem() {
     name: itemForm.name.trim(),
     category: itemForm.category,
     unit: itemForm.unit.trim() || null,
-    unitCost: itemForm.unitCost ?? null,
     minimumStock: itemForm.minimumStock,
     isActive: itemForm.isActive
   }
@@ -355,9 +354,6 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
             <template #default="{ row }">{{ InventoryCategoryLabels[row.category as inventoryApi.InventoryCategory] }}</template>
           </el-table-column>
           <el-table-column prop="unit" label="Unidad" width="110" />
-          <el-table-column label="Costo" width="130">
-            <template #default="{ row }">{{ row.unitCost != null ? row.unitCost.toLocaleString('es-CO') : '—' }}</template>
-          </el-table-column>
           <el-table-column prop="minimumStock" label="Mínimo" width="100" />
           <el-table-column label="Estado" width="110">
             <template #default="{ row }"><el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? 'Activo' : 'Inactivo' }}</el-tag></template>
@@ -435,7 +431,6 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
         </el-form-item>
         <div class="form-grid">
           <el-form-item label="Unidad"><el-input v-model="itemForm.unit" maxlength="30" placeholder="und" /></el-form-item>
-          <el-form-item label="Costo unitario (opcional)"><el-input-number v-model="itemForm.unitCost" :min="0" :controls="false" style="width: 100%" /></el-form-item>
           <el-form-item label="Stock mínimo (0 = sin alerta)"><el-input-number v-model="itemForm.minimumStock" :min="0" style="width: 100%" /></el-form-item>
           <el-form-item v-if="editingItemId" label="Activo"><el-switch v-model="itemForm.isActive" /></el-form-item>
         </div>

@@ -105,6 +105,12 @@ const router = createRouter({
           meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
         },
         {
+          path: 'analytics/toner',
+          name: 'toner-bi',
+          component: () => import('../views/analytics/TonerBiView.vue'),
+          meta: { roles: [RoleNames.Administrador] }
+        },
+        {
           path: 'inventory',
           name: 'inventory',
           component: () => import('../views/inventory/InventoryView.vue'),
