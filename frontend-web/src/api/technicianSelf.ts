@@ -9,6 +9,8 @@ export interface TechnicianSelfStatusDto {
   activeMaintenanceOrderId: string | null
   activeAssetInstallationId: string | null
   checkedInAt: string | null
+  // Avisos del último check-out (p. ej. una pieza que dejó el stock de la zona en negativo). La visita se cerró igual.
+  stockWarnings: string[]
 }
 
 export interface CheckInRequest {
@@ -31,6 +33,8 @@ export interface CheckOutRequest {
   afterEvidenceId?: string | null
   // Foto del contador — obligatoria cuando el cierre de un ticket u orden registra una lectura.
   counterEvidenceId?: string | null
+  // Piezas usadas (kit marcado + repuestos): salen del inventario de la zona del equipo. Solo tickets y órdenes.
+  parts?: { itemId: string; quantity: number }[]
   resolved?: boolean
   notes?: string | null
   area?: string | null

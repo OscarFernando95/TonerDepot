@@ -9,6 +9,7 @@ import * as assetBrandsApi from '../../api/assetBrands'
 import * as assetModelsApi from '../../api/assetModels'
 import * as locationsApi from '../../api/clientLocations'
 import * as ordersApi from '../../api/maintenanceOrders'
+import TonerDialog from '../../components/inventory/TonerDialog.vue'
 import {
   AssetAllowedTransitions,
   AssetLifecycleStatusLabels,
@@ -132,6 +133,8 @@ async function saveInfo() {
     savingInfo.value = false
   }
 }
+
+const tonerDialogRef = ref<InstanceType<typeof TonerDialog> | null>(null)
 
 const manualOrderDialogVisible = ref(false)
 const creatingManualOrder = ref(false)
@@ -299,6 +302,13 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
           >
             Cambiar estado
           </el-button>
+          <el-button
+            v-if="asset.lifecycleStatus === 'Instalado'"
+            plain
+            @click="tonerDialogRef?.open({ id: asset.id, label: `${asset.assetBrandName} ${asset.model} — ${asset.serialNumber}` })"
+          >
+            Tóner
+          </el-button>
           <el-button v-if="asset.lifecycleStatus === 'Instalado'" type="warning" plain @click="openManualOrderDialog">
             Pedir mantenimiento
           </el-button>
@@ -376,6 +386,8 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
         <el-button type="primary" :loading="savingStatus" @click="saveStatus">Confirmar</el-button>
       </template>
     </el-dialog>
+
+    <TonerDialog ref="tonerDialogRef" />
 
     <el-dialog v-model="manualOrderDialogVisible" title="Pedir mantenimiento" width="440px">
       <el-form label-position="top">

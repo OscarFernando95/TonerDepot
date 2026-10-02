@@ -4,6 +4,7 @@ import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage } from 'element-plus'
 import * as meterReadingsApi from '../../api/meterReadings'
 import type { MeterReadingAssetDto } from '../../api/types'
+import TonerDialog from '../../components/inventory/TonerDialog.vue'
 
 const assets = ref<MeterReadingAssetDto[]>([])
 const loading = ref(false)
@@ -94,6 +95,12 @@ async function loadData(silent = false) {
   }
 }
 
+const tonerDialogRef = ref<InstanceType<typeof TonerDialog> | null>(null)
+
+function openToner(asset: MeterReadingAssetDto) {
+  tonerDialogRef.value?.open({ id: asset.assetId, label: `${asset.assetBrandName} ${asset.model} — ${asset.serialNumber}` })
+}
+
 function openRegisterDialog(asset: MeterReadingAssetDto) {
   registeringAsset.value = asset
   form.counterValue = undefined
@@ -167,9 +174,10 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(
       <el-table-column prop="lastMeterReading" label="Último contador" width="140" sortable>
         <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
       </el-table-column>
-      <el-table-column label="" width="160">
+      <el-table-column label="" width="250">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
+          <el-button size="small" @click="openToner(row)">Tóner</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -202,6 +210,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(
               <el-table-column label="" width="160">
                 <template #default="{ row }">
                   <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
+          <el-button size="small" @click="openToner(row)">Tóner</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -237,6 +246,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(
       </template>
     </el-dialog>
   </div>
+  <TonerDialog ref="tonerDialogRef" />
 </template>
 
 <style scoped>

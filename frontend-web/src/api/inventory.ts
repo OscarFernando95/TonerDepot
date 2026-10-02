@@ -147,3 +147,68 @@ export function getModelKit(brandId: string, modelId: string) {
 export function setModelKit(brandId: string, modelId: string, overrides: ModelKitOverride[]) {
   return http.put<ModelKitItemDto[]>(`/asset-brands/${brandId}/models/${modelId}/base-items`, { overrides })
 }
+
+// ── Inventario en la visita y tóner por máquina ───────────────────────────────────────────────────
+
+export interface VisitKitItemDto {
+  itemId: string
+  itemName: string
+  category: InventoryCategory
+  groupName: string
+  quantity: number
+  // Saldo en la ubicación de inventario de la zona del equipo.
+  stock: number
+}
+
+export interface VisitKitDto {
+  assetId: string | null
+  locationId: string
+  locationName: string
+  // El municipio del equipo no tiene zona (o no está catalogado): se descuenta de la bodega principal.
+  usesMainWarehouse: boolean
+  items: VisitKitItemDto[]
+}
+
+export interface PartOptionDto {
+  itemId: string
+  name: string
+  category: InventoryCategory
+  unit: string | null
+  stock: number
+}
+
+export interface TonerEntryDto {
+  movementId: string
+  itemId: string
+  itemName: string
+  quantity: number
+  occurredAt: string
+  counterValue: number | null
+  notes: string | null
+  registeredBy: string | null
+  stockWarning: string | null
+}
+
+export function getVisitKit(assetId?: string | null) {
+  return http.get<VisitKitDto>('/inventory/kit', { params: { assetId: assetId || undefined } })
+}
+
+export function searchParts(params: { assetId?: string | null; search?: string; category?: InventoryCategory; pageSize?: number }) {
+  return getPaged<PartOptionDto>('/inventory/parts', { ...params, assetId: params.assetId || undefined } as never)
+}
+
+export function registerToner(request: {
+  assetId: string
+  itemId: string
+  quantity: number
+  occurredAt?: string | null
+  deliveredToUser: boolean
+  counterValue?: number | null
+  notes?: string | null
+}) {
+  return http.post<TonerEntryDto>('/inventory/toner', request)
+}
+
+export function listToner(assetId: string, params?: { from?: string; to?: string; cursor?: string; pageSize?: number }) {
+  return getPaged<TonerEntryDto>(`/inventory/toner/assets/${assetId}`, params as never)
+}

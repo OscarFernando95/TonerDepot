@@ -9,6 +9,7 @@ import * as ordersApi from '../../api/maintenanceOrders'
 import { ServiceTicketStatusLabels, type ServiceTicketDto } from '../../api/types'
 import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto, type MaintenanceScheduleDto } from '../../api/types'
 import PhotoPicker from '../../components/technicians/PhotoPicker.vue'
+import VisitPartsPicker from '../../components/inventory/VisitPartsPicker.vue'
 import { getCurrentPosition } from '../../composables/useGeolocation'
 
 // Foto "antes" del check-in: se pide en un diálogo y el flujo espera a que el técnico la confirme o cancele.
@@ -35,6 +36,9 @@ const afterPhoto = ref<File | null>(null)
 // Foto del contador: obligatoria cuando el cierre de un ticket u orden de un equipo bajo contrato registra una
 // lectura (la respalda); opcional en tickets de clientes sin contrato (equipo sin catalogar).
 const counterPhoto = ref<File | null>(null)
+// Piezas usadas en la visita (kit marcado + repuestos): descuentan del inventario de la zona del equipo.
+const usedParts = ref<{ itemId: string; quantity: number }[]>([])
+const visitAssetId = computed(() => activeTicket.value?.assetId ?? activeOrder.value?.assetId ?? null)
 
 const status = ref<selfApi.TechnicianSelfStatusDto | null>(null)
 const tickets = ref<ServiceTicketDto[]>([])
@@ -299,8 +303,9 @@ async function doCheckOut() {
       (counterPhotoRequired.value || counterPhotoOptional.value) && visitTarget && counterPhoto.value
         ? await selfApi.uploadEvidence(counterPhoto.value, 'Contador', visitTarget)
         : null
-    await selfApi.checkOut({
+    const { data: checkOutStatus } = await selfApi.checkOut({
       afterEvidenceId: evidence?.data.id ?? null,
+      parts: activeInstallation.value ? [] : usedParts.value,
       counterEvidenceId: counterEvidence?.data.id ?? null,
       latitude: position?.latitude ?? null,
       longitude: position?.longitude ?? null,
@@ -321,6 +326,11 @@ async function doCheckOut() {
     ElMessage.success(
       checkoutForm.resolved ? 'Check-out registrado. Trabajo marcado como resuelto.' : 'Check-out registrado. Puedes retomarlo más tarde.'
     )
+    // La visita ya quedó cerrada; si alguna pieza dejó el stock de la zona en negativo, se avisa para que lo repongan.
+    for (const warning of checkOutStatus.stockWarnings ?? []) {
+      ElMessage({ message: warning, type: 'warning', duration: 8000, showClose: true })
+    }
+    usedParts.value = []
     checkoutForm.notes = ''
     checkoutForm.resolved = true
     checkoutForm.area = ''
@@ -442,6 +452,10 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
 
         <el-form-item v-if="checkoutForm.resolved && (activeTicket || activeOrder)" label="Foto del resultado (obligatoria)">
           <PhotoPicker v-model="afterPhoto" />
+        </el-form-item>
+
+        <el-form-item v-if="activeTicket || activeOrder" label="Piezas cambiadas">
+          <VisitPartsPicker v-model="usedParts" :asset-id="visitAssetId" :include-kit="!!activeOrder?.includesConsumables" />
         </el-form-item>
 
         <el-form-item v-if="counterPhotoRequired" label="Foto del contador (obligatoria)">
