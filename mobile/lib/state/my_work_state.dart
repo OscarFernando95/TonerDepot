@@ -175,22 +175,34 @@ class MyWorkState extends ChangeNotifier {
       });
 
   /// `photo` es la foto "después": obligatoria al resolver un ticket u orden (la hoja de check-out lo exige).
-  Future<String?> checkOut(CheckOutRequest request, {XFile? photo}) =>
-      _runAction(() async {
-        if (photo != null) {
-          final (evidenceId, position) = await _uploadAndLocate(
-            photo,
-            'Despues',
-            ticketId: activeTicket?.id,
-            orderId: activeTicket == null ? activeOrder?.id : null,
-          );
-          request.afterEvidenceId = evidenceId;
-          request.position = position;
-        } else {
-          request.position = await DeviceCapture.currentPosition();
-        }
-        return _technicianApi.checkOut(request);
-      });
+  Future<String?> checkOut(
+    CheckOutRequest request, {
+    XFile? photo,
+    XFile? counterPhoto,
+  }) => _runAction(() async {
+    if (counterPhoto != null) {
+      final (evidenceId, _) = await _uploadAndLocate(
+        counterPhoto,
+        'Contador',
+        ticketId: activeTicket?.id,
+        orderId: activeTicket == null ? activeOrder?.id : null,
+      );
+      request.counterEvidenceId = evidenceId;
+    }
+    if (photo != null) {
+      final (evidenceId, position) = await _uploadAndLocate(
+        photo,
+        'Despues',
+        ticketId: activeTicket?.id,
+        orderId: activeTicket == null ? activeOrder?.id : null,
+      );
+      request.afterEvidenceId = evidenceId;
+      request.position = position;
+    } else {
+      request.position = await DeviceCapture.currentPosition();
+    }
+    return _technicianApi.checkOut(request);
+  });
 
   Future<(String, PositionFix?)> _uploadAndLocate(
     XFile photo,

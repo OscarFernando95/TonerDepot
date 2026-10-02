@@ -19,12 +19,14 @@ import 'clay_date_field.dart';
 ///   - Ticket: nada es obligatorio; si es de un cliente externo (sin activo
 ///     catalogado), se ofrecen los campos opcionales de marca/modelo/contador.
 /// Lo que devuelve la hoja: los datos del cierre y la foto "después" (obligatoria al resolver un ticket u
-/// orden). La foto se sube en MyWorkState.checkOut, no acá.
+/// orden) y, en una orden, la foto del contador que respalda la lectura. Las fotos se suben en
+/// MyWorkState.checkOut, no acá.
 class CheckoutSubmission {
-  const CheckoutSubmission(this.request, this.photo);
+  const CheckoutSubmission(this.request, this.photo, [this.counterPhoto]);
 
   final CheckOutRequest request;
   final XFile? photo;
+  final XFile? counterPhoto;
 }
 
 class CheckoutSheet extends StatefulWidget {
@@ -85,10 +87,14 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
   // (revela el campo de insumos existentes); false = "insumos nuevos".
   bool? _unitsMaintenanceDone;
   XFile? _photo;
+  XFile? _counterPhoto;
 
   // Foto del resultado: obligatoria al resolver un ticket u orden (no una instalación).
   bool get _requiresPhoto =>
       _resolved && (widget.activeTicket != null || _hasOrder);
+
+  // Foto del contador: respalda la lectura obligatoria al completar una orden (las instalaciones no llevan fotos).
+  bool get _requiresCounterPhoto => _resolved && _hasOrder;
 
   bool get _isExternalTicket => widget.activeTicket?.isExternal ?? false;
   bool get _hasOrder => widget.activeOrder != null;
@@ -113,7 +119,8 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
     }
     if (_hasOrder) {
       return int.tryParse(_counterController.text.trim()) != null &&
-          _photo != null;
+          _photo != null &&
+          _counterPhoto != null;
     }
     return !_requiresPhoto || _photo != null;
   }
@@ -167,6 +174,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
               : null,
         ),
         _requiresPhoto ? _photo : null,
+        _requiresCounterPhoto ? _counterPhoto : null,
       ),
     );
   }
@@ -273,6 +281,39 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                           : 'Lectura de contador (opcional)',
                     ),
                   ),
+                  if (_requiresCounterPhoto) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final photo = await DeviceCapture.takePhoto();
+                            if (photo != null) {
+                              setModalState(() => _counterPhoto = photo);
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.photo_camera_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _counterPhoto == null
+                                ? 'Foto del contador *'
+                                : 'Cambiar foto',
+                          ),
+                        ),
+                        if (_counterPhoto != null) ...[
+                          const SizedBox(width: 12),
+                          const Icon(
+                            Icons.check_circle,
+                            color: AppColors.signalBlue,
+                          ),
+                          const SizedBox(width: 4),
+                          const Text('Foto lista'),
+                        ],
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   if (_hasInstallation &&
                       widget.activeInstallation?.contractStartDate != null)

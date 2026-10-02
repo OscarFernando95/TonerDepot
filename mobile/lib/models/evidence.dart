@@ -3,7 +3,7 @@ class EvidenceItem {
   EvidenceItem({required this.id, required this.kind, required this.uploadedAt});
 
   final String id;
-  final String kind; // Antes | Despues
+  final String kind; // Antes | Despues | Contador
   final DateTime uploadedAt;
 
   factory EvidenceItem.fromJson(Map<String, dynamic> json) => EvidenceItem(

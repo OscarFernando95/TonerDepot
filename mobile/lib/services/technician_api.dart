@@ -61,6 +61,9 @@ class CheckOutRequest {
   PositionFix? position;
   String? afterEvidenceId;
 
+  /// Foto del contador ya subida: obligatoria al completar una orden (respalda la lectura).
+  String? counterEvidenceId;
+
   CheckOutRequest({
     required this.resolved,
     this.notes,
@@ -75,6 +78,7 @@ class CheckOutRequest {
     this.externalAssetCounter,
     this.position,
     this.afterEvidenceId,
+    this.counterEvidenceId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -95,6 +99,7 @@ class CheckOutRequest {
       'accuracyMeters': position!.accuracyMeters,
     },
     if (afterEvidenceId != null) 'afterEvidenceId': afterEvidenceId,
+    if (counterEvidenceId != null) 'counterEvidenceId': counterEvidenceId,
   };
 }
 

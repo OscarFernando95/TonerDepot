@@ -31,7 +31,9 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
     _load();
     // Una foto nueva del técnico aparece sola. No filtramos por ticket/orden porque el aviso no lleva ese
     // dato (solo el id de la evidencia); recargar la galería visible es barato.
-    _unsubscribe = RealtimeService.instance.subscribe(['Evidence'], (_) => _load());
+    _unsubscribe = RealtimeService.instance.subscribe([
+      'Evidence',
+    ], (_) => _load());
   }
 
   @override
@@ -43,8 +45,13 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
   Future<void> _load() async {
     final api = EvidenceApi(ApiClient.instance);
     try {
-      final items = await api.list(ticketId: widget.ticketId, orderId: widget.orderId);
-      final photos = await Future.wait(items.map((e) async => (e, await api.content(e.id))));
+      final items = await api.list(
+        ticketId: widget.ticketId,
+        orderId: widget.orderId,
+      );
+      final photos = await Future.wait(
+        items.map((e) async => (e, await api.content(e.id))),
+      );
       if (!mounted) return;
       setState(() {
         _photos
@@ -56,7 +63,9 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
       debugPrint('EvidenceGallery load failed: $e\n$st');
       if (!mounted) return;
       setState(() {
-        _error = e is ApiException ? e.message : 'No se pudo cargar la evidencia.';
+        _error = e is ApiException
+            ? e.message
+            : 'No se pudo cargar la evidencia.';
         _loading = false;
       });
     }
@@ -75,13 +84,19 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator());
+      return const Padding(
+        padding: EdgeInsets.all(8),
+        child: LinearProgressIndicator(),
+      );
     }
     if (_error != null) {
       return Text(_error!, style: const TextStyle(color: AppColors.signalRed));
     }
     if (_photos.isEmpty) {
-      return const Text('Todavía no hay fotos de evidencia.', style: TextStyle(color: AppColors.inkSecondary));
+      return const Text(
+        'Todavía no hay fotos de evidencia.',
+        style: TextStyle(color: AppColors.inkSecondary),
+      );
     }
     return Wrap(
       spacing: 12,
@@ -95,12 +110,24 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(bytes, width: 140, height: 105, fit: BoxFit.cover),
+                  child: Image.memory(
+                    bytes,
+                    width: 140,
+                    height: 105,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item.kind == 'Antes' ? 'Antes' : 'Después',
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  switch (item.kind) {
+                    'Antes' => 'Antes',
+                    'Contador' => 'Contador',
+                    _ => 'Después',
+                  },
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),

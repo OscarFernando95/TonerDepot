@@ -81,7 +81,11 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
     if (submission == null || !mounted) return;
     final request = submission.request;
 
-    final error = await state.checkOut(request, photo: submission.photo);
+    final error = await state.checkOut(
+      request,
+      photo: submission.photo,
+      counterPhoto: submission.counterPhoto,
+    );
     if (!mounted) return;
     if (error != null) {
       ScaffoldMessenger.of(context)
@@ -130,9 +134,18 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                   onCheckOut: () => _handleCheckOut(state),
                 ),
               const SizedBox(height: 16),
-              _SectionHeader(title: 'Mis tickets', count: state.checkInableTickets.length),
+              _SectionHeader(
+                title: 'Mis tickets',
+                count: state.checkInableTickets.length,
+              ),
               if (state.tickets.isEmpty)
-                const Padding(padding: EdgeInsets.all(8), child: Text('No tienes tickets asignados.', textAlign: TextAlign.center)),
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'No tienes tickets asignados.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ...state.tickets.map(
                 (t) => TicketCard(
                   ticket: t,
@@ -148,9 +161,18 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              _SectionHeader(title: 'Órdenes de mantenimiento', count: state.checkInableOrders.length),
+              _SectionHeader(
+                title: 'Órdenes de mantenimiento',
+                count: state.checkInableOrders.length,
+              ),
               if (state.orders.isEmpty)
-                const Padding(padding: EdgeInsets.all(8), child: Text('No tienes órdenes asignadas.', textAlign: TextAlign.center)),
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'No tienes órdenes asignadas.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ...state.orders.map(
                 (o) => OrderCard(
                   order: o,
@@ -166,9 +188,18 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              _SectionHeader(title: 'Instalaciones pendientes', count: state.pendingInstallations.length),
+              _SectionHeader(
+                title: 'Instalaciones pendientes',
+                count: state.pendingInstallations.length,
+              ),
               if (state.pendingInstallations.isEmpty)
-                const Padding(padding: EdgeInsets.all(8), child: Text('No hay instalaciones pendientes.', textAlign: TextAlign.center)),
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'No hay instalaciones pendientes.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ...state.pendingInstallations.map(
                 (i) => InstallationCard(
                   installation: i,
@@ -246,7 +277,6 @@ class _ActiveVisitCard extends StatelessWidget {
   }
 }
 
-
 /// Encabezado de sección con el mismo lenguaje visual de "caja" que el
 /// resto de la app (ClaySurface) — antes era un Text suelto sin diseño,
 /// ver ClaySurface/ClayCard (widgets/clay_surface.dart).
@@ -264,10 +294,13 @@ class _SectionHeader extends StatelessWidget {
         child: Text(
           '$title ($count)',
           textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.4, fontSize: 13),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            fontSize: 13,
+          ),
         ),
       ),
     );
   }
 }
-
