@@ -445,6 +445,10 @@ export interface MeterReadingAssetDto {
   area: string | null
   cityName: string | null
   lastMeterReading: number | null
+  // Último tóner entregado o cambiado en la máquina y unidades de los últimos 90 días.
+  lastTonerAt: string | null
+  lastTonerCounter: number | null
+  tonerUnitsLast90Days: number
 }
 
 export const ServiceTicketStatuses = {

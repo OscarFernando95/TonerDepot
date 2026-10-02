@@ -43,6 +43,8 @@ const visitAssetId = computed(() => activeTicket.value?.assetId ?? activeOrder.v
 const status = ref<selfApi.TechnicianSelfStatusDto | null>(null)
 const tickets = ref<ServiceTicketDto[]>([])
 const coverageTickets = ref<ServiceTicketDto[]>([])
+// Tickets pendientes de mis máquinas vinculadas que atiende otro técnico o nadie (solo lectura).
+const machineTickets = ref<ServiceTicketDto[]>([])
 const orders = ref<MaintenanceOrderDto[]>([])
 const coverageOrders = ref<MaintenanceOrderDto[]>([])
 const pendingInstallations = ref<selfApi.PendingInstallationDto[]>([])
@@ -178,7 +180,7 @@ const baseCheckoutValid = computed(() => {
 async function loadAll(silent = false) {
   if (!silent) loading.value = true
   try {
-    const [statusRes, ticketsRes, coverageTicketsRes, ordersRes, coverageOrdersRes, installationsRes, coverageSchedulesRes] =
+    const [statusRes, ticketsRes, coverageTicketsRes, ordersRes, coverageOrdersRes, installationsRes, coverageSchedulesRes, machineTicketsRes] =
       await Promise.all([
         selfApi.getMyStatus(),
         ticketsApi.listTickets(),
@@ -186,11 +188,16 @@ async function loadAll(silent = false) {
         ordersApi.listMaintenanceOrders(),
         selfApi.listCoverageMaintenanceOrders(),
         selfApi.listPendingInstallations(),
-        selfApi.listCoverageSchedules()
+        selfApi.listCoverageSchedules(),
+        selfApi.listMachineTickets().catch((err) => {
+          console.error('MyWorkView: no se pudieron cargar los tickets de mis máquinas', err)
+          return { data: [] as ServiceTicketDto[] }
+        })
       ])
     status.value = statusRes.data
     tickets.value = ticketsRes.data
     coverageTickets.value = coverageTicketsRes.data
+    machineTickets.value = machineTicketsRes.data
     orders.value = ordersRes.data
     coverageOrders.value = coverageOrdersRes.data
     pendingInstallations.value = installationsRes.data
@@ -505,6 +512,28 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
               </el-table-column>
             </el-table>
             <p v-else class="muted">No tienes tickets asignados pendientes.</p>
+          </el-tab-pane>
+
+          <el-tab-pane :label="`De mis máquinas (${machineTickets.length})`" name="machines">
+            <p class="hint">Pendientes de las máquinas que tienes vinculadas y que atiende otra persona (o nadie todavía). Solo para que estés al tanto.</p>
+            <el-table v-if="machineTickets.length > 0" :data="machineTickets">
+              <el-table-column label="Máquina">
+                <template #default="{ row }">{{ row.assetBrandName }} {{ row.assetModel }} — {{ row.assetSerialNumber }}</template>
+              </el-table-column>
+              <el-table-column label="Cliente / Sede">
+                <template #default="{ row }">{{ row.clientName }} — {{ row.clientLocationName }}</template>
+              </el-table-column>
+              <el-table-column prop="description" label="Descripción" show-overflow-tooltip />
+              <el-table-column label="Lo atiende">
+                <template #default="{ row }">{{ row.technicianName ?? 'Sin asignar' }}</template>
+              </el-table-column>
+              <el-table-column label="Estado" width="120">
+                <template #default="{ row }">
+                  <el-tag size="small">{{ ServiceTicketStatusLabels[row.status] ?? row.status }}</el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+            <p v-else class="muted">Tus máquinas no tienen tickets pendientes.</p>
           </el-tab-pane>
 
           <el-tab-pane :label="`En mi zona (${coverageTickets.length})`" name="coverage">

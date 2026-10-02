@@ -5,8 +5,20 @@ import { ElMessage } from 'element-plus'
 import * as meterReadingsApi from '../../api/meterReadings'
 import type { MeterReadingAssetDto } from '../../api/types'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
+import { useAuthStore } from '../../stores/auth'
+import { RoleNames } from '../../api/types'
+
+const auth = useAuthStore()
+// Para el técnico esta misma pantalla es "Mis máquinas": las que tiene vinculadas, con su contador y su tóner.
+const isTechnician = computed(() => auth.hasRole(RoleNames.Tecnico))
 
 const assets = ref<MeterReadingAssetDto[]>([])
+const tonerDate = new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' })
+function lastTonerLabel(a: MeterReadingAssetDto) {
+  if (!a.lastTonerAt) return 'Sin tóner registrado'
+  const counter = a.lastTonerCounter != null ? ` · contador ${a.lastTonerCounter}` : ''
+  return `${tonerDate.format(new Date(a.lastTonerAt))}${counter} · ${a.tonerUnitsLast90Days} en 90 días`
+}
 const loading = ref(false)
 
 const viewMode = ref<'grouped' | 'flat'>('grouped')
@@ -132,15 +144,29 @@ async function handleSave() {
 }
 
 onMounted(loadData)
-useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(true))
+useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], () => loadData(true))
 </script>
 
 <template>
   <div>
-    <h1>Lectura de contadores</h1>
+    <h1>{{ isTechnician ? 'Mis máquinas' : 'Lectura de contadores' }}</h1>
     <p class="hint">
-      Registrar el contador aquí mantiene actualizados los cronogramas de mantenimiento de cada activo.
+      <template v-if="isTechnician">
+        Las máquinas que tienes vinculadas. Registra su contador y el tóner que entregas o cambias; así se mantienen al día
+        los cronogramas de mantenimiento y se mide cuánto dura cada tóner.
+      </template>
+      <template v-else>Registrar el contador aquí mantiene actualizados los cronogramas de mantenimiento de cada activo.</template>
     </p>
+
+    <el-empty
+      v-if="isTechnician && !loading && assets.length === 0"
+      description="Todavía no tienes máquinas vinculadas."
+    >
+      <p class="hint">
+        Se vinculan solas cuando completas la instalación de un equipo. Si necesitas otras, pídele a un administrador que
+        te las vincule desde Técnicos → Activos.
+      </p>
+    </el-empty>
 
     <div class="filters-bar">
       <el-select v-model="filters.cityName" clearable filterable placeholder="Filtrar por ciudad" style="width: 220px">
@@ -173,6 +199,9 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(
       </el-table-column>
       <el-table-column prop="lastMeterReading" label="Último contador" width="140" sortable>
         <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
+      </el-table-column>
+      <el-table-column label="Último tóner" min-width="220">
+        <template #default="{ row }">{{ lastTonerLabel(row) }}</template>
       </el-table-column>
       <el-table-column label="" width="250">
         <template #default="{ row }">
@@ -207,10 +236,13 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(
               <el-table-column label="Último contador" width="140">
                 <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
               </el-table-column>
-              <el-table-column label="" width="160">
+              <el-table-column label="Último tóner" min-width="200">
+                <template #default="{ row }">{{ lastTonerLabel(row) }}</template>
+              </el-table-column>
+              <el-table-column label="" width="250">
                 <template #default="{ row }">
                   <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
-          <el-button size="small" @click="openToner(row)">Tóner</el-button>
+                  <el-button size="small" @click="openToner(row)">Tóner</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -246,7 +278,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(
       </template>
     </el-dialog>
   </div>
-  <TonerDialog ref="tonerDialogRef" />
+  <TonerDialog ref="tonerDialogRef" @saved="loadData(true)" />
 </template>
 
 <style scoped>

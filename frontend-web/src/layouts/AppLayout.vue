@@ -76,7 +76,16 @@ const menuItems: MenuItem[] = [
   { index: 'users', route: 'users', icon: User, label: 'Usuarios', description: 'Cuentas y roles del sistema', visible: () => canSeeUsers.value }
 ]
 
-const visibleMenuItems = computed(() => menuItems.filter((item) => item.visible()))
+// Para el técnico, "Lectura de contadores" es su lista de máquinas: se llama como él la busca.
+const visibleMenuItems = computed(() =>
+  menuItems
+    .filter((item) => item.visible())
+    .map((item) =>
+      item.index === 'meter-readings' && auth.hasRole(RoleNames.Tecnico)
+        ? { ...item, icon: Printer, label: 'Mis máquinas', description: 'Tus máquinas con su contador y su tóner' }
+        : item
+    )
+)
 
 const collapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
 watch(collapsed, (value) => {

@@ -97,6 +97,11 @@ export function listCoverageSchedules() {
   return getList<MaintenanceScheduleDto>('/technicians/me/coverage-schedules')
 }
 
+// Tickets pendientes de mis máquinas vinculadas que atiende otro técnico (o nadie): solo lectura.
+export function listMachineTickets() {
+  return getList<ServiceTicketDto>('/technicians/me/machine-tickets')
+}
+
 export function listCoverageTickets() {
   return getList<ServiceTicketDto>('/technicians/me/coverage-tickets')
 }
