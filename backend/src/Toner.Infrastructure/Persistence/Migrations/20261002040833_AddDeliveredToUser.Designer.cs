@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Toner.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Toner.Infrastructure.Persistence;
 namespace Toner.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(TonerDbContext))]
-    partial class TonerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261002040833_AddDeliveredToUser")]
+    partial class AddDeliveredToUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

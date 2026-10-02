@@ -33,6 +33,9 @@ public class InventoryMovement : BaseEntity
     // Contador de la máquina al cambiar la pieza: con él se mide cuánto duró cada insumo.
     public long? CounterValue { get; set; }
 
+    // Solo tóner: true si se le dejó al usuario para que lo cambie él, false si lo cambió el técnico. null = no aplica.
+    public bool? DeliveredToUser { get; set; }
+
     public string? Notes { get; set; }
     public Guid? CreatedByUserId { get; set; }
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;

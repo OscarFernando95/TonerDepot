@@ -157,6 +157,13 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             throw new ConflictException("El tóner está desactivado.");
         }
 
+        if (request.CounterValue is null)
+        {
+            throw new ConflictException("El contador de la máquina es obligatorio al registrar un tóner.");
+        }
+
+        await EnsureCounterFitsAsync(asset.Id, request.CounterValue.Value, (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime(), cancellationToken);
+
         var source = await ResolveSourceAsync(asset.Id, cancellationToken);
         var balance = (await BalancesAsync(source.LocationId, new[] { item.Id }, cancellationToken)).GetValueOrDefault(item.Id) - request.Quantity;
 
@@ -171,6 +178,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             ClientId = asset.ClientId,
             AssetId = asset.Id,
             CounterValue = request.CounterValue,
+            DeliveredToUser = request.DeliveredToUser,
             Notes = notes,
             CreatedByUserId = requester.UserId,
             OccurredAt = (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime()
@@ -205,6 +213,26 @@ public class InventoryConsumptionService : IInventoryConsumptionService
     }
 
     // ── Auxiliares ───────────────────────────────────────────────────────────────────────────────
+
+    // El contador de la máquina solo sube: cada registro de tóner debe quedar entre el anterior y el siguiente en el
+    // tiempo. Sin esto un contador mal tecleado arruina la duración estimada de todos los tóner de esa máquina.
+    private async Task EnsureCounterFitsAsync(Guid assetId, long counter, DateTime occurredAt, CancellationToken cancellationToken)
+    {
+        var toner = _db.InventoryMovements.Where(m =>
+            m.AssetId == assetId && m.Type == InventoryMovementType.Consumo && m.InventoryItem.Category == InventoryCategory.Toner && m.CounterValue != null);
+
+        var previous = await toner.Where(m => m.OccurredAt <= occurredAt).OrderByDescending(m => m.OccurredAt).Select(m => m.CounterValue).FirstOrDefaultAsync(cancellationToken);
+        if (previous.HasValue && counter < previous.Value)
+        {
+            throw new ConflictException($"El contador ({counter}) es menor al del registro de tóner anterior de esta máquina ({previous.Value}). Revisa el número.");
+        }
+
+        var next = await toner.Where(m => m.OccurredAt > occurredAt).OrderBy(m => m.OccurredAt).Select(m => m.CounterValue).FirstOrDefaultAsync(cancellationToken);
+        if (next.HasValue && counter > next.Value)
+        {
+            throw new ConflictException($"El contador ({counter}) es mayor al del registro de tóner posterior de esta máquina ({next.Value}). Revisa el número o la fecha.");
+        }
+    }
 
     // El staff ve cualquier máquina; un técnico solo las que tiene vinculadas (la lista de sus máquinas).
     private async Task EnsureCanAccessAssetAsync(RequestingUser requester, Guid assetId, CancellationToken cancellationToken)

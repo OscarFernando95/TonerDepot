@@ -239,7 +239,7 @@ public class InventoryConsumptionTests
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 5);
         using var db = TonerTestDb.CreateContext(s.DbName);
         var service = new InventoryConsumptionService(db, new BaseKitService(db));
-        var request = new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 2, DeliveredToUser = true };
+        var request = new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 2, DeliveredToUser = true, CounterValue = 1000 };
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.RegisterTonerAsync(request, Tech(s)));
 
@@ -254,6 +254,8 @@ public class InventoryConsumptionTests
         Assert.Equal(s.ZoneLocationId, movement.InventoryLocationId);
         Assert.Equal(s.ClientId, movement.ClientId);
         Assert.Equal(s.AssetId, movement.AssetId);
+        Assert.True(movement.DeliveredToUser);
+        Assert.Equal(1000, movement.CounterValue);
     }
 
     [Fact]
@@ -267,7 +269,7 @@ public class InventoryConsumptionTests
         var past = DateTime.UtcNow.AddDays(-20);
 
         await service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, OccurredAt = past, CounterValue = 1000 }, staff);
-        await service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1 }, staff);
+        await service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 1500 }, staff);
 
         var all = (await service.ListTonerAsync(s.AssetId, null, null, null, null, staff)).Items;
         Assert.Equal(2, all.Count);
@@ -288,9 +290,9 @@ public class InventoryConsumptionTests
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Coordinador, null, null);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
-            service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.Fusor, Quantity = 1 }, staff));
+            service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.Fusor, Quantity = 1, CounterValue = 10 }, staff));
 
-        var entry = await service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1 }, staff);
+        var entry = await service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 10 }, staff);
         Assert.Contains("Stock insuficiente", entry.StockWarning);
     }
 
@@ -298,11 +300,48 @@ public class InventoryConsumptionTests
     public void ValidadorDeToner_RechazaCantidadFechaFuturaYContadorNegativo()
     {
         var v = new RegisterTonerRequestValidator();
-        var ok = new RegisterTonerRequest { AssetId = Guid.NewGuid(), ItemId = Guid.NewGuid(), Quantity = 1 };
+        var ok = new RegisterTonerRequest { AssetId = Guid.NewGuid(), ItemId = Guid.NewGuid(), Quantity = 1, CounterValue = 100 };
 
         Assert.True(v.Validate(ok).IsValid);
-        Assert.False(v.Validate(new RegisterTonerRequest { AssetId = ok.AssetId, ItemId = ok.ItemId, Quantity = 0 }).IsValid);
-        Assert.False(v.Validate(new RegisterTonerRequest { AssetId = ok.AssetId, ItemId = ok.ItemId, Quantity = 1, OccurredAt = DateTime.UtcNow.AddDays(2) }).IsValid);
+        Assert.False(v.Validate(new RegisterTonerRequest { AssetId = ok.AssetId, ItemId = ok.ItemId, Quantity = 1 }).IsValid);   // el contador es obligatorio
+        Assert.False(v.Validate(new RegisterTonerRequest { AssetId = ok.AssetId, ItemId = ok.ItemId, Quantity = 0, CounterValue = 1 }).IsValid);
+        Assert.False(v.Validate(new RegisterTonerRequest { AssetId = ok.AssetId, ItemId = ok.ItemId, Quantity = 1, OccurredAt = DateTime.UtcNow.AddDays(2), CounterValue = 1 }).IsValid);
         Assert.False(v.Validate(new RegisterTonerRequest { AssetId = ok.AssetId, ItemId = ok.ItemId, Quantity = 1, CounterValue = -1 }).IsValid);
+    }
+
+    [Fact]
+    public async Task Toner_ElContadorNuncaPuedeBajar_RespectoAlRegistroAnteriorNiPasarseDelPosterior()
+    {
+        var s = await SeedAsync();
+        await StockAsync(s, s.ZoneLocationId, s.TonerId, 9);
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
+        RegisterTonerRequest At(DateTime when, long counter) =>
+            new() { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, OccurredAt = when, CounterValue = counter };
+
+        await service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-30), 1000), staff);
+        await service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-10), 5000), staff);
+
+        // Después del último: no puede ser menor.
+        await Assert.ThrowsAsync<ConflictException>(() => service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-1), 4999), staff));
+        // Entre los dos (con fecha intermedia): tiene que caber entre 1000 y 5000.
+        await Assert.ThrowsAsync<ConflictException>(() => service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-20), 6000), staff));
+        await Assert.ThrowsAsync<ConflictException>(() => service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-20), 900), staff));
+        await service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-20), 3000), staff);
+        await service.RegisterTonerAsync(At(DateTime.UtcNow.AddDays(-1), 5000), staff);   // igual al anterior es válido
+    }
+
+    [Fact]
+    public async Task Toner_SinContadorEnElServicio_SeRechaza()
+    {
+        var s = await SeedAsync();
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1 }, staff));
+        Assert.Contains("contador", ex.Message);
     }
 }
