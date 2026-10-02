@@ -11,6 +11,8 @@ export interface TechnicianDto {
   isWorkingNow: boolean
   // Si está fuera de la oficina ahora, hasta cuándo (ISO UTC).
   timeOffUntil: string | null
+  // Zonas asignadas y los municipios que cubre a través de ellas.
+  zoneNames: string[]
   coverageCityNames: string[]
 }
 
@@ -39,10 +41,10 @@ export interface TimeOffDto {
   isActive: boolean
 }
 
-export interface TechnicianCoverageDto {
-  id: string
-  cityId: string
-  cityName: string
+export interface TechnicianZoneDto {
+  zoneId: string
+  zoneName: string
+  cityNames: string[]
 }
 
 export interface TechnicianAssetDto {
@@ -61,16 +63,13 @@ export function listTechnicians() {
   return getList<TechnicianDto>('/technicians')
 }
 
-export function listTechnicianCoverage(technicianId: string) {
-  return http.get<TechnicianCoverageDto[]>(`/technicians/${technicianId}/coverage`)
+export function listTechnicianZones(technicianId: string) {
+  return http.get<TechnicianZoneDto[]>(`/technicians/${technicianId}/zones`)
 }
 
-export function addTechnicianCoverage(technicianId: string, cityId: string) {
-  return http.post<TechnicianCoverageDto>(`/technicians/${technicianId}/coverage`, { cityId })
-}
-
-export function removeTechnicianCoverage(technicianId: string, coverageId: string) {
-  return http.delete(`/technicians/${technicianId}/coverage/${coverageId}`)
+// Reemplaza el conjunto de zonas del técnico (normalmente una).
+export function setTechnicianZones(technicianId: string, zoneIds: string[]) {
+  return http.put<TechnicianZoneDto[]>(`/technicians/${technicianId}/zones`, { zoneIds })
 }
 
 export function getTechnicianSchedule(technicianId: string) {

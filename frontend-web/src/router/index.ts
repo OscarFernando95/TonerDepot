@@ -105,6 +105,12 @@ const router = createRouter({
           meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
         },
         {
+          path: 'zones',
+          name: 'zones',
+          component: () => import('../views/technicians/ZonesView.vue'),
+          meta: { roles: [RoleNames.Administrador, RoleNames.Coordinador] }
+        },
+        {
           path: 'technicians',
           name: 'technicians',
           component: () => import('../views/technicians/TechniciansView.vue'),

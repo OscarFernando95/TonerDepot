@@ -3,11 +3,11 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as techniciansApi from '../../api/technicians'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
-import * as citiesApi from '../../api/cities'
+import * as zonesApi from '../../api/zones'
 import * as assetsApi from '../../api/assets'
-import { useDepartmentCityCascade } from '../../composables/useDepartmentCityCascade'
-import type { TechnicianAssetDto, TechnicianCoverageDto, TechnicianDto } from '../../api/technicians'
-import type { AssetDto, CityDto } from '../../api/types'
+import type { TechnicianAssetDto, TechnicianDto } from '../../api/technicians'
+import type { AssetDto } from '../../api/types'
+import type { ZoneDto } from '../../api/zones'
 import TechnicianScheduleDialog from '../../components/technicians/TechnicianScheduleDialog.vue'
 import TechnicianTimeOffDialog from '../../components/technicians/TechnicianTimeOffDialog.vue'
 import TechnicianVisitsDialog from '../../components/technicians/TechnicianVisitsDialog.vue'
@@ -26,19 +26,14 @@ function availability(t: TechnicianDto): { label: string; type: 'success' | 'war
 }
 
 const technicians = ref<TechnicianDto[]>([])
-const cities = ref<CityDto[]>([])
+const zones = ref<ZoneDto[]>([])
 const loading = ref(false)
 
-const coverageDialogVisible = ref(false)
+const zonesDialogVisible = ref(false)
 const selectedTechnician = ref<TechnicianDto | null>(null)
-const coverage = ref<TechnicianCoverageDto[]>([])
-const loadingCoverage = ref(false)
-const savingCoverage = ref(false)
-
-const addForm = reactive({ cityId: '' })
-const { departmentName, departments, citiesInDepartment } = useDepartmentCityCascade(cities, () => {
-  addForm.cityId = ''
-})
+const selectedZoneIds = ref<string[]>([])
+const loadingZones = ref(false)
+const savingZones = ref(false)
 
 // Activos vinculados explícitamente al técnico — gobierna qué ve en "Lectura
 // de contadores" en la app móvil (ver AssetService.ListForMeterReadingAsync,
@@ -73,9 +68,9 @@ const availableAssets = computed(() => {
 async function loadData() {
   loading.value = true
   try {
-    const [techRes, citiesRes] = await Promise.all([techniciansApi.listTechnicians(), citiesApi.listCities()])
+    const [techRes, zonesRes] = await Promise.all([techniciansApi.listTechnicians(), zonesApi.listZones()])
     technicians.value = techRes.data
-    cities.value = citiesRes.data
+    zones.value = zonesRes.data
   } catch (err: any) {
     console.error('TechniciansView.loadData failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los técnicos.')
@@ -97,52 +92,35 @@ function statusTagType(status: string) {
   }
 }
 
-async function openCoverageDialog(technician: TechnicianDto) {
+async function openZonesDialog(technician: TechnicianDto) {
   selectedTechnician.value = technician
-  departmentName.value = ''
-  addForm.cityId = ''
-  coverageDialogVisible.value = true
-  loadingCoverage.value = true
+  selectedZoneIds.value = []
+  zonesDialogVisible.value = true
+  loadingZones.value = true
   try {
-    const { data } = await techniciansApi.listTechnicianCoverage(technician.id)
-    coverage.value = data
+    const { data } = await techniciansApi.listTechnicianZones(technician.id)
+    selectedZoneIds.value = data.map((z) => z.zoneId)
   } catch (err: any) {
-    console.error('TechniciansView.openCoverageDialog failed', err)
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar la cobertura.')
+    console.error('TechniciansView.openZonesDialog failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar las zonas.')
   } finally {
-    loadingCoverage.value = false
+    loadingZones.value = false
   }
 }
 
-async function addCoverage() {
-  if (!selectedTechnician.value || !addForm.cityId) return
-  savingCoverage.value = true
-  try {
-    await techniciansApi.addTechnicianCoverage(selectedTechnician.value.id, addForm.cityId)
-    ElMessage.success('Cobertura agregada.')
-    addForm.cityId = ''
-    const { data } = await techniciansApi.listTechnicianCoverage(selectedTechnician.value.id)
-    coverage.value = data
-    await loadData()
-  } catch (err: any) {
-    console.error('TechniciansView.addCoverage failed', err)
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo agregar la cobertura.')
-  } finally {
-    savingCoverage.value = false
-  }
-}
-
-async function removeCoverage(item: TechnicianCoverageDto) {
+async function saveZones() {
   if (!selectedTechnician.value) return
+  savingZones.value = true
   try {
-    await techniciansApi.removeTechnicianCoverage(selectedTechnician.value.id, item.id)
-    ElMessage.success('Cobertura eliminada.')
-    const { data } = await techniciansApi.listTechnicianCoverage(selectedTechnician.value.id)
-    coverage.value = data
+    await techniciansApi.setTechnicianZones(selectedTechnician.value.id, selectedZoneIds.value)
+    ElMessage.success('Zonas actualizadas.')
+    zonesDialogVisible.value = false
     await loadData()
   } catch (err: any) {
-    console.error('TechniciansView.removeCoverage failed', err)
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo quitar la cobertura.')
+    console.error('TechniciansView.saveZones failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron guardar las zonas.')
+  } finally {
+    savingZones.value = false
   }
 }
 
@@ -217,7 +195,7 @@ async function unlinkAsset(item: TechnicianAssetDto) {
 onMounted(loadData)
 
 // Disponibilidad, cobertura y estado del técnico cambian solos (check-in/out, fuera de la oficina).
-useRealtimeUpdates(['Technician'], () => loadData())
+useRealtimeUpdates(['Technician', 'Zone'], () => loadData())
 </script>
 
 <template>
@@ -243,15 +221,16 @@ useRealtimeUpdates(['Technician'], () => loadData())
           <el-tag :type="availability(row).type" size="small">{{ availability(row).label }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Cobertura">
+      <el-table-column label="Zona">
         <template #default="{ row }">
-          <span v-if="row.coverageCityNames.length === 0" class="muted">Sin ciudades asignadas</span>
-          <el-tag v-for="c in row.coverageCityNames" :key="c" size="small" class="coverage-tag">{{ c }}</el-tag>
+          <span v-if="row.zoneNames.length === 0" class="muted">Sin zona asignada</span>
+          <el-tag v-for="z in row.zoneNames" :key="z" size="small" type="primary" class="coverage-tag">{{ z }}</el-tag>
+          <div v-if="row.coverageCityNames.length" class="cities-line">{{ row.coverageCityNames.join(' · ') }}</div>
         </template>
       </el-table-column>
       <el-table-column label="" width="560">
         <template #default="{ row }">
-          <el-button link @click="openCoverageDialog(row)">Cobertura</el-button>
+          <el-button link @click="openZonesDialog(row)">Zona</el-button>
           <el-button link @click="openAssetsDialog(row)">Activos</el-button>
           <el-button link @click="scheduleDialogRef?.open(row)">Horario</el-button>
           <el-button link @click="timeOffDialogRef?.open(row)">Fuera de la oficina</el-button>
@@ -264,46 +243,20 @@ useRealtimeUpdates(['Technician'], () => loadData())
     <TechnicianTimeOffDialog ref="timeOffDialogRef" @changed="loadData" />
     <TechnicianVisitsDialog ref="visitsDialogRef" />
 
-    <el-dialog v-model="coverageDialogVisible" :title="`Cobertura — ${selectedTechnician?.fullName}`" width="520px">
-      <div v-loading="loadingCoverage">
-        <div class="coverage-list">
-          <el-tag
-            v-for="c in coverage"
-            :key="c.id"
-            closable
-            class="coverage-tag"
-            @close="removeCoverage(c)"
-          >
-            {{ c.cityName }}
-          </el-tag>
-          <span v-if="coverage.length === 0" class="muted">Todavía no tiene ciudades asignadas.</span>
-        </div>
-        <div class="add-coverage-row">
-          <el-select v-model="departmentName" filterable placeholder="Departamento" style="flex: 1">
-            <el-option v-for="d in departments" :key="d" :label="d" :value="d" />
-          </el-select>
-          <el-select
-            v-model="addForm.cityId"
-            filterable
-            :disabled="!departmentName"
-            placeholder="Ciudad"
-            style="flex: 1"
-          >
-            <el-option v-for="c in citiesInDepartment" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
-        </div>
-        <el-button
-          type="primary"
-          :loading="savingCoverage"
-          :disabled="!addForm.cityId"
-          style="width: 100%; margin-top: 0.5rem"
-          @click="addCoverage"
-        >
-          Agregar
-        </el-button>
+    <el-dialog v-model="zonesDialogVisible" :title="`Zona — ${selectedTechnician?.fullName}`" width="520px">
+      <div v-loading="loadingZones">
+        <p class="hint">Normalmente un técnico atiende una sola zona. Su cobertura por municipio sale de las zonas que elijas.</p>
+        <el-select v-model="selectedZoneIds" multiple filterable placeholder="Selecciona la zona" style="width: 100%">
+          <el-option v-for="z in zones" :key="z.id" :label="z.name" :value="z.id">
+            <span>{{ z.name }}</span>
+            <span class="option-detail">{{ z.cities.length }} municipio(s)</span>
+          </el-option>
+        </el-select>
+        <p v-if="zones.length === 0" class="muted">Todavía no hay zonas. Créalas en la sección Zonas.</p>
       </div>
       <template #footer>
-        <el-button @click="coverageDialogVisible = false">Cerrar</el-button>
+        <el-button @click="zonesDialogVisible = false">Cancelar</el-button>
+        <el-button type="primary" :loading="savingZones" @click="saveZones">Guardar</el-button>
       </template>
     </el-dialog>
 
@@ -396,9 +349,23 @@ useRealtimeUpdates(['Technician'], () => loadData())
   margin-bottom: 1rem;
 }
 
-.add-coverage-row {
-  display: flex;
-  gap: 0.5rem;
+.cities-line {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--el-text-color-secondary);
+}
+
+.hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--el-text-color-secondary);
+}
+
+.option-detail {
+  float: right;
+  margin-left: 1rem;
+  font-size: 0.75rem;
+  color: var(--el-text-color-secondary);
 }
 
 .asset-search-row {
