@@ -7,10 +7,12 @@ import * as dashboardApi from '../api/dashboard'
 import { useRealtimeUpdates } from '../composables/useRealtime'
 import type { DashboardSummaryDto } from '../api/dashboard'
 import FlapText from '../components/board/FlapText.vue'
+import TechnicianHome from '../components/technicians/TechnicianHome.vue'
 import LaneStatus from '../components/board/LaneStatus.vue'
 
 const auth = useAuthStore()
 const isStaff = computed(() => auth.hasRole(RoleNames.Administrador, RoleNames.Coordinador))
+const isTechnician = computed(() => auth.hasRole(RoleNames.Tecnico))
 
 const loading = ref(false)
 const periodDays = ref(30)
@@ -108,7 +110,9 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit'], () => {
 </script>
 
 <template>
-  <div v-if="!isStaff" class="gate-welcome">
+  <TechnicianHome v-if="isTechnician" />
+
+  <div v-else-if="!isStaff" class="gate-welcome">
     <p class="gate-welcome-eyebrow">
       <span class="gate-welcome-lamp" aria-hidden="true"></span>
       Sesión activa

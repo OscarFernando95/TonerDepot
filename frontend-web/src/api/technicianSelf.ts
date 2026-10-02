@@ -129,3 +129,46 @@ export function uploadEvidence(file: File, kind: 'Antes' | 'Despues' | 'Contador
   if (target.orderId) form.append('orderId', target.orderId)
   return http.post<EvidenceDto>('/technicians/me/evidence', form, { timeout: 60000 })
 }
+
+// ── Inicio del técnico ────────────────────────────────────────────────────────────────────────────
+
+export interface HomeJobDto {
+  kind: 'Ticket' | 'Orden' | 'Instalación'
+  id: string
+  title: string
+  summary: string | null
+  clientName: string | null
+  locationName: string | null
+  cityName: string | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
+  priority: 'Baja' | 'Media' | 'Alta' | 'Critica'
+  status: string
+  inProgress: boolean
+  since: string
+}
+
+export interface HomeLowStockDto {
+  itemName: string
+  locationName: string
+  quantity: number
+  minimumStock: number
+}
+
+export interface TechnicianHomeDto {
+  zoneNames: string[]
+  isWorkingNow: boolean
+  timeOffUntil: string | null
+  todayShift: string | null
+  visitsClosedToday: number
+  minutesWorkedToday: number
+  activeVisit: HomeJobDto | null
+  activeVisitStartedAt: string | null
+  agenda: HomeJobDto[]
+  lowStock: HomeLowStockDto[]
+}
+
+export function getMyHome() {
+  return http.get<TechnicianHomeDto>('/technicians/me/home')
+}
