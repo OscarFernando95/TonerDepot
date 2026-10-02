@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
+    <PackageReference Include="FirebaseAdmin" Version="3.7.0" />
     <PackageReference Include="Hangfire.Core" Version="1.8.24" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.21.1" />
     <!-- Envío de correo real (hallazgo #3 de SECURITY_AUDIT.md: contraseña generada al funcionario

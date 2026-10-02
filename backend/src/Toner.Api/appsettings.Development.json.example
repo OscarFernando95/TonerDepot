@@ -36,5 +36,8 @@
   },
   "JobPayloadEncryption": {
     "Key": "<GENERA_UNA_CLAVE_AES-256_CON_openssl_rand_-base64_32>"
+  },
+  "Firebase": {
+    "CredentialsPath": ""
   }
 }

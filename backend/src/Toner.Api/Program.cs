@@ -1,4 +1,6 @@
 using Toner.Infrastructure.Realtime;
+using Toner.Infrastructure.Push;
+using Toner.Application.Push;
 using Toner.Application.Realtime;
 using Toner.Api.Hubs;
 using Toner.Infrastructure.Storage;
@@ -146,6 +148,14 @@ builder.Services.AddSingleton<RealtimeConnectionTracker>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<RealtimeChangeInterceptor>();
 
+// Notificaciones push (FCM). Sin Firebase:CredentialsPath quedan apagadas (el transporte lo avisa en el log al arrancar).
+builder.Services.Configure<FirebaseSettings>(builder.Configuration.GetSection(FirebaseSettings.SectionName));
+builder.Services.AddSingleton<IPushTransport, FirebasePushTransport>();
+builder.Services.AddSingleton<IPushNotifier, PushNotifier>();
+builder.Services.AddSingleton(sp => new PushChangeInterceptor(
+    () => sp.GetRequiredService<IPushNotifier>(),
+    sp.GetRequiredService<ILogger<PushChangeInterceptor>>()));
+
 // DefaultConnection usa el rol toner_app (sin privilegios de DDL y sujeto a RLS). Las migraciones
 // usan MigrationsConnection (owner) vía TonerDbContextFactory, no esta configuración.
 builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
@@ -159,7 +169,8 @@ builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
                 // que no hay conflicto con el requisito de EF Core de envolverlas en un execution
                 // strategy.
                 .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
-        .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>(), sp.GetRequiredService<RealtimeChangeInterceptor>()));
+        .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>(), sp.GetRequiredService<RealtimeChangeInterceptor>(),
+            sp.GetRequiredService<PushChangeInterceptor>()));
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
@@ -183,6 +194,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
+builder.Services.AddScoped<IDeviceTokenService, DeviceTokenService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IBaseKitService, BaseKitService>();
 builder.Services.AddScoped<IInventoryConsumptionService, InventoryConsumptionService>();

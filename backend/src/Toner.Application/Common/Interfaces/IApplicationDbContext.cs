@@ -10,6 +10,7 @@ public interface IApplicationDbContext
     DbSet<Role> Roles { get; }
     DbSet<User> Users { get; }
     DbSet<UserSession> UserSessions { get; }
+    DbSet<DeviceToken> DeviceTokens { get; }
     DbSet<Evidence> Evidences { get; }
     DbSet<TechnicianWorkInterval> TechnicianWorkIntervals { get; }
     DbSet<TechnicianTimeOff> TechnicianTimeOffs { get; }

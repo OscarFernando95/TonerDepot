@@ -15,6 +15,7 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserSession> UserSessions => Set<UserSession>();
+    public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<TechnicianWorkInterval> TechnicianWorkIntervals => Set<TechnicianWorkInterval>();
     public DbSet<TechnicianTimeOff> TechnicianTimeOffs => Set<TechnicianTimeOff>();
     public DbSet<CompanyHolidayOverride> CompanyHolidayOverrides => Set<CompanyHolidayOverride>();
