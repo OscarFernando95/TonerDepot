@@ -168,20 +168,21 @@ public class RealtimeChangeInterceptorTests
     }
 
     [Fact]
-    public async Task CambiarLaCoberturaDeUnTecnico_AvisaAEseTecnico()
+    public async Task AsignarUnaZonaAUnTecnico_AvisaAEseTecnico()
     {
         var seed = Seed();
         var dbName = Guid.NewGuid().ToString();
+        var zone = new Zone { Name = "Zona Sur" };
         using (var arrange = TonerTestDb.CreateContext(dbName))
         {
             arrange.AddRange(seed.All);
+            arrange.Add(zone);
             await arrange.SaveChangesAsync();
         }
 
         var notifier = new FakeNotifier();
         using var db = Ctx(dbName, notifier);
-        var cityId = (await db.Cities.FirstAsync()).Id;
-        db.TechnicianCoverages.Add(new TechnicianCoverage { TechnicianId = seed.TechA.Id, CityId = cityId });
+        db.TechnicianZones.Add(new TechnicianZone { TechnicianId = seed.TechA.Id, ZoneId = zone.Id });
         await db.SaveChangesAsync();
 
         Assert.True(await notifier.WaitAsync());
@@ -189,6 +190,31 @@ public class RealtimeChangeInterceptorTests
         Assert.Equal("Technician", change.Entity);
         Assert.Equal(seed.TechA.Id, change.Id);
         Assert.Equal(new[] { seed.TechA.Id }, change.TechnicianIds);
+    }
+
+    [Fact]
+    public async Task MoverUnMunicipioDeZona_AvisaDeLaZonaNuevaYDeLaAnterior()
+    {
+        var seed = Seed();
+        var dbName = Guid.NewGuid().ToString();
+        var from = new Zone { Name = "Zona Origen" };
+        var to = new Zone { Name = "Zona Destino" };
+        var city = TestEntities.City("Neiva", "Huila");
+        city.ZoneId = from.Id;
+        using (var arrange = TonerTestDb.CreateContext(dbName))
+        {
+            arrange.AddRange(seed.All);
+            arrange.AddRange(from, to, city);
+            await arrange.SaveChangesAsync();
+        }
+
+        var notifier = new FakeNotifier();
+        using var db = Ctx(dbName, notifier);
+        (await db.Cities.SingleAsync(c => c.Id == city.Id)).ZoneId = to.Id;
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        Assert.Equivalent(new[] { from.Id, to.Id }, notifier.Changes.Where(c => c.Entity == "Zone").Select(c => c.Id));
     }
 
     [Fact]

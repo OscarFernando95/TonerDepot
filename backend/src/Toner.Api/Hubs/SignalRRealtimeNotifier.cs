@@ -61,7 +61,7 @@ public static class RealtimeAudience
             groups.Add(RealtimeGroups.Technician(technicianId));
         }
 
-        if (change.Entity is "Holiday" or "MeterReading" or "Asset")
+        if (change.Entity is "Holiday" or "MeterReading" or "Asset" or "Zone")
         {
             groups.Add(RealtimeGroups.AllTechnicians);
         }

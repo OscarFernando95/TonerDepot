@@ -139,7 +139,7 @@ public class AssignmentEngine : IAssignmentEngine
     private async Task<Candidate> FindCandidateAsync(Guid cityId, SupportCoverage coverage, CancellationToken cancellationToken)
     {
         var coveringIds = await _db.Technicians
-            .Where(t => t.IsActive && t.Status != TechnicianStatus.Ocupado && t.Coverages.Any(c => c.CityId == cityId))
+            .Where(t => t.IsActive && t.Status != TechnicianStatus.Ocupado && t.TechnicianZones.Any(tz => tz.Zone.Cities.Any(c => c.Id == cityId)))
             .Select(t => t.Id)
             .ToListAsync(cancellationToken);
 

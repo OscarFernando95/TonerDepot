@@ -35,7 +35,7 @@ public class ManualMaintenanceOrderTests
         var schedule = TestEntities.MaintenanceSchedule(asset, contract, nextConsumablesDueCounter: 500_000);
         schedule.ClientId = client.Id;
         if (withSchedule) db.Add(schedule);
-        if (withCoverage) db.Add(new TechnicianCoverage { TechnicianId = technician.Id, CityId = city.Id });
+        if (withCoverage) db.Add(TestEntities.Coverage(technician, city));
 
         await db.SaveChangesAsync();
         return new Scenario(dbName, asset.Id, schedule.Id, technician.Id, city.Id);

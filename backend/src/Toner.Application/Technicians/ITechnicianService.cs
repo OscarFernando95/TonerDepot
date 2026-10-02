@@ -6,9 +6,8 @@ namespace Toner.Application.Technicians;
 public interface ITechnicianService
 {
     Task<PagedResult<TechnicianDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<TechnicianCoverageDto>> ListCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default);
-    Task<TechnicianCoverageDto> AddCoverageAsync(Guid technicianId, AddTechnicianCoverageRequest request, CancellationToken cancellationToken = default);
-    Task RemoveCoverageAsync(Guid technicianId, Guid coverageId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TechnicianZoneDto>> ListZonesAsync(Guid technicianId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TechnicianZoneDto>> SetZonesAsync(Guid technicianId, SetTechnicianZonesRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TechnicianAssetDto>> ListLinkedAssetsAsync(Guid technicianId, CancellationToken cancellationToken = default);
     Task<TechnicianAssetDto> LinkAssetAsync(Guid technicianId, AddTechnicianAssetRequest request, CancellationToken cancellationToken = default);
     Task UnlinkAssetAsync(Guid technicianId, Guid technicianAssetId, CancellationToken cancellationToken = default);

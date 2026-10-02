@@ -29,7 +29,7 @@ public class InstallationScheduleTests
         var techUser = TestEntities.User(techRole);
         var technician = TestEntities.Technician(techUser, isActive: true, status: TechnicianStatus.Disponible);
         db.AddRange(city, client, location, brand, model, asset, techRole, techUser, technician);
-        db.Add(new TechnicianCoverage { TechnicianId = technician.Id, CityId = city.Id });
+        db.Add(TestEntities.Coverage(technician, city));
         if (timeOffFrom is not null)
         {
             db.Add(new TechnicianTimeOff

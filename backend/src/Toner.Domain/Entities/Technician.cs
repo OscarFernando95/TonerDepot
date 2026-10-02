@@ -15,7 +15,7 @@ public class Technician : BaseEntity
     // Solo lo mueven check-in/check-out y transiciones automáticas del sistema, nunca selección manual del técnico.
     public TechnicianStatus Status { get; set; } = TechnicianStatus.Disponible;
 
-    public ICollection<TechnicianCoverage> Coverages { get; set; } = new List<TechnicianCoverage>();
+    public ICollection<TechnicianZone> TechnicianZones { get; set; } = new List<TechnicianZone>();
     public ICollection<TechnicianAsset> LinkedAssets { get; set; } = new List<TechnicianAsset>();
     public ICollection<TechnicianAvailability> AvailabilityHistory { get; set; } = new List<TechnicianAvailability>();
     public ICollection<ServiceTicket> AssignedTickets { get; set; } = new List<ServiceTicket>();

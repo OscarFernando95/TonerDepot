@@ -32,7 +32,8 @@ public class TechnicianService : ITechnicianService
                 Phone = t.Phone,
                 Status = t.Status.ToString(),
                 IsActive = t.IsActive,
-                CoverageCityNames = t.Coverages.Select(c => c.City.Name).ToList()
+                ZoneNames = t.TechnicianZones.Select(tz => tz.Zone.Name).OrderBy(n => n).ToList(),
+                CoverageCityNames = t.TechnicianZones.SelectMany(tz => tz.Zone.Cities).Select(c => c.Name).Distinct().OrderBy(n => n).ToList()
             })
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
@@ -48,55 +49,49 @@ public class TechnicianService : ITechnicianService
         return result;
     }
 
-    public async Task<IReadOnlyList<TechnicianCoverageDto>> ListCoverageAsync(Guid technicianId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<TechnicianZoneDto>> ListZonesAsync(Guid technicianId, CancellationToken cancellationToken = default)
     {
-        var technicianExists = await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken);
-        if (!technicianExists)
+        await EnsureTechnicianExistsAsync(technicianId, cancellationToken);
+        return await ZonesOf(technicianId).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TechnicianZoneDto>> SetZonesAsync(
+        Guid technicianId, SetTechnicianZonesRequest request, CancellationToken cancellationToken = default)
+    {
+        await EnsureTechnicianExistsAsync(technicianId, cancellationToken);
+
+        var wanted = request.ZoneIds.Distinct().ToList();
+        var current = await _db.TechnicianZones.Where(tz => tz.TechnicianId == technicianId).ToListAsync(cancellationToken);
+
+        _db.TechnicianZones.RemoveRange(current.Where(tz => !wanted.Contains(tz.ZoneId)));
+        foreach (var zoneId in wanted.Where(id => current.All(tz => tz.ZoneId != id)))
+        {
+            _db.TechnicianZones.Add(new TechnicianZone { TechnicianId = technicianId, ZoneId = zoneId });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ZonesOf(technicianId).ToListAsync(cancellationToken);
+    }
+
+    private async Task EnsureTechnicianExistsAsync(Guid technicianId, CancellationToken cancellationToken)
+    {
+        if (!await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken))
         {
             throw new NotFoundException(nameof(Technician), technicianId);
         }
-
-        return await _db.TechnicianCoverages
-            .Where(c => c.TechnicianId == technicianId)
-            .OrderBy(c => c.City.Name)
-            .Select(c => new TechnicianCoverageDto { Id = c.Id, CityId = c.CityId, CityName = c.City.Name })
-            .ToListAsync(cancellationToken);
     }
 
-    public async Task<TechnicianCoverageDto> AddCoverageAsync(Guid technicianId, AddTechnicianCoverageRequest request, CancellationToken cancellationToken = default)
-    {
-        var technicianExists = await _db.Technicians.AnyAsync(t => t.Id == technicianId, cancellationToken);
-        if (!technicianExists)
-        {
-            throw new NotFoundException(nameof(Technician), technicianId);
-        }
-
-        var alreadyCovered = await _db.TechnicianCoverages
-            .AnyAsync(c => c.TechnicianId == technicianId && c.CityId == request.CityId, cancellationToken);
-        if (alreadyCovered)
-        {
-            throw new ConflictException("El técnico ya tiene cobertura registrada en esa ciudad.");
-        }
-
-        var coverage = new TechnicianCoverage { TechnicianId = technicianId, CityId = request.CityId };
-        _db.TechnicianCoverages.Add(coverage);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return await _db.TechnicianCoverages
-            .Where(c => c.Id == coverage.Id)
-            .Select(c => new TechnicianCoverageDto { Id = c.Id, CityId = c.CityId, CityName = c.City.Name })
-            .FirstAsync(cancellationToken);
-    }
-
-    public async Task RemoveCoverageAsync(Guid technicianId, Guid coverageId, CancellationToken cancellationToken = default)
-    {
-        var coverage = await _db.TechnicianCoverages
-            .FirstOrDefaultAsync(c => c.Id == coverageId && c.TechnicianId == technicianId, cancellationToken)
-            ?? throw new NotFoundException(nameof(TechnicianCoverage), coverageId);
-
-        _db.TechnicianCoverages.Remove(coverage);
-        await _db.SaveChangesAsync(cancellationToken);
-    }
+    private IQueryable<TechnicianZoneDto> ZonesOf(Guid technicianId) =>
+        _db.TechnicianZones
+            .Where(tz => tz.TechnicianId == technicianId)
+            .OrderBy(tz => tz.Zone.Name)
+            .Select(tz => new TechnicianZoneDto
+            {
+                ZoneId = tz.ZoneId,
+                ZoneName = tz.Zone.Name,
+                CityNames = tz.Zone.Cities.OrderBy(c => c.Name).Select(c => c.Name).ToList()
+            });
 
     public async Task<IReadOnlyList<TechnicianAssetDto>> ListLinkedAssetsAsync(Guid technicianId, CancellationToken cancellationToken = default)
     {

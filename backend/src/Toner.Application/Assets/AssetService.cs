@@ -406,10 +406,7 @@ public class AssetService : IAssetService
 
     public async Task<PagedResult<PendingInstallationDto>> ListPendingInstallationsAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var coveredCityIds = await _db.TechnicianCoverages
-            .Where(c => c.TechnicianId == technicianId)
-            .Select(c => c.CityId)
-            .ToListAsync(cancellationToken);
+        var coveredCityIds = await _db.CoveredCityIds(technicianId).ToListAsync(cancellationToken);
 
         if (coveredCityIds.Count == 0)
         {
@@ -515,7 +512,8 @@ public class AssetService : IAssetService
         var query = _db.Assets.Where(a =>
             a.LifecycleStatus == AssetLifecycleStatus.Instalado &&
             a.CurrentClientLocation != null &&
-            a.CurrentClientLocation.City.TechnicianCoverages.Any(tc => tc.TechnicianId == technicianId));
+            a.CurrentClientLocation.City.Zone != null &&
+            a.CurrentClientLocation.City.Zone.TechnicianZones.Any(tz => tz.TechnicianId == technicianId));
 
         return await ProjectMeterReadingAssetsAsync(query, page, pageSize, cancellationToken);
     }

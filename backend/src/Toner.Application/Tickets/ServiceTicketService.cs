@@ -111,10 +111,7 @@ public class ServiceTicketService : IServiceTicketService
 
     public async Task<PagedResult<ServiceTicketDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var coveredCityIds = await _db.TechnicianCoverages
-            .Where(c => c.TechnicianId == technicianId)
-            .Select(c => c.CityId)
-            .ToListAsync(cancellationToken);
+        var coveredCityIds = await _db.CoveredCityIds(technicianId).ToListAsync(cancellationToken);
 
         if (coveredCityIds.Count == 0)
         {

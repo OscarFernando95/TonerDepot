@@ -109,8 +109,18 @@ public sealed class RealtimeChangeInterceptor : SaveChangesInterceptor
                 case TechnicianTimeOff timeOff:
                     pending.Changes.Add(new("Technician", timeOff.TechnicianId, "updated", null, new[] { timeOff.TechnicianId }));
                     break;
-                case TechnicianCoverage coverage:
-                    pending.Changes.Add(new("Technician", coverage.TechnicianId, "updated", null, new[] { coverage.TechnicianId }));
+                case TechnicianZone technicianZone:
+                    pending.Changes.Add(new("Technician", technicianZone.TechnicianId, "updated", null, new[] { technicianZone.TechnicianId }));
+                    break;
+                case Zone zone:
+                    pending.Changes.Add(new("Zone", zone.Id, action, null, Array.Empty<Guid>()));
+                    break;
+                case City city when entry.State == EntityState.Modified && entry.Property(nameof(City.ZoneId)).IsModified:
+                    // Un municipio entró o salió de una zona: se avisa de la zona nueva y de la anterior.
+                    foreach (var zoneId in new[] { city.ZoneId, entry.Property(nameof(City.ZoneId)).OriginalValue as Guid? }.Where(z => z.HasValue).Select(z => z!.Value).Distinct())
+                    {
+                        pending.Changes.Add(new("Zone", zoneId, "updated", null, Array.Empty<Guid>()));
+                    }
                     break;
                 case TechnicianWorkInterval interval:
                     pending.Changes.Add(new("Technician", interval.TechnicianId, "updated", null, new[] { interval.TechnicianId }));

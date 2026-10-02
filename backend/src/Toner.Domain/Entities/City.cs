@@ -8,6 +8,9 @@ public class City : BaseEntity
     public string StateOrProvince { get; set; } = string.Empty;
 
     public ICollection<ClientLocation> ClientLocations { get; set; } = new List<ClientLocation>();
-    public ICollection<TechnicianCoverage> TechnicianCoverages { get; set; } = new List<TechnicianCoverage>();
+
+    // Zona de cobertura a la que pertenece el municipio (null = aún sin zona: ningún técnico lo cubre).
+    public Guid? ZoneId { get; set; }
+    public Zone? Zone { get; set; }
     public ICollection<User> Users { get; set; } = new List<User>();
 }

@@ -11,5 +11,7 @@ public class TechnicianDto
     public bool IsWorkingNow { get; set; }
     // Si está fuera de la oficina ahora, hasta cuándo (UTC); null si no.
     public DateTime? TimeOffUntil { get; set; }
+    // Zonas asignadas y los municipios que cubre a través de ellas.
+    public IReadOnlyList<string> ZoneNames { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> CoverageCityNames { get; set; } = Array.Empty<string>();
 }

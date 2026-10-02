@@ -52,10 +52,7 @@ public class MaintenanceScheduleService : IMaintenanceScheduleService
 
     public async Task<PagedResult<MaintenanceScheduleDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
-        var coveredCityIds = await _db.TechnicianCoverages
-            .Where(c => c.TechnicianId == technicianId)
-            .Select(c => c.CityId)
-            .ToListAsync(cancellationToken);
+        var coveredCityIds = await _db.CoveredCityIds(technicianId).ToListAsync(cancellationToken);
 
         if (coveredCityIds.Count == 0)
         {

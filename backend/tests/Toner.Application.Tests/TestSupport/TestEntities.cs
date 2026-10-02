@@ -74,11 +74,14 @@ public static class TestEntities
         Status = status
     };
 
-    public static TechnicianCoverage Coverage(Technician technician, City city) => new()
+    // El técnico cubre la ciudad a través de una zona propia que contiene solo esa ciudad. La ciudad queda marcada con
+    // la zona (hay que agregarla al contexto, o ya estarlo, antes de guardar); la zona viaja en la asignación.
+    public static TechnicianZone Coverage(Technician technician, City city)
     {
-        TechnicianId = technician.Id,
-        CityId = city.Id
-    };
+        var zone = new Zone { Name = $"Zona {city.Name} {Guid.NewGuid():N}" };
+        city.ZoneId = zone.Id;
+        return new TechnicianZone { TechnicianId = technician.Id, ZoneId = zone.Id, Zone = zone };
+    }
 
     public static Asset Asset(AssetModel model, AssetLifecycleStatus status = AssetLifecycleStatus.EnBodega, Guid? locationId = null) => new()
     {
