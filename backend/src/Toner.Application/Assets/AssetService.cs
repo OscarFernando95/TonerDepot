@@ -545,9 +545,25 @@ public class AssetService : IAssetService
             var assetIds = result.Items.Select(i => i.AssetId).ToList();
             var lastByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
 
+            var toner = await _db.InventoryMovements
+                .Where(m => m.AssetId != null && assetIds.Contains(m.AssetId.Value)
+                    && m.Type == InventoryMovementType.Consumo && m.InventoryItem.Category == InventoryCategory.Toner)
+                .Select(m => new { AssetId = m.AssetId!.Value, m.OccurredAt, m.CounterValue, Units = -m.Delta })
+                .ToListAsync(cancellationToken);
+            var since = DateTime.UtcNow.AddDays(-90);
+            var tonerByAsset = toner.GroupBy(t => t.AssetId).ToDictionary(g => g.Key, g => g.ToList());
+
             foreach (var item in result.Items)
             {
                 item.LastMeterReading = lastByAsset.TryGetValue(item.AssetId, out var value) ? value : null;
+
+                if (tonerByAsset.TryGetValue(item.AssetId, out var events))
+                {
+                    var last = events.OrderByDescending(e => e.OccurredAt).First();
+                    item.LastTonerAt = last.OccurredAt;
+                    item.LastTonerCounter = last.CounterValue;
+                    item.TonerUnitsLast90Days = events.Where(e => e.OccurredAt >= since).Sum(e => e.Units);
+                }
             }
         }
 

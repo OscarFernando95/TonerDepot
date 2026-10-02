@@ -105,7 +105,7 @@ public class RealtimeChangeInterceptorTests
         Assert.True(await notifier.WaitAsync());
         var change = Assert.Single(notifier.Changes);
         Assert.Equal("updated", change.Action);
-        Assert.Equivalent(new[] { seed.TechA.Id, seed.TechB.Id }, change.TechnicianIds);
+        Assert.Equivalent(new[] { seed.TechA.Id, seed.TechB.Id }, change.TechnicianIds, strict: true);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class RealtimeChangeInterceptorTests
         await db.SaveChangesAsync();
 
         Assert.True(await notifier.WaitAsync());
-        Assert.Equivalent(new[] { from.Id, to.Id }, notifier.Changes.Where(c => c.Entity == "Zone").Select(c => c.Id));
+        Assert.Equivalent(new[] { from.Id, to.Id }, notifier.Changes.Where(c => c.Entity == "Zone").Select(c => c.Id), strict: true);
     }
 
     [Fact]

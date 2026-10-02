@@ -16,4 +16,9 @@ public class MeterReadingAssetDto
     public string? CityName { get; set; }
 
     public long? LastMeterReading { get; set; }
+
+    // Último tóner entregado o cambiado en la máquina (con su contador) y cuántas unidades en los últimos 90 días.
+    public DateTime? LastTonerAt { get; set; }
+    public long? LastTonerCounter { get; set; }
+    public int TonerUnitsLast90Days { get; set; }
 }

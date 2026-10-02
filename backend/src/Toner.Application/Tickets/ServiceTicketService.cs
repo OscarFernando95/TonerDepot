@@ -109,6 +109,26 @@ public class ServiceTicketService : IServiceTicketService
         return await query.OrderByDescending(t => t.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
+    public async Task<PagedResult<ServiceTicketDto>> ListForLinkedMachinesAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    {
+        var activeStatuses = new[]
+        {
+            ServiceTicketStatus.Abierto, ServiceTicketStatus.SinAsignar, ServiceTicketStatus.Asignado, ServiceTicketStatus.EnProceso
+        };
+
+        var linkedAssets = _db.TechnicianAssets.Where(ta => ta.TechnicianId == technicianId).Select(ta => ta.AssetId);
+
+        var query = _db.ServiceTickets.Where(t =>
+            activeStatuses.Contains(t.Status) &&
+            t.TechnicianId != technicianId &&
+            t.AssetId != null &&
+            linkedAssets.Contains(t.AssetId.Value));
+
+        return await ProjectedFrom(query)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
+    }
+
     public async Task<PagedResult<ServiceTicketDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
     {
         var coveredCityIds = await _db.CoveredCityIds(technicianId).ToListAsync(cancellationToken);

@@ -13,6 +13,9 @@ public interface IServiceTicketService
 
     // Tickets activos (no resueltos/cerrados/cancelados) de otros técnicos, en ciudades que el técnico
     // cubre. Puramente informativo salvo por los que aún no arrancó nadie (ver ClaimAsync).
+    // Tickets pendientes (abiertos, sin asignar, asignados o en proceso) de las máquinas vinculadas al técnico que no
+    // están a su cargo: para que se entere de lo que pasa en sus máquinas.
+    Task<PagedResult<ServiceTicketDto>> ListForLinkedMachinesAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default);
     Task<PagedResult<ServiceTicketDto>> ListInCoverageAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default);
     Task<ServiceTicketDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
     Task<ServiceTicketDto> AssignAsync(Guid id, AssignTicketRequest request, Guid assignedByUserId, CancellationToken cancellationToken = default);

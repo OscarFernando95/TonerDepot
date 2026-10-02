@@ -192,7 +192,7 @@ public class ZoneServiceTests
         {
             // Mover Neiva a Sur amplía la cobertura de quien atiende Sur, sin tocar al técnico.
             await Service(db).SetCitiesAsync(southId, new SetZoneCitiesRequest { CityIds = new[] { pitalito.Id, neiva.Id } });
-            Assert.Equivalent(new[] { neiva.Id, pitalito.Id }, await db.CoveredCityIds(technician.Id).ToListAsync());
+            Assert.Equivalent(new[] { neiva.Id, pitalito.Id }, await db.CoveredCityIds(technician.Id).ToListAsync(), strict: true);
 
             await TestTechnicianService(db).SetZonesAsync(technician.Id, new SetTechnicianZonesRequest());
             Assert.Empty(await db.CoveredCityIds(technician.Id).ToListAsync());

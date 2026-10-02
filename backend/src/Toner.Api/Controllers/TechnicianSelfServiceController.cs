@@ -84,6 +84,13 @@ public class TechnicianSelfServiceController : ControllerBase
         return Ok(await _maintenanceOrderService.ListInCoverageAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
     }
 
+    // Tickets pendientes de las máquinas vinculadas al técnico que atiende otro (o nadie): solo lectura.
+    [HttpGet("machine-tickets")]
+    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> GetMachineTickets([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    {
+        return Ok(await _serviceTicketService.ListForLinkedMachinesAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
+    }
+
     // Cronogramas de activos en ciudades cubiertas por el técnico — misma info que ve Staff en el
     // módulo de Cronogramas.
     [HttpGet("coverage-schedules")]

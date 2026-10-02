@@ -18,7 +18,7 @@ public class RealtimeAudienceTests
 
         Assert.Equivalent(
             new[] { RealtimeGroups.Staff, RealtimeGroups.Client(Client), RealtimeGroups.Technician(TechA), RealtimeGroups.Technician(TechB) },
-            groups);
+            groups, strict: true);
     }
 
     [Theory]
@@ -42,7 +42,7 @@ public class RealtimeAudienceTests
     {
         var groups = RealtimeAudience.GroupsFor(new EntityChange("Asset", Guid.NewGuid(), "updated", null, Array.Empty<Guid>()));
 
-        Assert.Equivalent(new[] { RealtimeGroups.Staff, RealtimeGroups.AllTechnicians }, groups);
+        Assert.Equivalent(new[] { RealtimeGroups.Staff, RealtimeGroups.AllTechnicians }, groups, strict: true);
         Assert.DoesNotContain(groups, g => g.StartsWith("client:"));
     }
 
