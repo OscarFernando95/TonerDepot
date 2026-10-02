@@ -19,7 +19,7 @@ Pendientes por aplicar y cambios
 2. ~~Vincular, automaticamente, un activo al tecnico que realiza una instalacion por primera vez. En caso de se un favor que se pida, la re-vincuacion se debe hacer por el administrador.~~ | HECHO (TechnicianAssets: se vincula en el check-out de instalacion; gestion manual por Administrador)
 3. ~~Actualizaciones en tiempo real en Web y App (sockets o algo)~~ | CORREGIDO en codigo, falta prueba en vivo: hoy no funciona bien, si estoy en una ventana o en el navegador y hay cambios no se actualizan correctamente. Debe cubrir todo lo que pueda cambiar de estado.
 4. ~~Pedir foto del contador en un servicio o mantenimiento.~~ | HECHO en codigo (tipo de evidencia Contador, obligatoria en tickets/ordenes de equipos bajo contrato, opcional en tickets de clientes sin contrato vigente (con o sin activo catalogado); instalaciones no, porque no llevan evidencias), falta prueba en vivo
-5. Control del horario para las instalaciones: hoy no se controla.
+5. ~~Control del horario para las instalaciones: hoy no se controla.~~ | HECHO en codigo: el check-in de una instalacion se rechaza fuera de la jornada del tecnico, en festivo o en permiso (cliente 24/7 solo respeta permisos); la lista marca 'Fuera de horario'
 6. Inventario de consumibles y repuestos, con checks al atender un mantenimiento o ticket de un cliente.
 7. Control de uso de toner: contabilizar toner usados y su duracion comparado con las impresiones (BI para administradores).
 8. Permitir poner una maquina en mantenimiento en cualquier momento.
