@@ -19,6 +19,9 @@ class PendingInstallation {
   final DateTime? contractEndDate;
   final bool takenByAnotherTechnician;
 
+  /// false si ahora no puede iniciarla por horario (fuera de jornada, festivo o permiso). El backend lo exige igual.
+  final bool canStartNow;
+
   PendingInstallation({
     required this.assetId,
     required this.assetBrandName,
@@ -33,6 +36,7 @@ class PendingInstallation {
     required this.contractStartDate,
     required this.contractEndDate,
     required this.takenByAnotherTechnician,
+    this.canStartNow = true,
   });
 
   factory PendingInstallation.fromJson(Map<String, dynamic> json) =>
@@ -55,5 +59,6 @@ class PendingInstallation {
             : null,
         takenByAnotherTechnician:
             json['takenByAnotherTechnician'] as bool? ?? false,
+        canStartNow: json['canStartNow'] as bool? ?? true,
       );
 }

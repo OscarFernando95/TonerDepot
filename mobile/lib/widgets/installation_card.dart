@@ -93,7 +93,8 @@ class InstallationCard extends StatelessWidget {
             ),
           if (canCheckIn &&
               !isActive &&
-              !installation.takenByAnotherTechnician) ...[
+              !installation.takenByAnotherTechnician &&
+              installation.canStartNow) ...[
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerRight,
@@ -109,6 +110,19 @@ class InstallationCard extends StatelessWidget {
                       : const Icon(Icons.login, size: 18),
                   label: const Text('Check-in'),
                 ),
+              ),
+            ),
+          ],
+          if (!installation.canStartNow &&
+              !installation.takenByAnotherTechnician &&
+              !isActive) ...[
+            const SizedBox(height: 6),
+            const Text(
+              'Fuera de tu horario laboral, festivo o en permiso: no puedes iniciarla ahora.',
+              style: TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
               ),
             ),
           ],
