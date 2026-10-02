@@ -34,6 +34,9 @@ public sealed class WorkCalendarContext
     public IReadOnlyList<WorkInterval> IntervalsFor(Guid? technicianId) =>
         technicianId is { } id && _intervalsByTechnician.TryGetValue(id, out var own) ? own : _defaultIntervals;
 
+    // Festivo o día no laborable (incluye los cierres de la empresa y excluye los festivos marcados como laborables).
+    public bool IsNonWorkingDay(DateOnly localDate) => _isNonWorkingDay(localDate);
+
     public bool IsInTimeOff(Guid technicianId, DateTime instantUtc) =>
         _timeOffByTechnician.TryGetValue(technicianId, out var periods)
         && periods.Any(p => p.StartUtc <= instantUtc && instantUtc < p.EndUtc);

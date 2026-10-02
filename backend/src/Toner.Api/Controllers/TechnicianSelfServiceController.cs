@@ -34,6 +34,7 @@ public class TechnicianSelfServiceController : ControllerBase
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
     private readonly IServiceTicketService _serviceTicketService;
     private readonly IEvidenceService _evidenceService;
+    private readonly ITechnicianHomeService _homeService;
 
     public TechnicianSelfServiceController(
         ITechnicianCheckInService checkInService,
@@ -42,8 +43,10 @@ public class TechnicianSelfServiceController : ControllerBase
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
         IServiceTicketService serviceTicketService,
-        IEvidenceService evidenceService)
+        IEvidenceService evidenceService,
+        ITechnicianHomeService homeService)
     {
+        _homeService = homeService;
         _evidenceService = evidenceService;
         _checkInService = checkInService;
         _checkInValidator = checkInValidator;
@@ -51,6 +54,13 @@ public class TechnicianSelfServiceController : ControllerBase
         _maintenanceOrderService = maintenanceOrderService;
         _maintenanceScheduleService = maintenanceScheduleService;
         _serviceTicketService = serviceTicketService;
+    }
+
+    // Resumen del Inicio: estado, visita en curso, agenda ordenada y stock bajo de su zona.
+    [HttpGet("home")]
+    public async Task<ActionResult<TechnicianHomeDto>> GetHome(CancellationToken cancellationToken)
+    {
+        return Ok(await _homeService.GetAsync(CurrentTechnicianId, cancellationToken));
     }
 
     [HttpGet("status")]

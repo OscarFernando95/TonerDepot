@@ -201,6 +201,7 @@ builder.Services.AddScoped<MaintenanceScheduleEvaluationJob>();
 builder.Services.AddScoped<IServiceTicketService, ServiceTicketService>();
 builder.Services.AddScoped<ITechnicianService, TechnicianService>();
 builder.Services.AddScoped<ITechnicianCheckInService, TechnicianCheckInService>();
+builder.Services.AddScoped<ITechnicianHomeService, TechnicianHomeService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<WorkCalendarOptions>(builder.Configuration.GetSection("WorkCalendar"));
 builder.Services.AddScoped<IWorkCalendarService, WorkCalendarService>();
