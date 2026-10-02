@@ -109,6 +109,9 @@ public sealed class RealtimeChangeInterceptor : SaveChangesInterceptor
                 case TechnicianTimeOff timeOff:
                     pending.Changes.Add(new("Technician", timeOff.TechnicianId, "updated", null, new[] { timeOff.TechnicianId }));
                     break;
+                case TechnicianCoverage coverage:
+                    pending.Changes.Add(new("Technician", coverage.TechnicianId, "updated", null, new[] { coverage.TechnicianId }));
+                    break;
                 case TechnicianWorkInterval interval:
                     pending.Changes.Add(new("Technician", interval.TechnicianId, "updated", null, new[] { interval.TechnicianId }));
                     break;

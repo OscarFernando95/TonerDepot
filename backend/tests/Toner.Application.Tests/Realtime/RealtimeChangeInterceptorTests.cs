@@ -166,4 +166,56 @@ public class RealtimeChangeInterceptorTests
         using var check = TonerTestDb.CreateContext(dbName);
         Assert.Equal(1, await check.ServiceTickets.CountAsync());
     }
+
+    [Fact]
+    public async Task CambiarLaCoberturaDeUnTecnico_AvisaAEseTecnico()
+    {
+        var seed = Seed();
+        var dbName = Guid.NewGuid().ToString();
+        using (var arrange = TonerTestDb.CreateContext(dbName))
+        {
+            arrange.AddRange(seed.All);
+            await arrange.SaveChangesAsync();
+        }
+
+        var notifier = new FakeNotifier();
+        using var db = Ctx(dbName, notifier);
+        var cityId = (await db.Cities.FirstAsync()).Id;
+        db.TechnicianCoverages.Add(new TechnicianCoverage { TechnicianId = seed.TechA.Id, CityId = cityId });
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        var change = Assert.Single(notifier.Changes);
+        Assert.Equal("Technician", change.Entity);
+        Assert.Equal(seed.TechA.Id, change.Id);
+        Assert.Equal(new[] { seed.TechA.Id }, change.TechnicianIds);
+    }
+
+    [Fact]
+    public async Task VincularUnActivoAUnTecnico_AvisaSoloAEseTecnico()
+    {
+        var seed = Seed();
+        var dbName = Guid.NewGuid().ToString();
+        Guid assetId;
+        using (var arrange = TonerTestDb.CreateContext(dbName))
+        {
+            var brand = TestEntities.AssetBrand();
+            var model = TestEntities.AssetModel(brand);
+            var asset = TestEntities.Asset(model);
+            assetId = asset.Id;
+            arrange.AddRange(seed.All);
+            arrange.AddRange(brand, model, asset);
+            await arrange.SaveChangesAsync();
+        }
+
+        var notifier = new FakeNotifier();
+        using var db = Ctx(dbName, notifier);
+        db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = seed.TechA.Id, AssetId = assetId });
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        var change = Assert.Single(notifier.Changes);
+        Assert.Equal("TechnicianAsset", change.Entity);
+        Assert.Equal(new[] { seed.TechA.Id }, change.TechnicianIds);
+    }
 }
