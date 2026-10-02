@@ -47,6 +47,14 @@ class _AppShellState extends State<AppShell> {
     final visibleDestinations = kAppDestinations
         .where((d) => auth.hasAnyRole(d.roles))
         .toList();
+    // Barra inferior: solo los módulos fijados del rol (ver kBottomNavByRole); el resto está en el menú lateral.
+    final pinnedNames = kBottomNavByRole[auth.currentUser?.role];
+    final bottomDestinations = pinnedNames == null
+        ? visibleDestinations
+        : [
+            for (final name in pinnedNames)
+              ...visibleDestinations.where((d) => d.name == name),
+          ];
     AppDestination? current;
     for (final d in kAppDestinations) {
       if (d.path == currentPath) {
@@ -152,7 +160,7 @@ class _AppShellState extends State<AppShell> {
         ],
       ),
       bottomNavigationBar: _GlassBottomNav(
-        destinations: visibleDestinations,
+        destinations: bottomDestinations,
         currentPath: currentPath,
         onSelect: (d) => context.go(d.path),
       ),
@@ -160,10 +168,9 @@ class _AppShellState extends State<AppShell> {
   }
 }
 
-/// Barra inferior con los mismos destinos que el Drawer (ya filtrados por
-/// rol). Un rol de staff tiene 13 destinos, demasiados para una barra fija,
-/// así que hace scroll horizontal y mantiene visible el destino activo.
-class _GlassBottomNav extends StatefulWidget {
+/// Barra inferior fija con los módulos más usados del rol (hasta 5), repartidos en partes iguales. El resto de módulos
+/// está en el menú lateral.
+class _GlassBottomNav extends StatelessWidget {
   const _GlassBottomNav({
     required this.destinations,
     required this.currentPath,
@@ -175,69 +182,24 @@ class _GlassBottomNav extends StatefulWidget {
   final ValueChanged<AppDestination> onSelect;
 
   @override
-  State<_GlassBottomNav> createState() => _GlassBottomNavState();
-}
-
-class _GlassBottomNavState extends State<_GlassBottomNav> {
-  final Map<String, GlobalKey> _itemKeys = {};
-
-  GlobalKey _keyFor(String path) => _itemKeys.putIfAbsent(path, GlobalKey.new);
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollToCurrent();
-  }
-
-  @override
-  void didUpdateWidget(_GlassBottomNav oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentPath != widget.currentPath) _scrollToCurrent();
-  }
-
-  void _scrollToCurrent() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final itemContext = _itemKeys[widget.currentPath]?.currentContext;
-      if (itemContext == null) return;
-      Scrollable.ensureVisible(
-        itemContext,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return GlassPanel(
       child: SafeArea(
         top: false,
         child: SizedBox(
           height: 64,
-          // Si los botones caben, quedan centrados; si no, minWidth se
-          // ignora y la barra hace scroll horizontal.
-          child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth - 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (final d in widget.destinations)
-                      _BottomNavItem(
-                        key: _keyFor(d.path),
-                        icon: d.icon,
-                        label: d.label,
-                        selected: d.path == widget.currentPath,
-                        onTap: () => widget.onSelect(d),
-                      ),
-                  ],
+          child: Row(
+            children: [
+              for (final d in destinations)
+                Expanded(
+                  child: _BottomNavItem(
+                    icon: d.icon,
+                    label: d.shortLabel ?? d.label,
+                    selected: d.path == currentPath,
+                    onTap: () => onSelect(d),
+                  ),
                 ),
-              ),
-            ),
+            ],
           ),
         ),
       ),
@@ -247,7 +209,6 @@ class _GlassBottomNavState extends State<_GlassBottomNav> {
 
 class _BottomNavItem extends StatelessWidget {
   const _BottomNavItem({
-    super.key,
     required this.icon,
     required this.label,
     required this.selected,
@@ -261,15 +222,16 @@ class _BottomNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.signalBlueBright : AppColors.inkSecondary;
+    final color = selected
+        ? AppColors.signalBlueBright
+        : AppColors.inkSecondary;
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
-          width: 84,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
           decoration: BoxDecoration(
             color: selected ? AppColors.signalBlueWash : null,
             borderRadius: BorderRadius.circular(12),

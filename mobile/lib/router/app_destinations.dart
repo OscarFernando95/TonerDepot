@@ -7,9 +7,11 @@ import '../screens/meter_readings_screen.dart';
 import '../screens/my_work_screen.dart';
 import '../screens/assets/asset_brands_list_screen.dart';
 import '../screens/assets/assets_list_screen.dart';
+import '../screens/analytics/toner_bi_screen.dart';
 import '../screens/clients/clients_list_screen.dart';
 import '../screens/contracts/contracts_list_screen.dart';
 import '../screens/holidays/holidays_screen.dart';
+import '../screens/inventory/inventory_screen.dart';
 import '../screens/users/users_list_screen.dart';
 import '../screens/zones/zones_screen.dart';
 import '../screens/maintenance/maintenance_orders_list_screen.dart';
@@ -29,6 +31,7 @@ class AppDestination {
     required this.name,
     required this.path,
     required this.label,
+    this.shortLabel,
     required this.icon,
     required this.roles,
     required this.builder,
@@ -37,6 +40,9 @@ class AppDestination {
   final String name;
   final String path;
   final String label;
+
+  /// Nombre corto para la barra inferior, donde no cabe el nombre completo del módulo.
+  final String? shortLabel;
   final IconData icon;
   final List<String> roles;
   final Widget Function(BuildContext context, GoRouterState state) builder;
@@ -73,6 +79,7 @@ final List<AppDestination> kAppDestinations = [
     name: 'meter-readings',
     path: '/meter-readings',
     label: 'Lectura de contadores',
+    shortLabel: 'Contadores',
     icon: Icons.speed_outlined,
     roles: RoleNames.staffAndTechnicianRoles,
     builder: (context, state) => const MeterReadingsScreen(),
@@ -97,6 +104,7 @@ final List<AppDestination> kAppDestinations = [
     name: 'maintenance-orders',
     path: '/maintenance-orders',
     label: 'Órdenes de mantenimiento',
+    shortLabel: 'Órdenes',
     icon: Icons.build_outlined,
     roles: RoleNames.staffRoles,
     builder: (context, state) => const MaintenanceOrdersListScreen(),
@@ -108,6 +116,22 @@ final List<AppDestination> kAppDestinations = [
     icon: Icons.engineering_outlined,
     roles: RoleNames.staffRoles,
     builder: (context, state) => const TechniciansListScreen(),
+  ),
+  AppDestination(
+    name: 'inventory',
+    path: '/inventory',
+    label: 'Inventario',
+    icon: Icons.warehouse_outlined,
+    roles: RoleNames.staffRoles,
+    builder: (context, state) => const InventoryScreen(),
+  ),
+  AppDestination(
+    name: 'toner-bi',
+    path: '/toner-bi',
+    label: 'BI de tóner',
+    icon: Icons.insights_outlined,
+    roles: [RoleNames.administrador],
+    builder: (context, state) => const TonerBiScreen(),
   ),
   AppDestination(
     name: 'zones',
@@ -174,3 +198,24 @@ final List<AppDestination> kAppDestinations = [
     builder: (context, state) => const UsersListScreen(),
   ),
 ];
+
+/// Barra inferior: SOLO los módulos más usados de cada rol, en este orden (máximo 5). El resto vive en el menú lateral,
+/// que lista todos los módulos del rol. Un rol sin entrada aquí muestra todos sus destinos (son pocos).
+const Map<String, List<String>> kBottomNavByRole = {
+  RoleNames.administrador: [
+    'dashboard',
+    'tickets',
+    'maintenance-orders',
+    'assets',
+    'inventory',
+  ],
+  RoleNames.coordinador: [
+    'dashboard',
+    'tickets',
+    'maintenance-orders',
+    'technicians',
+    'clients',
+  ],
+  RoleNames.tecnico: ['dashboard', 'my-work', 'meter-readings'],
+  RoleNames.cliente: ['dashboard', 'tickets', 'my-assets', 'my-contracts'],
+};
