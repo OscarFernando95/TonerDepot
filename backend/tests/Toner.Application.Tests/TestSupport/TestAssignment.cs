@@ -42,7 +42,8 @@ public static class TestCheckIn
 {
     // requirePhotos = false por defecto: los tests históricos del check-in no cubren la política de fotos;
     // los de la política (EvidenceAndLocationTests) la activan explícitamente.
-    public static TechnicianCheckInService Create(Infrastructure.Persistence.TonerDbContext db, bool requirePhotos = false, double radiusMeters = 250)
+    public static TechnicianCheckInService Create(
+        Infrastructure.Persistence.TonerDbContext db, bool requirePhotos = false, double radiusMeters = 250, TimeProvider? time = null)
     {
         var scheduleEngine = new MaintenanceScheduleEngine(db);
         var assignmentEngine = TestAssignment.Create(db);
@@ -55,6 +56,8 @@ public static class TestCheckIn
             assignmentEngine,
             Options.Create(new GeoOptions { SiteRadiusMeters = radiusMeters }),
             Options.Create(new EvidenceOptions { RequirePhotos = requirePhotos }),
+            TestCalendar.For(db),
+            time ?? FixedTimeProvider.WorkingHours,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TechnicianCheckInService>.Instance);
     }
 }

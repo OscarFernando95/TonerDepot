@@ -27,4 +27,9 @@ public class PendingInstallationDto
     // true si otro técnico ya tiene un check-in abierto sobre este activo — bloquea el check-in en la UI
     // en vez de dejar que el técnico lo intente y reciba el ConflictException recién en ese momento.
     public bool TakenByAnotherTechnician { get; set; }
+
+    // false si AHORA el técnico no puede iniciar esta instalación por horario: fuera de su jornada, festivo o
+    // permiso (un cliente 24/7 ignora la jornada pero no el permiso). El backend lo vuelve a exigir en el
+    // check-in; esto solo evita que la UI ofrezca un botón que va a rechazarse.
+    public bool CanStartNow { get; set; } = true;
 }

@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using Toner.Application.Assets;
 using Toner.Application.Assets.Dtos;
 using Toner.Application.Assignment;
+using Toner.Application.Calendar;
+using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Maintenance;
@@ -27,6 +29,8 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     private readonly IAssignmentEngine _assignmentEngine;
     private readonly GeoOptions _geo;
     private readonly EvidenceOptions _evidence;
+    private readonly IWorkCalendarService _calendar;
+    private readonly TimeProvider _time;
     private readonly ILogger<TechnicianCheckInService> _logger;
 
     public TechnicianCheckInService(
@@ -38,8 +42,12 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         IAssignmentEngine assignmentEngine,
         IOptions<GeoOptions> geo,
         IOptions<EvidenceOptions> evidence,
+        IWorkCalendarService calendar,
+        TimeProvider time,
         ILogger<TechnicianCheckInService> logger)
     {
+        _calendar = calendar;
+        _time = time;
         _geo = geo.Value;
         _evidence = evidence.Value;
         _logger = logger;
@@ -70,6 +78,46 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             ActiveAssetInstallationId = openLog?.AssetId,
             CheckedInAt = openLog?.StartTime
         };
+    }
+
+    public async Task<PagedResult<PendingInstallationDto>> ListPendingInstallationsAsync(
+        Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    {
+        var result = await _assetService.ListPendingInstallationsAsync(technicianId, page, pageSize, cancellationToken);
+        if (result.Items.Count == 0)
+        {
+            return result;
+        }
+
+        var now = _time.GetUtcNow().UtcDateTime;
+        var calendar = await _calendar.LoadAsync(new[] { technicianId }, now, now.AddMinutes(1), cancellationToken);
+        var clientIds = result.Items.Select(p => p.ClientId).Distinct().ToList();
+        var coverageByClient = await _db.Clients
+            .Where(c => clientIds.Contains(c.Id))
+            .Select(c => new { c.Id, c.SupportCoverage })
+            .ToDictionaryAsync(c => c.Id, c => c.SupportCoverage, cancellationToken);
+
+        foreach (var item in result.Items)
+        {
+            var coverage = coverageByClient.GetValueOrDefault(item.ClientId, SupportCoverage.HorarioOficina);
+            item.CanStartNow = calendar.IsAssignable(technicianId, coverage, now);
+        }
+
+        return result;
+    }
+
+    private async Task<bool> CanStartNowAsync(Guid technicianId, Guid? clientLocationId, CancellationToken cancellationToken)
+    {
+        var coverage = clientLocationId.HasValue
+            ? await _db.ClientLocations
+                .Where(l => l.Id == clientLocationId.Value)
+                .Select(l => l.Client.SupportCoverage)
+                .FirstOrDefaultAsync(cancellationToken)
+            : SupportCoverage.HorarioOficina;
+
+        var now = _time.GetUtcNow().UtcDateTime;
+        var calendar = await _calendar.LoadAsync(new[] { technicianId }, now, now.AddMinutes(1), cancellationToken);
+        return calendar.IsAssignable(technicianId, coverage, now);
     }
 
     public async Task<TechnicianSelfStatusDto> CheckInAsync(Guid technicianId, CheckInRequest request, CancellationToken cancellationToken = default)
@@ -133,6 +181,17 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             if (alreadyInProgress)
             {
                 throw new ConflictException("Otro técnico ya está atendiendo esta instalación.");
+            }
+
+            // Una instalación es trabajo de campo como cualquier otro: solo dentro del horario del técnico (o sin
+            // permiso, si el cliente es 24/7). Tickets y órdenes ya lo respetan al asignarse; esta lista abierta
+            // no pasa por la asignación, así que el control va aquí.
+            if (!await CanStartNowAsync(technicianId, asset.CurrentClientLocationId, cancellationToken))
+            {
+                _logger.LogInformation(
+                    "Check-in de instalación rechazado por horario: técnico {TechnicianId}, activo {AssetId}", technicianId, asset.Id);
+                throw new ConflictException(
+                    "No puedes iniciar esta instalación ahora: estás fuera de tu horario laboral, en un día festivo o en permiso.");
             }
         }
 

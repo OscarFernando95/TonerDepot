@@ -63,7 +63,7 @@ public class TechnicianSelfServiceController : ControllerBase
     [HttpGet("pending-installations")]
     public async Task<ActionResult<PagedResult<PendingInstallationDto>>> GetPendingInstallations([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListPendingInstallationsAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
+        return Ok(await _checkInService.ListPendingInstallationsAsync(CurrentTechnicianId, page, pageSize, cancellationToken));
     }
 
     // Solo lectura: órdenes de mantenimiento asignadas a otros técnicos, en ciudades que este técnico
