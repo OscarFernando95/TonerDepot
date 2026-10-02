@@ -75,7 +75,10 @@ function buildConnection(): signalR.HubConnection {
   const siteBaseUrl = apiBaseUrl.endsWith('/api') ? apiBaseUrl.slice(0, -4) : apiBaseUrl
 
   const conn = new signalR.HubConnectionBuilder()
-    .withUrl(`${siteBaseUrl}/hubs/updates`, { accessTokenFactory: () => auth.token ?? '' })
+    // withCredentials: false — la autenticación va por token (accessTokenFactory), no por cookies. Con el valor por
+    // defecto (true) el navegador exige Access-Control-Allow-Credentials en la negociación, el backend (con razón) no lo
+    // manda, y la conexión falla en silencio en el navegador aunque funcione en la app móvil o desde Node.
+    .withUrl(`${siteBaseUrl}/hubs/updates`, { accessTokenFactory: () => auth.token ?? '', withCredentials: false })
     .withAutomaticReconnect({
       nextRetryDelayInMilliseconds: (ctx) => RETRY_DELAYS_MS[Math.min(ctx.previousRetryCount, RETRY_DELAYS_MS.length - 1)],
     })

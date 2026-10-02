@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
 
 type Fn = (...args: any[]) => void
+const urlOptions: { url: string; options: any }[] = []
 
 // Doble mínimo de HubConnection: guarda los callbacks que registra useRealtime para poder dispararlos a mano.
 class FakeConnection {
@@ -29,7 +30,8 @@ vi.mock('@microsoft/signalr', () => ({
   HubConnectionState: { Disconnected: 'Disconnected' },
   LogLevel: { Warning: 3 },
   HubConnectionBuilder: class {
-    withUrl() {
+    withUrl(url: string, options: unknown) {
+      urlOptions.push({ url, options })
       return this
     }
     withAutomaticReconnect() {
@@ -225,5 +227,17 @@ describe('useRealtime', () => {
     vi.advanceTimersByTime(300)
 
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('conecta sin credenciales (la auth es por token): si no, el navegador bloquea la negociación por CORS', async () => {
+    const { useRealtimeUpdates } = await loadModule()
+    urlOptions.length = 0
+    effectScope().run(() => useRealtimeUpdates(['Ticket'], vi.fn()))
+    await flush()
+
+    const { url, options } = urlOptions[0]
+    expect(url).toBe('http://localhost:5000/hubs/updates')
+    expect(options.withCredentials).toBe(false)
+    expect(options.accessTokenFactory()).toBe('jwt')
   })
 })
