@@ -489,6 +489,8 @@ export interface ServiceTicketDto {
   assetBrandName: string | null
   assetModel: string | null
   assetSerialNumber: string | null
+  // El activo tiene hoy un contrato vigente: la foto del contador es obligatoria solo en ese caso.
+  assetUnderContract: boolean
   // Solo aplican cuando assetId es null (cliente externo, equipo sin catalogar) — las llena el técnico
   // de forma opcional al cerrar el ticket.
   externalAssetBrand: string | null

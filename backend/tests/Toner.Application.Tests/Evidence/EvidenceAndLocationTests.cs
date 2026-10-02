@@ -305,17 +305,25 @@ public class EvidenceAndLocationTests
 
     // ── Foto del contador ────────────────────────────────────────────────────────────────────────
     // Ticket CON activo en curso (check-in hecho) para ejercitar la rama que registra la lectura.
-    private static async Task<Scenario> SeedTicketConActivoEnCursoAsync()
+    private static async Task<Scenario> SeedTicketConActivoEnCursoAsync(bool bajoContrato = true)
     {
         var s = await SeedAsync();
         using (var db = TonerTestDb.CreateContext(s.DbName))
         {
             var ticket = await db.ServiceTickets.SingleAsync();
+            var client = await db.Clients.SingleAsync();
             var brand = TestEntities.AssetBrand();
             var model = TestEntities.AssetModel(brand);
             var asset = TestEntities.Asset(model);
             asset.ClientId = s.ClientId;
             db.AddRange(brand, model, asset);
+            if (bajoContrato)
+            {
+                var contract = TestEntities.Contract(client);
+                var link = TestEntities.ContractAsset(contract, asset);
+                link.ClientId = s.ClientId;
+                db.AddRange(contract, link);
+            }
             ticket.AssetId = asset.Id;
             await db.SaveChangesAsync();
         }
@@ -435,5 +443,21 @@ public class EvidenceAndLocationTests
         using var check = TonerTestDb.CreateContext(s.DbName);
         var log = await check.TimeLogs.SingleAsync();
         Assert.Equal(log.Id, (await check.Evidences.SingleAsync(e => e.Id == counter)).TimeLogId);
+    }
+
+    [Fact]
+    public async Task CheckOut_TicketConActivoSinContratoVigente_LaFotoDelContadorEsOpcional()
+    {
+        var s = await SeedTicketConActivoEnCursoAsync(bajoContrato: false);
+        var after = await UploadAsync(s, EvidenceKind.Despues);
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        await TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
+        {
+            Resolved = true, AfterEvidenceId = after, InitialCounterValue = 1000
+        });
+
+        using var check = TonerTestDb.CreateContext(s.DbName);
+        Assert.Single(await check.MeterReadings.ToListAsync());
     }
 }

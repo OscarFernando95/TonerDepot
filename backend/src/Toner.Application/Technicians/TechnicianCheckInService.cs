@@ -291,9 +291,12 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
         // Foto del contador: si la visita (ticket u orden) registra una lectura, debe venir con su foto. Las
         // instalaciones no entran: no tienen ticket/orden al que atar evidencia (ver CheckIn).
-        var recordsReading = request.InitialCounterValue.HasValue && (isOrderCheckout || ticketAssetId.HasValue);
+        // Obligatoria con equipo bajo contrato (órdenes siempre; tickets solo si el activo tiene contrato vigente).
+        // En un ticket de cliente sin contrato —con o sin activo catalogado— es opcional: si llega, se ata igual.
+        var counterPhotoRequired = request.InitialCounterValue.HasValue
+            && (isOrderCheckout || (ticketAssetId.HasValue && await IsUnderActiveContractAsync(ticketAssetId.Value, cancellationToken)));
         Evidence? counterPhoto = null;
-        if (isVisitCheckout && ((recordsReading && _evidence.RequirePhotos) || request.CounterEvidenceId.HasValue))
+        if (isVisitCheckout && ((counterPhotoRequired && _evidence.RequirePhotos) || request.CounterEvidenceId.HasValue))
         {
             counterPhoto = await RequireEvidenceAsync(
                 request.CounterEvidenceId, EvidenceKind.Contador, openLog.ServiceTicketId, openLog.MaintenanceOrderId,
@@ -513,6 +516,10 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
         return evidence;
     }
+
+    private Task<bool> IsUnderActiveContractAsync(Guid assetId, CancellationToken cancellationToken) =>
+        _db.ContractAssets.AnyAsync(
+            ca => ca.AssetId == assetId && ca.EndDate == null && ca.Contract.Status == ContractStatus.Activo, cancellationToken);
 
     private Task<Guid?> GetAssetClientIdAsync(Guid assetId, CancellationToken cancellationToken) =>
         _db.Assets.Where(a => a.Id == assetId).Select(a => a.ClientId).FirstOrDefaultAsync(cancellationToken);

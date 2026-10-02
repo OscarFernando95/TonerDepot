@@ -12,6 +12,9 @@ public class ServiceTicketDto
     public string? AssetBrandName { get; set; }
     public string? AssetModel { get; set; }
     public string? AssetSerialNumber { get; set; }
+
+    // El activo tiene hoy un contrato vigente: de eso depende que la foto del contador sea obligatoria al cerrar.
+    public bool AssetUnderContract { get; set; }
     public string? ExternalAssetBrand { get; set; }
     public string? ExternalAssetModel { get; set; }
     public long? ExternalAssetCounter { get; set; }

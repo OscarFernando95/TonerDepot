@@ -140,12 +140,16 @@ function isCounterDateDisabled(date: Date) {
   return false
 }
 
+// Obligatoria con equipo bajo contrato: órdenes siempre; tickets solo si el activo tiene contrato vigente.
 const counterPhotoRequired = computed(
   () =>
-    (!!activeTicket.value || !!activeOrder.value) &&
+    (!!activeOrder.value || !!activeTicket.value?.assetUnderContract) &&
     (checkoutForm.resolved || !!activeTicket.value) &&
     checkoutForm.initialCounterValue != null
 )
+
+// Ticket de cliente sin contrato (equipo sin catalogar, o catalogado sin contrato vigente): la foto es opcional.
+const counterPhotoOptional = computed(() => !!activeTicket.value && !activeTicket.value.assetUnderContract)
 
 const checkoutFormValid = computed(() => baseCheckoutValid.value && (!counterPhotoRequired.value || !!counterPhoto.value))
 
@@ -292,7 +296,7 @@ async function doCheckOut() {
       getCurrentPosition()
     ])
     const counterEvidence =
-      (counterPhotoRequired.value || isExternalTicket.value) && visitTarget && counterPhoto.value
+      (counterPhotoRequired.value || counterPhotoOptional.value) && visitTarget && counterPhoto.value
         ? await selfApi.uploadEvidence(counterPhoto.value, 'Contador', visitTarget)
         : null
     await selfApi.checkOut({
@@ -443,7 +447,7 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
         <el-form-item v-if="counterPhotoRequired" label="Foto del contador (obligatoria)">
           <PhotoPicker v-model="counterPhoto" />
         </el-form-item>
-        <el-form-item v-else-if="isExternalTicket" label="Foto del contador (opcional)">
+        <el-form-item v-else-if="counterPhotoOptional" label="Foto del contador (opcional)">
           <PhotoPicker v-model="counterPhoto" />
         </el-form-item>
 
