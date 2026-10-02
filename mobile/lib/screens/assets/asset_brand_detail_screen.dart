@@ -4,7 +4,10 @@ import 'package:provider/provider.dart';
 import '../../models/asset_model.dart';
 import '../../services/api_client.dart';
 import '../../state/asset_brand_detail_state.dart';
+import '../../state/base_kit_state.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/base_kit_brand_card.dart';
+import '../../widgets/base_kit_model_sheet.dart';
 import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 
@@ -20,8 +23,17 @@ class AssetBrandDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AssetBrandDetailState(ApiClient.instance, brandId)..load(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) =>
+              AssetBrandDetailState(ApiClient.instance, brandId)..load(),
+        ),
+        // Kit base de consumibles de la marca (solo Staff, igual que esta pantalla).
+        ChangeNotifierProvider(
+          create: (_) => BaseKitState(ApiClient.instance, brandId)..load(),
+        ),
+      ],
       child: Scaffold(
         // Insignia de cabecera en el AppBar — este detalle no tiene una
         // ClaySurface de encabezado propia (el cuerpo es directamente la
@@ -219,82 +231,95 @@ class _BrandDetailBody extends StatelessWidget {
             ),
           );
         }
-        return Padding(
+        return ListView(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FilledButton.icon(
-                onPressed: state.busyWithAction
-                    ? null
-                    : () => _showModelDialog(context, state),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Agregar modelo'),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: state.models.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Sin modelos registrados.',
-                          style: TextStyle(color: AppColors.inkSecondary),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: state.models.length,
-                        itemBuilder: (context, index) {
-                          final model = state.models[index];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: ClayCard(
-                              onTap: state.busyWithAction
-                                  ? null
-                                  : () => _showModelDialog(
-                                      context,
-                                      state,
-                                      existing: model,
-                                    ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    model.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'General: ${model.generalPrintThreshold} impr. / ${model.generalMonthsInterval} meses',
-                                    style: const TextStyle(
-                                      color: AppColors.inkSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Unidades: ${model.unitsPrintThreshold} impr. / ${model.unitsMonthsInterval} meses',
-                                    style: const TextStyle(
-                                      color: AppColors.inkSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Insumos: ${model.consumablesPrintThreshold} impr.',
-                                    style: const TextStyle(
-                                      color: AppColors.inkSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
+          children: [
+            FilledButton.icon(
+              onPressed: state.busyWithAction
+                  ? null
+                  : () => _showModelDialog(context, state),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Agregar modelo'),
+            ),
+            const SizedBox(height: 16),
+            if (state.models.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'Sin modelos registrados.',
+                    style: TextStyle(color: AppColors.inkSecondary),
+                  ),
+                ),
+              )
+            else
+              for (final model in state.models)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClayCard(
+                    onTap: state.busyWithAction
+                        ? null
+                        : () =>
+                              _showModelDialog(context, state, existing: model),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                model.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
                               ),
                             ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
+                            TextButton.icon(
+                              onPressed: () => BaseKitModelSheet.show(
+                                context,
+                                brandId: state.brandId,
+                                modelId: model.id,
+                                modelName: model.name,
+                              ),
+                              icon: const Icon(
+                                Icons.inventory_2_outlined,
+                                size: 16,
+                              ),
+                              label: const Text('Kit'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'General: ${model.generalPrintThreshold} impr. / ${model.generalMonthsInterval} meses',
+                          style: const TextStyle(
+                            color: AppColors.inkSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'Unidades: ${model.unitsPrintThreshold} impr. / ${model.unitsMonthsInterval} meses',
+                          style: const TextStyle(
+                            color: AppColors.inkSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          'Insumos: ${model.consumablesPrintThreshold} impr.',
+                          style: const TextStyle(
+                            color: AppColors.inkSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            const SizedBox(height: 8),
+            const BaseKitBrandCard(),
+            const SizedBox(height: 16),
+          ],
         );
       },
     );
