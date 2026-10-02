@@ -99,7 +99,7 @@ class _HomeBody extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
-            onPressed: () => context.push('/meter-readings'),
+            onPressed: () => context.push('/my-machines'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.inkPrimary,
               side: const BorderSide(color: AppColors.neutral),
@@ -107,7 +107,7 @@ class _HomeBody extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
             icon: const Icon(Icons.speed_outlined),
-            label: const Text('Lectura de contador y tóner'),
+            label: const Text('Mis máquinas: contador y tóner'),
           ),
         ],
       ),

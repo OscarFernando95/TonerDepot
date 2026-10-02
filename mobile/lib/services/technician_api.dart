@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/inventory.dart';
 import '../models/paged_result.dart';
 import '../models/pending_installation.dart';
+import '../models/service_ticket.dart';
 import '../models/technician_status.dart';
 import 'api_client.dart';
 import 'device_capture.dart';
@@ -137,6 +138,22 @@ class TechnicianApi {
       return page.items;
     } catch (e, st) {
       debugPrint('TechnicianApi.listPendingInstallations failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Tickets pendientes (Abierto/SinAsignar/Asignado/EnProceso) de las máquinas vinculadas al técnico que NO
+  /// están asignados a él (de otro técnico o sin asignar). Solo para consulta.
+  Future<List<ServiceTicket>> listMachineTickets() async {
+    try {
+      final response = await _client.dio.get('/technicians/me/machine-tickets');
+      final page = PagedResult<ServiceTicket>.fromJson(
+        response.data as Map<String, dynamic>,
+        ServiceTicket.fromJson,
+      );
+      return page.items;
+    } catch (e, st) {
+      debugPrint('TechnicianApi.listMachineTickets failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

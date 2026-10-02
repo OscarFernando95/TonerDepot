@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/maintenance_order.dart';
+import '../models/my_work_filters.dart';
 import '../models/pending_installation.dart';
 import '../models/service_ticket.dart';
 import '../models/technician_status.dart';
@@ -67,6 +68,9 @@ class MyWorkState extends ChangeNotifier {
   List<MaintenanceOrder> orders = [];
   List<PendingInstallation> installations = [];
 
+  /// Tickets pendientes de las máquinas del técnico que NO son suyos (de otro técnico o sin asignar). Solo lectura.
+  List<ServiceTicket> machineTickets = [];
+
   ServiceTicket? get activeTicket {
     final id = status?.activeServiceTicketId;
     if (id == null) return null;
@@ -96,13 +100,9 @@ class MyWorkState extends ChangeNotifier {
 
   bool get isBusy => status?.isBusy ?? false;
 
-  List<ServiceTicket> get checkInableTickets => tickets
-      .where((t) => t.status == 'Asignado' || t.status == 'EnProceso')
-      .toList();
+  List<ServiceTicket> get checkInableTickets => pendingTickets(tickets);
 
-  List<MaintenanceOrder> get checkInableOrders => orders
-      .where((o) => o.status == 'Asignada' || o.status == 'EnProceso')
-      .toList();
+  List<MaintenanceOrder> get checkInableOrders => pendingOrders(orders);
 
   /// A diferencia de tickets/órdenes, una instalación "tomada por otro
   /// técnico" (takenByAnotherTechnician) sigue apareciendo en la lista — el
@@ -123,11 +123,15 @@ class MyWorkState extends ChangeNotifier {
         _ticketApi.listMine(),
         _orderApi.list(),
         _technicianApi.listPendingInstallations(),
+        // Sección informativa: si falla no debe tumbar el resto de la pantalla.
+        _loadMachineTickets(),
       ]);
       status = results[0] as TechnicianSelfStatus;
       tickets = results[1] as List<ServiceTicket>;
       orders = results[2] as List<MaintenanceOrder>;
       installations = results[3] as List<PendingInstallation>;
+      final machine = results[4] as List<ServiceTicket>?;
+      if (machine != null) machineTickets = machine;
     } catch (e, st) {
       debugPrint('MyWorkState.loadAll failed: $e\n$st');
       if (!silent) {
@@ -136,6 +140,15 @@ class MyWorkState extends ChangeNotifier {
     } finally {
       loading = false;
       notifyListeners();
+    }
+  }
+
+  Future<List<ServiceTicket>?> _loadMachineTickets() async {
+    try {
+      return await _technicianApi.listMachineTickets();
+    } catch (e, st) {
+      debugPrint('MyWorkState._loadMachineTickets failed: $e\n$st');
+      return null; // conserva lo que había
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -175,6 +177,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
       asset: asset,
     );
     if (entry == null || !mounted) return;
+    // El tóner recién registrado debe verse ya en la tarjeta (último tóner, unidades en 90 días).
+    unawaited(context.read<MeterReadingState>().refreshSilently());
     final warning = entry.stockWarning;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -195,6 +199,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
     final emptyMessage = coverage
         ? 'No hay equipos instalados en las ciudades de tu cobertura.'
         : 'No hay equipos vinculados para registrar contadores.';
+    // Técnico sin máquinas vinculadas: explicación en vez de una lista en blanco.
+    final emptyIsTechnicianLinked = !coverage && !_isStaff;
 
     if (loading && groups.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -212,11 +218,22 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
       );
     }
     if (groups.isEmpty) {
-      return Center(
-        child: Text(
-          emptyMessage,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.inkSecondary),
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 48),
+            if (emptyIsTechnicianLinked)
+              const _NoLinkedMachines()
+            else
+              Text(
+                emptyMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.inkSecondary),
+              ),
+          ],
         ),
       );
     }
@@ -252,7 +269,12 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                 ),
                 children: [
                   for (final asset in group.assets)
-                    _assetCard(asset, showToner: !coverage),
+                    _assetCard(
+                      asset,
+                      // El técnico registra tóner solo sobre SUS máquinas (el servidor rechaza las demás).
+                      showToner: !coverage,
+                      showLastToner: !coverage,
+                    ),
                 ],
               ),
             ),
@@ -263,7 +285,11 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
 
   /// Tarjeta de un activo, con su botón "Registrar" — reutilizada por las
   /// pestañas de Técnico y por la vista de Staff.
-  Widget _assetCard(MeterReadingAsset asset, {bool showToner = false}) {
+  Widget _assetCard(
+    MeterReadingAsset asset, {
+    bool showToner = false,
+    bool showLastToner = false,
+  }) {
     return ClayCard(
       padding: EdgeInsets.zero,
       // Row en vez de ListTile(isThreeLine): el tile tiene alto
@@ -471,7 +497,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                 selected: _tab,
                 onChanged: (value) => setState(() => _tab = value),
                 segments: const [
-                  ClaySegment(value: 'linked', label: 'Vinculados'),
+                  ClaySegment(value: 'linked', label: 'Mis máquinas'),
                   ClaySegment(value: 'coverage', label: 'Por cobertura'),
                 ],
               ),
@@ -480,6 +506,37 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Técnico sin ninguna máquina vinculada.
+class _NoLinkedMachines extends StatelessWidget {
+  const _NoLinkedMachines();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      children: [
+        Icon(
+          Icons.print_disabled_outlined,
+          size: 40,
+          color: AppColors.inkSecondary,
+        ),
+        SizedBox(height: 12),
+        Text(
+          'Todavía no tienes máquinas vinculadas.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+        ),
+        SizedBox(height: 8),
+        Text(
+          'Se vinculan solas cuando completas la instalación de un equipo; si necesitas otras, '
+          'pídele a un administrador que te las vincule desde Técnicos → Activos.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.inkSecondary),
+        ),
+      ],
     );
   }
 }

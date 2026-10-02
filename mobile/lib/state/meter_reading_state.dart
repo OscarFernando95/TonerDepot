@@ -227,6 +227,13 @@ class MeterReadingState extends ChangeNotifier {
     }
   }
 
+  /// Recarga sin spinner ni mensajes de error (la tarjeta se actualiza en sitio): tras registrar un contador o un
+  /// tóner. Refresca "vinculados" y, si ya se cargó alguna vez, también "por cobertura".
+  Future<void> refreshSilently() => Future.wait([
+    load(silent: true),
+    if (_coverageLoaded) loadCoverage(silent: true),
+  ]);
+
   /// Devuelve null si el registro salió bien, o un mensaje de error.
   Future<String?> register(
     MeterReadingAsset asset,
@@ -247,7 +254,7 @@ class MeterReadingState extends ChangeNotifier {
       );
       // El mismo activo puede aparecer en "vinculados" y en "por cobertura" a
       // la vez, así que hay que refrescar ambas listas tras registrar.
-      await Future.wait([load(), loadCoverage()]);
+      await refreshSilently();
       return null;
     } catch (e, st) {
       debugPrint('MeterReadingState.register failed: $e\n$st');

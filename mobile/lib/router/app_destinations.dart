@@ -81,7 +81,17 @@ final List<AppDestination> kAppDestinations = [
     label: 'Lectura de contadores',
     shortLabel: 'Contadores',
     icon: Icons.speed_outlined,
-    roles: RoleNames.staffAndTechnicianRoles,
+    roles: RoleNames.staffRoles,
+    builder: (context, state) => const MeterReadingsScreen(),
+  ),
+  // Lo mismo que Lectura de contadores pero para el técnico, con el nombre que él espera: su lista de máquinas, con
+  // el contador y el tóner de cada una.
+  AppDestination(
+    name: 'my-machines',
+    path: '/my-machines',
+    label: 'Mis máquinas',
+    icon: Icons.print_outlined,
+    roles: [RoleNames.tecnico],
     builder: (context, state) => const MeterReadingsScreen(),
   ),
   AppDestination(
@@ -216,6 +226,6 @@ const Map<String, List<String>> kBottomNavByRole = {
     'technicians',
     'clients',
   ],
-  RoleNames.tecnico: ['dashboard', 'my-work', 'meter-readings'],
+  RoleNames.tecnico: ['dashboard', 'my-work', 'my-machines'],
   RoleNames.cliente: ['dashboard', 'tickets', 'my-assets', 'my-contracts'],
 };

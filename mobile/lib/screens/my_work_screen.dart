@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/my_work_filters.dart';
 import '../state/my_work_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/animated_gradient_border.dart';
@@ -173,20 +174,18 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                 title: 'Mis tickets',
                 count: state.checkInableTickets.length,
               ),
-              if (state.tickets.isEmpty)
+              if (state.checkInableTickets.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(8),
                   child: Text(
-                    'No tienes tickets asignados.',
+                    'No tienes tickets pendientes.',
                     textAlign: TextAlign.center,
                   ),
                 ),
-              ...state.tickets.map(
+              ...state.checkInableTickets.map(
                 (t) => TicketCard(
                   ticket: t,
-                  canCheckIn:
-                      !state.isBusy &&
-                      (t.status == 'Asignado' || t.status == 'EnProceso'),
+                  canCheckIn: !state.isBusy,
                   isActive: state.activeTicket?.id == t.id,
                   checkingIn: _actingOnId == t.id,
                   onCheckIn: () => _handleVisitCheckIn(
@@ -200,26 +199,48 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                 title: 'Órdenes de mantenimiento',
                 count: state.checkInableOrders.length,
               ),
-              if (state.orders.isEmpty)
+              if (state.checkInableOrders.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(8),
                   child: Text(
-                    'No tienes órdenes asignadas.',
+                    'No tienes órdenes pendientes.',
                     textAlign: TextAlign.center,
                   ),
                 ),
-              ...state.orders.map(
+              ...state.checkInableOrders.map(
                 (o) => OrderCard(
                   order: o,
-                  canCheckIn:
-                      !state.isBusy &&
-                      (o.status == 'Asignada' || o.status == 'EnProceso'),
+                  canCheckIn: !state.isBusy,
                   isActive: state.activeOrder?.id == o.id,
                   checkingIn: _actingOnId == o.id,
                   onCheckIn: () => _handleVisitCheckIn(
                     (photo) => _state.checkInOrder(o, photo),
                     o.id,
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SectionHeader(
+                title: 'De mis máquinas',
+                count: state.machineTickets.length,
+              ),
+              if (state.machineTickets.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Text(
+                    'Tus máquinas no tienen tickets pendientes.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              // Solo lectura: son tickets de otro técnico o sin asignar, sin check-in.
+              ...state.machineTickets.map(
+                (t) => TicketCard(
+                  ticket: t,
+                  canCheckIn: false,
+                  isActive: false,
+                  checkingIn: false,
+                  onCheckIn: () {},
+                  assigneeLabel: ticketAssigneeLabel(t),
                 ),
               ),
               const SizedBox(height: 16),

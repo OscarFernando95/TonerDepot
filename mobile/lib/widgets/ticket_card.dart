@@ -16,6 +16,7 @@ class TicketCard extends StatelessWidget {
     required this.isActive,
     required this.checkingIn,
     required this.onCheckIn,
+    this.assigneeLabel,
   });
 
   final ServiceTicket ticket;
@@ -23,6 +24,9 @@ class TicketCard extends StatelessWidget {
   final bool isActive;
   final bool checkingIn;
   final VoidCallback onCheckIn;
+
+  /// Si viene, se muestra quién tiene el ticket ('Sin asignar' o el nombre del técnico) — para listas de solo lectura.
+  final String? assigneeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +85,17 @@ class TicketCard extends StatelessWidget {
             Text(
               '${ticket.assetBrandName} ${ticket.assetModel ?? ''} — ${ticket.assetSerialNumber ?? ''}',
               style: const TextStyle(fontSize: 12),
+            ),
+          ],
+          if (assigneeLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Asignado a: $assigneeLabel',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.inkSecondary,
+              ),
             ),
           ],
           if (canCheckIn && !isActive) ...[
