@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -82,8 +83,8 @@ const { departmentName, departments, citiesInDepartment, setDepartmentForCity } 
   }
 )
 
-async function loadAll() {
-  loading.value = true
+async function loadAll(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [clientRes, locationsRes, citiesRes] = await Promise.all([
       clientsApi.getClient(clientId),
@@ -93,7 +94,7 @@ async function loadAll() {
     client.value = clientRes.data
     locations.value = locationsRes.data
     cities.value = citiesRes.data
-    syncClientForm()
+    if (!silent) syncClientForm()
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el cliente.')
   } finally {
@@ -225,6 +226,7 @@ async function toggleLocationStatus(location: ClientLocationDto) {
 }
 
 onMounted(loadAll)
+useRealtimeUpdates(['Client'], (e) => { if (e.action === 'resync' || e.id === clientId) loadAll(true) })
 </script>
 
 <template>

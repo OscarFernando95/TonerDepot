@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import * as authApi from '../api/auth'
 import type { CurrentUser } from '../api/types'
+import { disconnectRealtime } from '../composables/useRealtime'
 
 const TOKEN_KEY = 'toner_token'
 const USER_KEY = 'toner_user'
@@ -30,6 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    disconnectRealtime()
     token.value = null
     user.value = null
     localStorage.removeItem(TOKEN_KEY)

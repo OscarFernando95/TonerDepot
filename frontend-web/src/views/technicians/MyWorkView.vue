@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage } from 'element-plus'
 import { Calendar, Printer, Tickets, Tools } from '@element-plus/icons-vue'
 import * as selfApi from '../../api/technicianSelf'
@@ -154,8 +155,8 @@ const checkoutFormValid = computed(() => {
   return !!afterPhoto.value
 })
 
-async function loadAll() {
-  loading.value = true
+async function loadAll(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [statusRes, ticketsRes, coverageTicketsRes, ordersRes, coverageOrdersRes, installationsRes, coverageSchedulesRes] =
       await Promise.all([
@@ -320,6 +321,7 @@ async function doCheckOut() {
 }
 
 onMounted(loadAll)
+useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'TechnicianAsset'], () => loadAll(true))
 </script>
 
 <template>

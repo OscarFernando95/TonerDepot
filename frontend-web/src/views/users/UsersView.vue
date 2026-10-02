@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User } from '@element-plus/icons-vue'
 import * as usersApi from '../../api/users'
@@ -47,8 +48,8 @@ watch(departmentName, () => {
   form.cityId = ''
 })
 
-async function loadData() {
-  loading.value = true
+async function loadData(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [usersRes, clientsRes, citiesRes] = await Promise.all([
       usersApi.listUsers(),
@@ -172,6 +173,7 @@ async function resetPassword(user: UserDto) {
 }
 
 onMounted(loadData)
+useRealtimeUpdates(['User'], () => loadData(true))
 </script>
 
 <template>

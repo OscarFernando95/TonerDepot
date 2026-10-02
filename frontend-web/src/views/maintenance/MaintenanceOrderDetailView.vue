@@ -122,7 +122,7 @@ function statusTagType(status: string) {
 onMounted(loadAll)
 
 useRealtimeUpdates(['MaintenanceOrder'], (event) => {
-  if (event.id === orderId) loadAll()
+  if (event.action === 'resync' || event.id === orderId) loadAll()
 })
 </script>
 

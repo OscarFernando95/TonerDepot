@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as clientsApi from '../../api/clients'
@@ -26,8 +27,8 @@ const emptyClientsText = computed(() =>
   filters.cityName ? 'No hay clientes en esa ciudad.' : 'No hay clientes registrados.'
 )
 
-async function loadClients() {
-  loading.value = true
+async function loadClients(silent = false) {
+  if (!silent) loading.value = true
   try {
     const { data } = await clientsApi.listClients()
     clients.value = data
@@ -55,6 +56,7 @@ function goToDetail(client: ClientDto) {
 }
 
 onMounted(loadClients)
+useRealtimeUpdates(['Client'], () => loadClients(true))
 </script>
 
 <template>

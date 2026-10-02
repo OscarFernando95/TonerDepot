@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage } from 'element-plus'
 import * as contractsApi from '../../api/contracts'
 import type { ContractDto } from '../../api/types'
@@ -21,8 +22,8 @@ function statusTagType(status: string) {
   }
 }
 
-async function loadContracts() {
-  loading.value = true
+async function loadContracts(silent = false) {
+  if (!silent) loading.value = true
   try {
     const { data } = await contractsApi.listContracts()
     contracts.value = data
@@ -34,6 +35,7 @@ async function loadContracts() {
 }
 
 onMounted(loadContracts)
+useRealtimeUpdates(['Contract'], () => loadContracts(true))
 </script>
 
 <template>

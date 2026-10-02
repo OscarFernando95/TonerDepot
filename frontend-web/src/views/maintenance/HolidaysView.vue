@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as holidaysApi from '../../api/holidays'
 import type { HolidayDto } from '../../api/holidays'
@@ -25,8 +26,8 @@ const form = ref({ date: '', name: '' })
 
 const legalCount = computed(() => holidays.value.filter((h) => h.source === 'legal' && !h.isWorkingDay).length)
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   try {
     const { data } = await holidaysApi.listHolidays(year.value)
     holidays.value = data
@@ -84,6 +85,7 @@ async function removeOverride(row: HolidayDto) {
 }
 
 onMounted(load)
+useRealtimeUpdates(['Holiday'], () => load(true))
 </script>
 
 <template>

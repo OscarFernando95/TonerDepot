@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus, Printer } from '@element-plus/icons-vue'
@@ -244,8 +245,8 @@ const groupedByCity = computed<CityGroup[]>(() => {
 const openGroups = ref<string[]>([])
 const groupsInitialized = ref(false)
 
-async function loadData() {
-  loading.value = true
+async function loadData(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [assetsRes, brandsRes, contractsRes] = await Promise.all([
       assetsApi.listAssets(),
@@ -314,6 +315,7 @@ function goToDetail(asset: AssetDto) {
 }
 
 onMounted(loadData)
+useRealtimeUpdates(['Asset', 'Client'], () => loadData(true))
 </script>
 
 <template>

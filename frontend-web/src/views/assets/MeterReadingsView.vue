@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage } from 'element-plus'
 import * as meterReadingsApi from '../../api/meterReadings'
 import type { MeterReadingAssetDto } from '../../api/types'
@@ -77,8 +78,8 @@ const saving = ref(false)
 const registeringAsset = ref<MeterReadingAssetDto | null>(null)
 const form = reactive({ counterValue: undefined as number | undefined, readingDate: '' })
 
-async function loadData() {
-  loading.value = true
+async function loadData(silent = false) {
+  if (!silent) loading.value = true
   try {
     const { data } = await meterReadingsApi.listMeterReadingAssets()
     assets.value = data
@@ -124,6 +125,7 @@ async function handleSave() {
 }
 
 onMounted(loadData)
+useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset'], () => loadData(true))
 </script>
 
 <template>

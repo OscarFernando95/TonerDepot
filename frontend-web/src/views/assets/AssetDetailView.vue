@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -81,8 +82,8 @@ const requiresLocationPicker = computed(
   () => statusForm.newStatus === 'Instalado' && !asset.value?.currentClientLocationId
 )
 
-async function loadAll() {
-  loading.value = true
+async function loadAll(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [assetRes, brandsRes, locationsRes, historyRes, readingsRes] = await Promise.all([
       assetsApi.getAsset(assetId),
@@ -96,7 +97,7 @@ async function loadAll() {
     locations.value = locationsRes.data
     history.value = historyRes.data
     meterReadings.value = readingsRes.data
-    await syncInfoForm()
+    if (!silent) await syncInfoForm()
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar el activo.')
   } finally {
@@ -206,6 +207,7 @@ async function saveReading() {
 }
 
 onMounted(loadAll)
+useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity !== 'Asset' || e.action === 'resync' || e.id === assetId) loadAll(true) })
 </script>
 
 <template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as schedulesApi from '../../api/maintenanceSchedules'
 import * as contractsApi from '../../api/contracts'
@@ -180,8 +181,8 @@ function counterDetail(at: string | null, counter: number | null | undefined): s
   return `${formatDateLocal(at)} / ${counter ?? '—'}`
 }
 
-async function loadData() {
-  loading.value = true
+async function loadData(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [schedulesRes, contractsRes] = await Promise.all([
       schedulesApi.listMaintenanceSchedules(),
@@ -246,6 +247,7 @@ async function backfill() {
 }
 
 onMounted(loadData)
+useRealtimeUpdates(['Schedule'], () => loadData(true))
 </script>
 
 <template>

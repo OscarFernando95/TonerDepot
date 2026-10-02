@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -52,8 +53,8 @@ const form = reactive({
   notes: ''
 })
 
-async function loadData() {
-  loading.value = true
+async function loadData(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [contractsRes, clientsRes] = await Promise.all([contractsApi.listContracts(), clientsApi.listClients()])
     contracts.value = contractsRes.data
@@ -119,6 +120,7 @@ function goToDetail(contract: ContractDto) {
 }
 
 onMounted(loadData)
+useRealtimeUpdates(['Contract'], () => loadData(true))
 </script>
 
 <template>

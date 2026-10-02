@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage } from 'element-plus'
 import * as assetsApi from '../../api/assets'
 import { AssetLifecycleStatusLabels, type AssetDto } from '../../api/types'
@@ -20,8 +21,8 @@ function statusTagType(status: string) {
   }
 }
 
-async function loadAssets() {
-  loading.value = true
+async function loadAssets(silent = false) {
+  if (!silent) loading.value = true
   try {
     const { data } = await assetsApi.listAssets()
     assets.value = data
@@ -33,6 +34,7 @@ async function loadAssets() {
 }
 
 onMounted(loadAssets)
+useRealtimeUpdates(['Asset', 'Contract'], () => loadAssets(true))
 </script>
 
 <template>

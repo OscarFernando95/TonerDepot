@@ -113,7 +113,7 @@ onMounted(loadAll)
 
 // Reasignación, check-in/out o cierre desde otra pantalla actualizan este detalle solos.
 useRealtimeUpdates(['Ticket'], (event) => {
-  if (event.id === ticketId) loadAll()
+  if (event.action === 'resync' || event.id === ticketId) loadAll()
 })
 </script>
 

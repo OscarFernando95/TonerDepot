@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -45,8 +46,8 @@ const addAssetDialogVisible = ref(false)
 const savingAsset = ref(false)
 const addAssetForm = reactive({ assetId: '', clientLocationId: '' })
 
-async function loadAll() {
-  loading.value = true
+async function loadAll(silent = false) {
+  if (!silent) loading.value = true
   try {
     const [contractRes, contractAssetsRes, assetsRes] = await Promise.all([
       contractsApi.getContract(contractId),
@@ -56,7 +57,7 @@ async function loadAll() {
     contract.value = contractRes.data
     contractAssets.value = contractAssetsRes.data
     assets.value = assetsRes.data
-    syncForm()
+    if (!silent) syncForm()
 
     // Acotado al cliente del contrato: el backend exige que la sede pertenezca a ese cliente.
     const { data: locationsData } = await clientLocationsApi.listClientLocations(contract.value.clientId)
@@ -168,6 +169,7 @@ function goToClient() {
 }
 
 onMounted(loadAll)
+useRealtimeUpdates(['Contract', 'MeterReading'], (e) => { if (e.entity !== 'Contract' || e.action === 'resync' || e.id === contractId) loadAll(true) })
 </script>
 
 <template>
