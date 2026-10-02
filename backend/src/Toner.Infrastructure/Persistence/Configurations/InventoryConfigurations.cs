@@ -55,6 +55,13 @@ public class InventoryMovementConfiguration : IEntityTypeConfiguration<Inventory
         // Saldo por (ubicación, ítem) y listado cronológico.
         builder.HasIndex(m => new { m.InventoryLocationId, m.InventoryItemId });
         builder.HasIndex(m => new { m.OccurredAt, m.Id });
+        builder.HasIndex(m => m.ClientId);
+        builder.HasIndex(m => new { m.AssetId, m.OccurredAt }).HasFilter("\"AssetId\" IS NOT NULL");
+
+        builder.HasOne<Asset>().WithMany().HasForeignKey(m => m.AssetId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<MaintenanceOrder>().WithMany().HasForeignKey(m => m.MaintenanceOrderId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<ServiceTicket>().WithMany().HasForeignKey(m => m.ServiceTicketId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne<TimeLog>().WithMany().HasForeignKey(m => m.TimeLogId).OnDelete(DeleteBehavior.SetNull);
 
         builder.HasOne(m => m.InventoryItem).WithMany().HasForeignKey(m => m.InventoryItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(m => m.InventoryLocation).WithMany().HasForeignKey(m => m.InventoryLocationId).OnDelete(DeleteBehavior.Restrict);

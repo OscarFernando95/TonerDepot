@@ -184,6 +184,7 @@ builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IBaseKitService, BaseKitService>();
+builder.Services.AddScoped<IInventoryConsumptionService, InventoryConsumptionService>();
 builder.Services.AddScoped<IClientService, ClientService>();
 builder.Services.AddScoped<IClientLocationService, ClientLocationService>();
 builder.Services.AddScoped<IAssetBrandService, AssetBrandService>();

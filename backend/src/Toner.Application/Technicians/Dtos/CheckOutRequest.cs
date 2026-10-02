@@ -28,6 +28,10 @@ public class CheckOutRequest
     public long? InitialCounterValue { get; set; }
     public DateTime? InitialCounterDate { get; set; }
 
+    // Piezas usadas en la visita (el kit base marcado y los repuestos agregados). Solo en tickets y órdenes; salen del
+    // inventario de la zona del equipo. Si no hay saldo, la visita igual se cierra y queda un aviso de stock negativo.
+    public IReadOnlyList<Toner.Application.Inventory.Dtos.UsedPartRequest> Parts { get; set; } = Array.Empty<Toner.Application.Inventory.Dtos.UsedPartRequest>();
+
     // Obligatorios solo en la rama de instalación. UnitsMaintenanceDone e "insumos nuevos" son mutuamente
     // excluyentes: false implica insumos nuevos (offset 0); true implica que se conoce cuánto uso ya
     // traen los insumos instalados en esas unidades (ExistingConsumablesPrints).

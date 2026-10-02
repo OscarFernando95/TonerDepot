@@ -8,4 +8,7 @@ public class TechnicianSelfStatusDto
     public Guid? ActiveMaintenanceOrderId { get; set; }
     public Guid? ActiveAssetInstallationId { get; set; }
     public DateTime? CheckedInAt { get; set; }
+
+    // Avisos del último check-out (p. ej. una pieza que dejó el stock de la zona en negativo). La visita se cerró igual.
+    public IReadOnlyList<string> StockWarnings { get; set; } = Array.Empty<string>();
 }

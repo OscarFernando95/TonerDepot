@@ -58,6 +58,7 @@ public static class TestCheckIn
             Options.Create(new EvidenceOptions { RequirePhotos = requirePhotos }),
             TestCalendar.For(db),
             time ?? FixedTimeProvider.WorkingHours,
+            new Toner.Application.Inventory.InventoryConsumptionService(db, new Toner.Application.Inventory.BaseKitService(db)),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TechnicianCheckInService>.Instance);
     }
 }

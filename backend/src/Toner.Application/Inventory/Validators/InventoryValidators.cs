@@ -74,6 +74,21 @@ public class AdjustStockRequestValidator : AbstractValidator<AdjustStockRequest>
     }
 }
 
+public class RegisterTonerRequestValidator : AbstractValidator<RegisterTonerRequest>
+{
+    public RegisterTonerRequestValidator()
+    {
+        RuleFor(x => x.AssetId).NotEmpty();
+        RuleFor(x => x.ItemId).NotEmpty();
+        RuleFor(x => x.Quantity).InclusiveBetween(1, 100);
+        RuleFor(x => x.CounterValue).GreaterThanOrEqualTo(0).When(x => x.CounterValue.HasValue);
+        RuleFor(x => x.Notes).MaximumLength(500);
+        // No se registra un tóner "del futuro": un error de fecha ensucia el cálculo de duración.
+        RuleFor(x => x.OccurredAt).Must(d => d is null || d.Value.ToUniversalTime() <= DateTime.UtcNow.AddMinutes(5))
+            .WithMessage("La fecha del tóner no puede ser futura.");
+    }
+}
+
 public class SetBrandKitRequestValidator : AbstractValidator<SetBrandKitRequest>
 {
     public SetBrandKitRequestValidator()

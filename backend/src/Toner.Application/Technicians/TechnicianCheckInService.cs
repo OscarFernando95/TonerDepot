@@ -1,4 +1,5 @@
 using Toner.Application.Geo;
+using Toner.Application.Inventory;
 using Toner.Application.Evidences;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
@@ -29,6 +30,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     private readonly IAssignmentEngine _assignmentEngine;
     private readonly GeoOptions _geo;
     private readonly EvidenceOptions _evidence;
+    private readonly IInventoryConsumptionService _consumption;
     private readonly IWorkCalendarService _calendar;
     private readonly TimeProvider _time;
     private readonly ILogger<TechnicianCheckInService> _logger;
@@ -44,10 +46,12 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         IOptions<EvidenceOptions> evidence,
         IWorkCalendarService calendar,
         TimeProvider time,
+        IInventoryConsumptionService consumption,
         ILogger<TechnicianCheckInService> logger)
     {
         _calendar = calendar;
         _time = time;
+        _consumption = consumption;
         _geo = geo.Value;
         _evidence = evidence.Value;
         _logger = logger;
@@ -362,6 +366,36 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 technician.UserId, "la foto del contador", cancellationToken);
         }
 
+        // Piezas usadas: solo en tickets y órdenes. Se descuentan del inventario de la zona del equipo dentro del mismo
+        // SaveChanges del cierre; si falta stock la visita igual se cierra y vuelve un aviso (no bloquea el campo).
+        IReadOnlyList<string> stockWarnings = Array.Empty<string>();
+        if (request.Parts.Count > 0)
+        {
+            if (!isVisitCheckout)
+            {
+                throw new ConflictException("Las piezas usadas solo se registran al cerrar un ticket o una orden de mantenimiento.");
+            }
+
+            Guid? partsClientId, partsAssetId;
+            if (openTicket is not null)
+            {
+                partsClientId = openTicket.ClientId;
+                partsAssetId = openTicket.AssetId;
+            }
+            else
+            {
+                var order = await _db.MaintenanceOrders.Where(o => o.Id == openLog.MaintenanceOrderId!.Value)
+                    .Select(o => new { o.ClientId, o.AssetId }).FirstAsync(cancellationToken);
+                partsClientId = order.ClientId;
+                partsAssetId = order.AssetId;
+            }
+
+            stockWarnings = await _consumption.PrepareVisitConsumptionAsync(
+                new VisitConsumption(partsClientId, partsAssetId, openLog.MaintenanceOrderId, openLog.ServiceTicketId, openLog.Id, request.InitialCounterValue, technician.UserId),
+                request.Parts.ToList(),
+                cancellationToken);
+        }
+
         var (siteLat, siteLon) = await GetSiteCoordinatesAsync(openLog.ServiceTicketId, openLog.MaintenanceOrderId, openLog.AssetId, cancellationToken);
         var checkOutLocation = LocationEvaluator.Evaluate(siteLat, siteLon, request.Latitude, request.Longitude, _geo.SiteRadiusMeters);
         if (checkOutLocation.Status == LocationStatus.FueraDeSitio)
@@ -511,7 +545,9 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         // por mes del contrato (CODE_QUALITY_AUDIT.md hallazgo #8).
         await _db.SaveChangesAsync(cancellationToken);
 
-        return await GetMyStatusAsync(technicianId, cancellationToken);
+        var status = await GetMyStatusAsync(technicianId, cancellationToken);
+        status.StockWarnings = stockWarnings;
+        return status;
     }
 
     // El ClientId denormalizado de las tablas de fase 3b se captura al escribir. En este servicio el

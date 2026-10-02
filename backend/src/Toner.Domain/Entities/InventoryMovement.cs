@@ -21,6 +21,18 @@ public class InventoryMovement : BaseEntity
     // Une las dos filas de un traspaso (salida de origen + entrada en destino).
     public Guid? TransferId { get; set; }
 
+    // Solo el consumo (Type = Consumo) está atado a un cliente y a una máquina: ClientId lleva la política RLS de la
+    // fase 3b (los movimientos de la empresa — entradas, traspasos, ajustes — lo dejan en null y solo los ve el staff).
+    // Se captura al escribir desde la orden/ticket/activo.
+    public Guid? ClientId { get; set; }
+    public Guid? AssetId { get; set; }
+    public Guid? MaintenanceOrderId { get; set; }
+    public Guid? ServiceTicketId { get; set; }
+    public Guid? TimeLogId { get; set; }
+
+    // Contador de la máquina al cambiar la pieza: con él se mide cuánto duró cada insumo.
+    public long? CounterValue { get; set; }
+
     public string? Notes { get; set; }
     public Guid? CreatedByUserId { get; set; }
     public DateTime OccurredAt { get; set; } = DateTime.UtcNow;
