@@ -27,16 +27,13 @@ class MaintenanceOrderDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isStaff = context.read<AuthState>().hasAnyRole(
-      RoleNames.staffRoles,
-    );
+    final isStaff = context.read<AuthState>().hasAnyRole(RoleNames.staffRoles);
     return ChangeNotifierProvider(
-      create: (_) =>
-          MaintenanceOrderDetailState(
-            ApiClient.instance,
-            orderId,
-            isStaff: isStaff,
-          )..load(),
+      create: (_) => MaintenanceOrderDetailState(
+        ApiClient.instance,
+        orderId,
+        isStaff: isStaff,
+      )..load(),
       child: Scaffold(
         appBar: AppBar(title: const Text('Orden de mantenimiento')),
         body: const _OrderDetailBody(),
@@ -285,6 +282,13 @@ class _OrderDetailBody extends StatelessWidget {
                     ),
                     if (order.technicianName != null)
                       _InfoRow(label: 'Técnico', value: order.technicianName!),
+                    if (order.isManual)
+                      _InfoRow(
+                        label: 'Origen',
+                        value: order.reason != null
+                            ? 'Pedida a demanda — ${order.reason}'
+                            : 'Pedida a demanda',
+                      ),
                     if (order.completedAt != null)
                       _InfoRow(
                         label: 'Completada',
@@ -351,7 +355,10 @@ class _OrderDetailBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Evidencia fotográfica', style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      'Evidencia fotográfica',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 8),
                     EvidenceGallery(orderId: order.id),
                   ],

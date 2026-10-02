@@ -26,6 +26,32 @@ class MaintenanceOrderApi {
     }
   }
 
+  /// Staff únicamente. Mantenimiento a demanda de un activo instalado, fuera de los umbrales del cronograma.
+  Future<MaintenanceOrder> createManual({
+    required String assetId,
+    required bool includesGeneral,
+    required bool includesUnits,
+    required bool includesConsumables,
+    String? reason,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        '/maintenance-orders',
+        data: {
+          'assetId': assetId,
+          'includesGeneral': includesGeneral,
+          'includesUnits': includesUnits,
+          'includesConsumables': includesConsumables,
+          'reason': ?reason,
+        },
+      );
+      return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('MaintenanceOrderApi.createManual failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
   Future<MaintenanceOrder> getById(String id) async {
     try {
       final response = await _client.dio.get('/maintenance-orders/$id');

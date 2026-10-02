@@ -2,17 +2,20 @@ import 'package:flutter/foundation.dart';
 
 import '../models/asset.dart';
 import '../models/asset_status_log.dart';
+import '../models/maintenance_order.dart';
 import '../models/meter_reading.dart';
 import '../services/api_client.dart';
 import '../services/realtime_service.dart';
 import '../services/asset_api.dart';
+import '../services/maintenance_order_api.dart';
 
 class AssetDetailState extends ChangeNotifier {
   /// `isStaff` decide si se piden las lecturas de contador — mismo endpoint
   /// [Authorize(Roles = StaffRoles)] que status-history, pero se pide aparte
   /// por si algún día un rol ve estado sin ver lecturas.
   AssetDetailState(ApiClient client, this.assetId, {required this.isStaff})
-    : _api = AssetApi(client) {
+    : _api = AssetApi(client),
+      _orders = MaintenanceOrderApi(client) {
     // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
     _unsubscribe = RealtimeService.instance.subscribe(
       ['Asset', 'MeterReading', 'Contract'],
@@ -25,6 +28,10 @@ class AssetDetailState extends ChangeNotifier {
   }
 
   final AssetApi _api;
+  final MaintenanceOrderApi _orders;
+
+  /// Última orden pedida a demanda desde esta pantalla (para mostrar a quién quedó asignada).
+  MaintenanceOrder? lastRequestedOrder;
   final String assetId;
   final bool isStaff;
 
@@ -110,6 +117,21 @@ class AssetDetailState extends ChangeNotifier {
       notes: notes,
     );
     statusHistory = await _api.getStatusHistory(assetId);
+  });
+
+  Future<String?> requestMaintenance({
+    required bool includesGeneral,
+    required bool includesUnits,
+    required bool includesConsumables,
+    String? reason,
+  }) => _runAction(() async {
+    lastRequestedOrder = await _orders.createManual(
+      assetId: assetId,
+      includesGeneral: includesGeneral,
+      includesUnits: includesUnits,
+      includesConsumables: includesConsumables,
+      reason: reason,
+    );
   });
 
   Future<String?> _runAction(Future<void> Function() action) async {

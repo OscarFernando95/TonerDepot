@@ -31,9 +31,7 @@ class AssetDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isStaff = context.read<AuthState>().hasAnyRole(
-      RoleNames.staffRoles,
-    );
+    final isStaff = context.read<AuthState>().hasAnyRole(RoleNames.staffRoles);
     return ChangeNotifierProvider(
       create: (_) =>
           AssetDetailState(ApiClient.instance, assetId, isStaff: isStaff)
@@ -50,6 +48,95 @@ class _AssetDetailBody extends StatelessWidget {
   const _AssetDetailBody();
 
   String _formatDate(String iso) => iso.split('T').first;
+
+  Future<void> _showRequestMaintenanceDialog(
+    BuildContext context,
+    AssetDetailState state,
+  ) async {
+    var general = true;
+    var units = false;
+    var consumables = false;
+    final reasonController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Pedir mantenimiento'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CheckboxListTile(
+                  value: general,
+                  onChanged: (v) => setDialogState(() => general = v ?? false),
+                  title: const Text('Mantenimiento general'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  value: units,
+                  onChanged: (v) => setDialogState(() => units = v ?? false),
+                  title: const Text('Mantenimiento de unidades'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                CheckboxListTile(
+                  value: consumables,
+                  onChanged: (v) =>
+                      setDialogState(() => consumables = v ?? false),
+                  title: const Text('Cambio de insumos'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                TextField(
+                  controller: reasonController,
+                  maxLength: 500,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo (opcional)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: (general || units || consumables)
+                  ? () => Navigator.of(dialogContext).pop(true)
+                  : null,
+              child: const Text('Pedir'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
+    if (confirmed != true) return;
+
+    final error = await state.requestMaintenance(
+      includesGeneral: general,
+      includesUnits: units,
+      includesConsumables: consumables,
+      reason: reason.isEmpty ? null : reason,
+    );
+    if (!context.mounted) return;
+    final order = state.lastRequestedOrder;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error ??
+              (order?.technicianName != null
+                  ? 'Mantenimiento pedido y asignado a ${order!.technicianName}.'
+                  : 'Mantenimiento pedido; queda pendiente de técnico.'),
+        ),
+      ),
+    );
+  }
 
   Future<void> _showEditDialog(
     BuildContext context,
@@ -413,9 +500,8 @@ class _AssetDetailBody extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         'Último contador registrado: ${asset.lastMeterReading}',
-                        style: const TextStyle(
-                          color: AppColors.inkSecondary,
-                        ).merge(AppTextStyles.tabularNumber),
+                        style: const TextStyle(color: AppColors.inkSecondary)
+                            .merge(AppTextStyles.tabularNumber),
                       ),
                     ),
                   const SizedBox(height: 16),
@@ -434,7 +520,9 @@ class _AssetDetailBody extends StatelessWidget {
                     ),
                     validator: (v) {
                       final value = int.tryParse(v ?? '');
-                      if (value == null) return 'Ingresa un número entero válido.';
+                      if (value == null) {
+                        return 'Ingresa un número entero válido.';
+                      }
                       if (asset.lastMeterReading != null &&
                           value < asset.lastMeterReading!) {
                         return 'No puede ser menor al último registrado.';
@@ -576,6 +664,23 @@ class _AssetDetailBody extends StatelessWidget {
                         ],
                       ],
                     ),
+                    if (state.isStaff &&
+                        asset.lifecycleStatus == 'Instalado') ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: state.busyWithAction
+                              ? null
+                              : () => _showRequestMaintenanceDialog(
+                                  context,
+                                  state,
+                                ),
+                          icon: const Icon(Icons.build_outlined, size: 18),
+                          label: const Text('Pedir mantenimiento'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -640,10 +745,8 @@ class _AssetDetailBody extends StatelessWidget {
                     TextButton.icon(
                       onPressed: state.busyWithAction
                           ? null
-                          : () => _openRegisterMeterReadingSheet(
-                              context,
-                              state,
-                            ),
+                          : () =>
+                                _openRegisterMeterReadingSheet(context, state),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('Registrar lectura'),
                     ),

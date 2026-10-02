@@ -13,6 +13,10 @@ class MaintenanceOrder {
   final bool includesGeneral;
   final bool includesUnits;
   final bool includesConsumables;
+
+  /// Pedida a demanda por el staff (no por umbral del cronograma), con el motivo que dio.
+  final bool isManual;
+  final String? reason;
   final String scheduledDate;
   final String? completedAt;
   final String createdAt;
@@ -32,6 +36,8 @@ class MaintenanceOrder {
     required this.includesGeneral,
     required this.includesUnits,
     required this.includesConsumables,
+    this.isManual = false,
+    this.reason,
     required this.scheduledDate,
     required this.completedAt,
     required this.createdAt,
@@ -58,6 +64,8 @@ class MaintenanceOrder {
         includesGeneral: json['includesGeneral'] as bool? ?? false,
         includesUnits: json['includesUnits'] as bool? ?? false,
         includesConsumables: json['includesConsumables'] as bool? ?? false,
+        isManual: json['isManual'] as bool? ?? false,
+        reason: json['reason'] as String?,
         scheduledDate: json['scheduledDate'] as String,
         completedAt: json['completedAt'] as String?,
         createdAt: json['createdAt'] as String,
