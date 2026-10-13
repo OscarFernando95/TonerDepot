@@ -1443,9 +1443,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssetId")
-                        .HasFilter("\"EndTime\" IS NULL");
-
                     b.HasIndex("ClientId");
 
                     b.HasIndex("MaintenanceOrderId");
@@ -1456,7 +1453,12 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TechnicianId");
 
+                    b.HasIndex(new[] { "AssetId" }, "IX_TimeLogs_AssetId_Open")
+                        .IsUnique()
+                        .HasFilter("\"EndTime\" IS NULL");
+
                     b.HasIndex(new[] { "TechnicianId" }, "IX_TimeLogs_TechnicianId_Open")
+                        .IsUnique()
                         .HasFilter("\"EndTime\" IS NULL");
 
                     b.ToTable("TimeLogs", null, t =>
