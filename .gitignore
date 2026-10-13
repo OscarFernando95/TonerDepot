@@ -40,6 +40,11 @@ docker/postgres/server.key
 secrets/
 mobile/android/app/google-services.json
 mobile/ios/Runner/GoogleService-Info.plist
+# Copias comprimidas de secretos y almacenes de claves/certificados privados (H-01).
+*.zip
+*.pem
+*.pfx
+*.p12
 
 # Script manual de dev con la contraseña del rol toner_app en claro: nunca se versiona.
 docker/postgres/manual-create-app-role.sql
