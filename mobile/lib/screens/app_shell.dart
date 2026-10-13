@@ -36,7 +36,14 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerBiometrics());
     // "Mi trabajo" es 100% self-service de Tecnico (technician_api.dart) —
     // llamarlo para otro rol solo produce errores 403 que nadie va a ver.
-    if (context.read<AuthState>().hasRole(RoleNames.tecnico)) {
+    // setTechnician también gobierna la recarga automática por tiempo real
+    // dentro de MyWorkState (ver su constructor): sin ella, esa suscripción
+    // disparaba loadAll() para cualquier rol en cuanto cambiara un Ticket o
+    // una MaintenanceOrder — incluida la que el propio Admin/Coordinador
+    // acabara de crear.
+    final isTechnician = context.read<AuthState>().hasRole(RoleNames.tecnico);
+    context.read<MyWorkState>().setTechnician(isTechnician);
+    if (isTechnician) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         context.read<MyWorkState>().loadAll();
       });

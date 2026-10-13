@@ -46,6 +46,16 @@ class MyWorkState extends ChangeNotifier {
   final TicketApi _ticketApi;
   final MaintenanceOrderApi _orderApi;
 
+  // Este estado vive en la raíz de la app para TODOS los roles (ver main.dart — MyWorkState se crea una
+  // sola vez, antes de saber quién inicia sesión), pero sus llamadas son exclusivas de Técnico. Sin esta
+  // bandera, la suscripción en tiempo real de arriba (cualquier cambio de Ticket/MaintenanceOrder/etc.,
+  // incluido uno que un Admin/Coordinador acabe de generar él mismo) disparaba loadAll() para cualquier
+  // rol y el backend respondía 403 en los tres endpoints de Técnico. AppShell.initState la actualiza con
+  // el rol real justo después de cada login.
+  bool _isTechnician = false;
+
+  void setTechnician(bool value) => _isTechnician = value;
+
   /// Kit y repuestos del check-out (la hoja los consulta directamente).
   final InventoryApi inventoryApi;
   late final VoidCallback _unsubscribe;
@@ -112,6 +122,7 @@ class MyWorkState extends ChangeNotifier {
   List<PendingInstallation> get pendingInstallations => installations;
 
   Future<void> loadAll({bool silent = false}) async {
+    if (!_isTechnician) return;
     if (!silent) {
       loading = true;
       error = null;
