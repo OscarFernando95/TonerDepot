@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (.NET 8 + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # Credenciales de DESARROLLO del docker-compose.yml (ya públicas en el repo y en .env.example).
+    # Los tests de RLS las tienen fijas en PostgresFactAttribute.cs, así que el Postgres del CI
+    # tiene que usar exactamente estas, en localhost:5433 y con SSL.
+    env:
+      PGHOST: localhost
+      PGPORT: "5433"
+      PGUSER: toner
+      PGPASSWORD: toner_dev_password
+      PGDATABASE: toner
+      PGSSLMODE: require
+      TONER_APP_PASSWORD: toner_app_dev_password
+      ConnectionStrings__MigrationsConnection: Host=localhost;Port=5433;Database=toner;Username=toner;Password=toner_dev_password;Ssl Mode=Require
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: backend/global.json
+
+      # Se levanta el Postgres del propio docker-compose (imagen postgres:16-alpine con SSL
+      # horneado) en vez de un "service container" pelado: los tests conectan con
+      # "Ssl Mode=Require" y un service container no permite pasar `-c ssl=on` ni montar el
+      # certificado. server.crt/server.key están en .gitignore, así que se generan aquí.
+      - name: Generar certificado SSL de desarrollo
+        run: ./docker/postgres/generate-certs.sh
+
+      - name: Levantar Postgres
+        run: docker compose up -d --build postgres
+
+      # pg_isready por TCP (127.0.0.1) y no por socket: durante initdb el servidor temporal solo
+      # escucha en el socket unix y respondería "listo" antes de que existan los roles.
+      - name: Esperar a que Postgres acepte conexiones TCP
+        run: |
+          for i in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -h 127.0.0.1 -U toner -d toner; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Postgres no estuvo listo a tiempo"
+          docker compose logs postgres
+          exit 1
+
+      # El initdb.d ya crea los roles al inicializar el contenedor; este script es idempotente y
+      # además VERIFICA que toner_app / toner_app_staff no tengan SUPERUSER ni BYPASSRLS (si los
+      # tuvieran, todas las políticas RLS serían decorativas y los tests no lo notarían).
+      - name: Crear/verificar roles de la aplicación
+        run: ./docker/postgres/create-app-role.sh
+
+      - name: Instalar dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 8.0.11
+
+      - name: Aplicar migraciones (rol owner)
+        working-directory: backend
+        run: >
+          dotnet ef database update
+          --project src/Toner.Infrastructure
+          --startup-project src/Toner.Api
+
+      - name: Build
+        working-directory: backend
+        run: dotnet build Toner.sln --configuration Release
+
+      - name: Test
+        working-directory: backend
+        run: >
+          dotnet test Toner.sln --configuration Release --no-build
+          --logger "trx" --results-directory "${{ runner.temp }}/trx"
+
+      # Regla del proyecto: los tests de RLS nunca se saltan. [PostgresFact] SALTA el test (en vez
+      # de fallar) si no llega a Postgres, y eso deja `dotnet test` en verde sin haber probado
+      # nada. Aquí se convierte cualquier test no ejecutado en un fallo del CI.
+      - name: Fallar si algún test fue saltado
+        run: |
+          shopt -s nullglob
+          files=("${{ runner.temp }}"/trx/*.trx)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No se generó ningún .trx: no se puede comprobar si hubo tests saltados."
+            exit 1
+          fi
+          if grep -lE 'notExecuted="[1-9]' "${files[@]}"; then
+            echo "::error::Hay tests saltados (¿Postgres no disponible para [PostgresFact]?). Los tests de RLS no pueden saltarse."
+            exit 1
+          fi
+          echo "Ningún test saltado."
+
+      - name: Subir resultados de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trx
+          path: ${{ runner.temp }}/trx
+          if-no-files-found: ignore
+
+      - name: Logs de Postgres (solo si falló)
+        if: failure()
+        run: docker compose logs postgres
+
+  frontend:
+    name: Frontend (Vue 3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: frontend-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend-web/package-lock.json
+
+      - run: npm ci
+
+      # vue-tsc -b && vite build: es el paso que llevaba roto desde 2026-10-01 (AUDIT.md H-02).
+      - run: npm run build
+
+      - run: npm test
+
+      # Solo dependencias de producción: las vulnerabilidades de vitest/tinypool son de dev y
+      # requieren un major (vitest 5), se tratan aparte.
+      - run: npm audit --omit=dev
