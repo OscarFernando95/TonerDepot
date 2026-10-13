@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Toner.Application.Auth.Dtos;
@@ -189,7 +191,13 @@ public class AuthService : IAuthService
                 "Cambio de contraseña fallido para usuario {UserId} desde IP {IpAddress}: contraseña actual incorrecta",
                 userId, ipAddress ?? "desconocida");
 
-            throw new InvalidCredentialsException();
+            // Es un error de validación (400), no de autenticación (401): el usuario ya está
+            // autenticado y el interceptor del front cierra la sesión ante cualquier 401, así que un
+            // error de tipeo lo sacaría de la app (AUDIT.md H-08).
+            throw new ValidationException(new[]
+            {
+                new ValidationFailure(nameof(ChangePasswordRequest.CurrentPassword), "La contraseña actual es incorrecta.")
+            });
         }
 
         user.PasswordHash = _passwordHasher.Hash(request.NewPassword);

@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Auth;
 using Toner.Application.Auth.Dtos;
@@ -162,11 +163,15 @@ public class AuthServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = BuildService(actDb);
 
-        await Assert.ThrowsAsync<InvalidCredentialsException>(() => service.ChangePasswordAsync(user.Id, new ChangePasswordRequest
+        // AUDIT.md H-08: debe salir como ValidationException (400), no como InvalidCredentialsException
+        // (401): el interceptor del front cierra la sesión ante cualquier 401, y un error de tipeo en
+        // "contraseña actual" no es una sesión inválida.
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.ChangePasswordAsync(user.Id, new ChangePasswordRequest
         {
             CurrentPassword = "no-es-la-actual",
             NewPassword = "NuevaContraseñaSegura1!"
         }));
+        Assert.Contains(ex.Errors, e => e.PropertyName == nameof(ChangePasswordRequest.CurrentPassword));
 
         var stillMustChange = await service.GetCurrentUserAsync(user.Id);
         Assert.True(stillMustChange.MustChangePassword);
