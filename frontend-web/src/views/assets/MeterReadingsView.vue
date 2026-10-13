@@ -126,6 +126,7 @@ async function loadCoverage(silent = false) {
     const { data } = await meterReadingsApi.listMeterReadingAssetsByCoverage()
     coverageAssets.value = data
   } catch (err: any) {
+    console.error('MeterReadingsView.loadCoverage failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los equipos de tu cobertura.')
   } finally {
     loadingCoverage.value = false

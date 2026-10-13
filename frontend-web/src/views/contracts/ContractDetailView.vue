@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import * as contractsApi from '../../api/contracts'
 import * as contractAssetsApi from '../../api/contractAssets'
@@ -160,6 +160,19 @@ function openEndLinkDialog(contractAsset: ContractAssetDto) {
 
 async function saveEndLink() {
   if (!endingLink.value) return
+  // Dar de baja no tiene vuelta (ningún estado sale de "Dado de baja"): se confirma aparte, porque el diálogo
+  // trae "Bodega" preseleccionado y el cambio es un solo clic en el radio.
+  if (endLinkForm.newAssetStatus === 'DadoDeBaja') {
+    try {
+      await ElMessageBox.confirm(
+        'Dar de baja el activo es definitivo: no podrá volver a bodega ni instalarse. ¿Continuar?',
+        'Confirmar baja',
+        { type: 'warning' }
+      )
+    } catch {
+      return // el usuario canceló la confirmación
+    }
+  }
   savingEndLink.value = true
   try {
     await contractAssetsApi.endContractAsset(contractId, endingLink.value.id, {
@@ -175,6 +188,7 @@ async function saveEndLink() {
     contractAssets.value = caData
     contract.value = contractData
   } catch (err: any) {
+    console.error('ContractDetailView.saveEndLink failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo finalizar la vinculación.')
   } finally {
     savingEndLink.value = false
