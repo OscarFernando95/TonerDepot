@@ -20,6 +20,7 @@ import {
   type ServiceTicketDto,
   type ServiceTicketPriorityName
 } from '../../api/types'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -150,31 +151,9 @@ async function handleSave() {
   }
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Resuelto':
-    case 'Cerrado':
-      return 'success'
-    case 'Cancelado':
-      return 'info'
-    case 'Abierto':
-    case 'SinAsignar':
-      return 'warning'
-    default:
-      return 'primary'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('ticket')
 
-function priorityTagType(priority: string) {
-  switch (priority) {
-    case 'Critica':
-      return 'danger'
-    case 'Alta':
-      return 'warning'
-    default:
-      return 'info'
-  }
-}
+const { tagType: priorityTagType } = useStatusTag('ticketPriority')
 
 function goToDetail(ticket: ServiceTicketDto) {
   router.push({ name: 'ticket-detail', params: { id: ticket.id } })

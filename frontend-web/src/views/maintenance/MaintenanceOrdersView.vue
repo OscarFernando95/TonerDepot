@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ordersApi from '../../api/maintenanceOrders'
 import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto } from '../../api/types'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const router = useRouter()
 
@@ -72,18 +73,7 @@ async function cancel(order: MaintenanceOrderDto) {
   await loadOrders()
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Completada':
-      return 'success'
-    case 'Cancelada':
-      return 'info'
-    case 'Pendiente':
-      return 'warning'
-    default:
-      return 'primary'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('maintenanceOrder')
 
 function goToDetail(order: MaintenanceOrderDto) {
   router.push({ name: 'maintenance-order-detail', params: { id: order.id } })

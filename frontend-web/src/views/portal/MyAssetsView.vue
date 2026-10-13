@@ -4,22 +4,12 @@ import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage } from 'element-plus'
 import * as assetsApi from '../../api/assets'
 import { AssetLifecycleStatusLabels, type AssetDto } from '../../api/types'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const assets = ref<AssetDto[]>([])
 const loading = ref(false)
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Instalado':
-      return 'success'
-    case 'EnMantenimiento':
-      return 'warning'
-    case 'DadoDeBaja':
-      return 'danger'
-    default:
-      return 'info'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('asset')
 
 async function loadAssets(silent = false) {
   if (!silent) loading.value = true

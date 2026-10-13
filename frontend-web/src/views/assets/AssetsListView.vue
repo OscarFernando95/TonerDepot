@@ -18,6 +18,7 @@ import {
   type ContractDto
 } from '../../api/types'
 import { formatDateUTC } from '../../utils/date'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const router = useRouter()
 
@@ -296,19 +297,7 @@ async function handleSave() {
   }
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Instalado':
-      return 'success'
-    case 'EnMantenimiento':
-    case 'PendienteInstalacion':
-      return 'warning'
-    case 'DadoDeBaja':
-      return 'danger'
-    default:
-      return 'info'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('asset')
 
 function goToDetail(asset: AssetDto) {
   router.push({ name: 'asset-detail', params: { id: asset.id } })

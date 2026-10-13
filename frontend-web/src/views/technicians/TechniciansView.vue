@@ -11,6 +11,7 @@ import type { ZoneDto } from '../../api/zones'
 import TechnicianScheduleDialog from '../../components/technicians/TechnicianScheduleDialog.vue'
 import TechnicianTimeOffDialog from '../../components/technicians/TechnicianTimeOffDialog.vue'
 import TechnicianVisitsDialog from '../../components/technicians/TechnicianVisitsDialog.vue'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const visitsDialogRef = ref<InstanceType<typeof TechnicianVisitsDialog> | null>(null)
 
@@ -79,18 +80,7 @@ async function loadData() {
   }
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Disponible':
-      return 'success'
-    case 'Ocupado':
-      return 'warning'
-    case 'EnTransito':
-      return 'primary'
-    default:
-      return 'info'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('technician')
 
 async function openZonesDialog(technician: TechnicianDto) {
   selectedTechnician.value = technician

@@ -23,6 +23,7 @@ import {
   type ClientLocationDto,
   type MeterReadingDto
 } from '../../api/types'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const route = useRoute()
 const router = useRouter()
@@ -203,19 +204,7 @@ async function saveStatus() {
   }
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Instalado':
-      return 'success'
-    case 'EnMantenimiento':
-    case 'PendienteInstalacion':
-      return 'warning'
-    case 'DadoDeBaja':
-      return 'danger'
-    default:
-      return 'info'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('asset')
 
 function statusLabel(status: string) {
   return AssetLifecycleStatusLabels[status as AssetLifecycleStatusName] ?? status

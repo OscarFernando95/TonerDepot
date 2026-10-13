@@ -9,6 +9,7 @@ import * as clientsApi from '../../api/clients'
 import CreateClientDialog from '../../components/CreateClientDialog.vue'
 import type { ClientDto, ContractDto } from '../../api/types'
 import { formatDateUTC } from '../../utils/date'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const router = useRouter()
 
@@ -102,18 +103,7 @@ function onClientCreatedFromContract(newClient: ClientDto) {
   form.clientId = newClient.id
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Activo':
-      return 'success'
-    case 'Vencido':
-      return 'warning'
-    case 'Cancelado':
-      return 'danger'
-    default:
-      return 'info'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('contract')
 
 function goToDetail(contract: ContractDto) {
   router.push({ name: 'contract-detail', params: { id: contract.id } })
