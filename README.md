@@ -230,6 +230,7 @@ Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren s
 |---|---|---|
 | `retry-pending-assignments` | cada 10 min | Reintenta asignar tickets/órdenes que quedaron sin técnico por horario, festivo o fuera de oficina. |
 | `evaluate-maintenance-schedules` | diario, 00:00 hora de `WorkCalendar:TimeZoneId` (Bogotá) | Evalúa los cronogramas de mantenimiento por tiempo. |
+| `dispatch-password-emails` | cada minuto (y al instante tras crear/resetear un usuario) | Pasa a Hangfire los correos de contraseña temporal pendientes del outbox (`PasswordEmailOutbox`), que se escribe en la misma transacción que el usuario: el usuario y su correo existen los dos o ninguno. Entrega *at-least-once*. |
 | `data-retention` | diario, 03:00 hora de Bogotá | Purga `UserSessions` terminadas y `ExceptionLogs` con más de `Retention:UserSessionsDays` / `Retention:ExceptionLogsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. Sobre `ExceptionLogs` la app solo tiene `SELECT` de la columna `CreatedAt` (migración `GrantExceptionLogsCreatedAtSelect`): puede purgar por fecha, no leer stacks ni correos. |
 
 ## Autenticación

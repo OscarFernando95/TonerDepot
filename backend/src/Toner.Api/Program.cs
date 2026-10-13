@@ -149,6 +149,8 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<RealtimeConnectionTracker>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<RealtimeChangeInterceptor>();
+// Aviso inmediato al despachador del outbox de correos de contraseña (AUDIT.md H-19).
+builder.Services.AddSingleton<PasswordEmailOutboxKickInterceptor>();
 
 // Notificaciones push (FCM). Sin Firebase:CredentialsPath quedan apagadas (el transporte lo avisa en el log al arrancar).
 builder.Services.Configure<FirebaseSettings>(builder.Configuration.GetSection(FirebaseSettings.SectionName));
@@ -171,7 +173,7 @@ builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
                 // H-17) ya va envuelta en el execution strategy, como exige EF Core con este retry.
                 .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
         .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>(), sp.GetRequiredService<RealtimeChangeInterceptor>(),
-            sp.GetRequiredService<PushChangeInterceptor>()));
+            sp.GetRequiredService<PushChangeInterceptor>(), sp.GetRequiredService<PasswordEmailOutboxKickInterceptor>()));
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
@@ -251,7 +253,8 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 // Contraseña generada al crear/resetear un usuario (hallazgo #3 de SECURITY_AUDIT.md).
 builder.Services.AddSingleton<IJobPayloadEncryptor, AesGcmJobPayloadEncryptor>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
-builder.Services.AddScoped<IBackgroundJobScheduler, HangfireBackgroundJobScheduler>();
+builder.Services.AddScoped<IBackgroundJobScheduler, OutboxPasswordEmailStager>();
+builder.Services.AddScoped<PasswordEmailOutboxDispatcher>();
 builder.Services.AddScoped<SendGeneratedPasswordEmailJob>();
 
 builder.Services.AddValidatorsFromAssembly(typeof(IAuthService).Assembly);
@@ -459,6 +462,13 @@ RecurringJob.AddOrUpdate<PendingAssignmentJob>(
     "retry-pending-assignments",
     job => job.RunAsync(CancellationToken.None),
     "*/10 * * * *");
+
+// Outbox del correo de contraseña (AUDIT.md H-19): el recurrente es la garantía de entrega; en el caso normal
+// PasswordEmailOutboxKickInterceptor lo dispara al momento.
+RecurringJob.AddOrUpdate<PasswordEmailOutboxDispatcher>(
+    "dispatch-password-emails",
+    job => job.RunAsync(CancellationToken.None),
+    "* * * * *");
 
 // Purga diaria de sesiones terminadas, a las 03:00 hora de Bogotá (fuera del horario laboral).
 RecurringJob.AddOrUpdate<DataRetentionJob>(

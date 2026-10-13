@@ -8,9 +8,12 @@ using Toner.Infrastructure.Security;
 
 namespace Toner.Infrastructure.Jobs;
 
-// Encolado por HangfireBackgroundJobScheduler al crear/resetear un usuario (hallazgo #3 de
-// SECURITY_AUDIT.md). Recibe la contraseña ya cifrada (AesGcmJobPayloadEncryptor) — nunca en claro:
-// eso es lo que termina en las tablas de Hangfire si el job queda en cola o reintentando.
+// Encolado por PasswordEmailOutboxDispatcher a partir del outbox que deja UserService al crear/resetear un
+// usuario (hallazgo #3 de SECURITY_AUDIT.md; outbox: AUDIT.md H-19). ZONA CRÍTICA: Hangfire serializa tipo,
+// método y argumentos — NO renombrar la clase, el namespace ni RunAsync(string, string, CancellationToken):
+// los jobs ya encolados dejarían de ejecutarse (lo vigila SendGeneratedPasswordEmailJobContractTests).
+//
+// Recibe la contraseña ya cifrada (AesGcmJobPayloadEncryptor) — nunca en claro: eso es lo que termina en las tablas de Hangfire si el job queda en cola o reintentando.
 //
 // Attempts=10 es el default real de Hangfire (verificado contra el paquete instalado, no asumido); se
 // deja explícito para documentar la intención. OnAttemptsExceeded=Delete: un fallo definitivo no debe

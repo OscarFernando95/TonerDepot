@@ -1074,6 +1074,33 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.ToTable("ModelBaseItems", (string)null);
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.PasswordEmailOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Cedula")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EncryptedPassword")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("PasswordEmailOutbox", (string)null);
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.Role", b =>
                 {
                     b.Property<Guid>("Id")

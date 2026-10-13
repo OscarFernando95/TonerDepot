@@ -52,6 +52,12 @@ convención" ahí.
     no pueden llevar política por cliente. `UserSessions` solo guarda
     metadatos de sesión (sin datos de clientes). Cualquier otra tabla que
     necesite lectura pre-autenticación exige la misma justificación explícita.
+  - **Excepción registrada: `PasswordEmailOutbox` no tiene RLS** (AUDIT.md
+    H-19). Guarda solo cédula + contraseña temporal **cifrada** (AES-GCM,
+    misma clave que los jobs de Hangfire), sin `ClientId` ni datos de
+    clientes; la leen únicamente los jobs con contexto de staff, ninguna API
+    la expone, y cada fila vive lo que tarda el despachador en encolarla
+    (segundos). Es el mismo dato que ya está en `hangfire.job`.
 
 - **Paginación.** Los listados nuevos devuelven `PagedResult<T>`
   (`Toner.Application/Common/Paging/PagedResult.cs`), nunca una lista suelta.

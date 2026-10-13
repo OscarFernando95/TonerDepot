@@ -55,6 +55,7 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public DbSet<Evidence> Evidences => Set<Evidence>();
 
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
+    public DbSet<PasswordEmailOutbox> PasswordEmailOutbox => Set<PasswordEmailOutbox>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
