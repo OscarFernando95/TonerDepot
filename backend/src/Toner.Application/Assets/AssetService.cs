@@ -5,6 +5,7 @@ using Toner.Application.Common;
 using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
+using Toner.Application.Technicians;
 using Toner.Application.Maintenance;
 using Toner.Domain.Common;
 using Toner.Domain.Entities;
@@ -220,10 +221,9 @@ public class AssetService : IAssetService
 
         ApplyStatusChange(asset, request, newStatus, changedByUserId);
 
-        if (newStatus == AssetLifecycleStatus.Instalado)
-        {
-            await LinkAssetToZoneTechniciansAsync(asset, cancellationToken);
-        }
+        // Instalarse (o cambiar de sede/estado) cambia qué técnicos lo cubren por zona. Sin guardar: el caller
+        // confirma vínculo, estado y log en un solo SaveChangesAsync.
+        await TechnicianAssetLinks.SyncForAssetAsync(_db, asset, cancellationToken);
 
         if (newStatus is AssetLifecycleStatus.EnBodega or AssetLifecycleStatus.DadoDeBaja)
         {
@@ -239,47 +239,6 @@ public class AssetService : IAssetService
         }
 
         return asset;
-    }
-
-    // Tercer disparador del auto-vínculo por zona (los otros dos: TechnicianService.
-    // LinkInstalledAssetsInZonesAsync al asignar la zona, y ZoneService.
-    // LinkInstalledAssetsForZoneTechniciansAsync al agregarle un municipio). Este cubre el caso que
-    // faltaba: un activo que queda Instalado DESPUÉS de que la zona y su técnico ya existían — sin
-    // esto, ese activo no aparecía vinculado (ni en "Otras máquinas" ni habilitado para tóner) hasta
-    // que un admin lo vinculara a mano o volviera a tocar la zona. No hace SaveChangesAsync — el
-    // caller (ChangeStatusAsync o ContractAssetService.AddAsync) decide cuándo persistir, mismo
-    // patrón que el resto de este método.
-    private async Task LinkAssetToZoneTechniciansAsync(Asset asset, CancellationToken cancellationToken)
-    {
-        var zoneId = await _db.ClientLocations
-            .Where(cl => cl.Id == asset.CurrentClientLocationId)
-            .Select(cl => cl.City.ZoneId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (zoneId is null)
-        {
-            return;
-        }
-
-        var technicianIds = await _db.TechnicianZones
-            .Where(tz => tz.ZoneId == zoneId)
-            .Select(tz => tz.TechnicianId)
-            .ToListAsync(cancellationToken);
-
-        if (technicianIds.Count == 0)
-        {
-            return;
-        }
-
-        var alreadyLinked = await _db.TechnicianAssets
-            .Where(ta => ta.AssetId == asset.Id && technicianIds.Contains(ta.TechnicianId))
-            .Select(ta => ta.TechnicianId)
-            .ToListAsync(cancellationToken);
-
-        foreach (var technicianId in technicianIds.Except(alreadyLinked))
-        {
-            _db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = technicianId, AssetId = asset.Id });
-        }
     }
 
     private void ApplyStatusChange(Asset asset, ChangeAssetStatusRequest request, AssetLifecycleStatus newStatus, Guid changedByUserId)
