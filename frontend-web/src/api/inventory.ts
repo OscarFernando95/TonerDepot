@@ -189,12 +189,27 @@ export interface TonerEntryDto {
   stockWarning: string | null
 }
 
-export function getVisitKit(assetId?: string | null) {
-  return http.get<VisitKitDto>('/inventory/kit', { params: { assetId: assetId || undefined } })
+// clientLocationId es el respaldo cuando no hay assetId (ticket de equipo no catalogado): resuelve el
+// saldo por la zona de esa sede en vez de caer directo a la bodega principal — ver
+// InventoryConsumptionService.ResolveSourceAsync, backend.
+export function getVisitKit(assetId?: string | null, clientLocationId?: string | null) {
+  return http.get<VisitKitDto>('/inventory/kit', {
+    params: { assetId: assetId || undefined, clientLocationId: clientLocationId || undefined }
+  })
 }
 
-export function searchParts(params: { assetId?: string | null; search?: string; category?: InventoryCategory; pageSize?: number }) {
-  return getPaged<PartOptionDto>('/inventory/parts', { ...params, assetId: params.assetId || undefined } as never)
+export function searchParts(params: {
+  assetId?: string | null
+  clientLocationId?: string | null
+  search?: string
+  category?: InventoryCategory
+  pageSize?: number
+}) {
+  return getPaged<PartOptionDto>('/inventory/parts', {
+    ...params,
+    assetId: params.assetId || undefined,
+    clientLocationId: params.clientLocationId || undefined
+  } as never)
 }
 
 export function registerToner(request: {

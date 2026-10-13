@@ -7,7 +7,8 @@ import type { PartOptionDto, VisitKitDto } from '../../api/inventory'
 // Piezas cambiadas en una visita. En una orden que incluye cambio de consumibles muestra el kit base del modelo
 // (todo marcado por defecto; desmarcar = no se cambió) y, en cualquier ticket u orden, permite agregar repuestos del
 // inventario de la zona. Nunca bloquea el cierre: si falta stock solo avisa (el servidor deja un aviso de negativo).
-const props = defineProps<{ assetId: string | null; includeKit: boolean }>()
+// clientLocationId: respaldo cuando assetId es null (ticket de equipo no catalogado) — ver getVisitKit, api/inventory.ts.
+const props = defineProps<{ assetId: string | null; clientLocationId?: string | null; includeKit: boolean }>()
 const parts = defineModel<{ itemId: string; quantity: number }[]>({ default: () => [] })
 
 interface Row {
@@ -49,7 +50,7 @@ async function load() {
   }
   loading.value = true
   try {
-    const { data } = await inventoryApi.getVisitKit(props.assetId)
+    const { data } = await inventoryApi.getVisitKit(props.assetId, props.clientLocationId)
     kit.value = data
     rows.value = data.items.map((i) => ({
       itemId: i.itemId, name: i.itemName, groupName: i.groupName, quantity: i.quantity, stock: i.stock, checked: true, fromKit: true
@@ -66,7 +67,12 @@ async function load() {
 async function searchParts(query: string) {
   searching.value = true
   try {
-    const { data } = await inventoryApi.searchParts({ assetId: props.assetId, search: query || undefined, pageSize: 20 })
+    const { data } = await inventoryApi.searchParts({
+      assetId: props.assetId,
+      clientLocationId: props.clientLocationId,
+      search: query || undefined,
+      pageSize: 20
+    })
     options.value = data.items
   } catch (err) {
     console.error('VisitPartsPicker.searchParts failed', err)

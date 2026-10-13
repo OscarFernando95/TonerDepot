@@ -39,6 +39,9 @@ const counterPhoto = ref<File | null>(null)
 // Piezas usadas en la visita (kit marcado + repuestos): descuentan del inventario de la zona del equipo.
 const usedParts = ref<{ itemId: string; quantity: number }[]>([])
 const visitAssetId = computed(() => activeTicket.value?.assetId ?? activeOrder.value?.assetId ?? null)
+// Respaldo cuando el ticket es de un equipo no catalogado (sin visitAssetId): su sede sigue conociéndose,
+// así que el saldo se resuelve por esa zona en vez de caer directo a la bodega principal.
+const visitClientLocationId = computed(() => (visitAssetId.value ? null : (activeTicket.value?.clientLocationId ?? null)))
 
 const status = ref<selfApi.TechnicianSelfStatusDto | null>(null)
 const tickets = ref<ServiceTicketDto[]>([])
@@ -462,7 +465,12 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
         </el-form-item>
 
         <el-form-item v-if="activeTicket || activeOrder" label="Piezas cambiadas">
-          <VisitPartsPicker v-model="usedParts" :asset-id="visitAssetId" :include-kit="!!activeOrder?.includesConsumables" />
+          <VisitPartsPicker
+            v-model="usedParts"
+            :asset-id="visitAssetId"
+            :client-location-id="visitClientLocationId"
+            :include-kit="!!activeOrder?.includesConsumables"
+          />
         </el-form-item>
 
         <el-form-item v-if="counterPhotoRequired" label="Foto del contador (obligatoria)">
