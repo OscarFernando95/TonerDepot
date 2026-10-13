@@ -40,6 +40,8 @@ using Toner.Application.Tickets;
 using Toner.Application.Users;
 using Toner.Infrastructure.Auth;
 using Toner.Infrastructure.Email;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Toner.Api.Health;
 using Toner.Infrastructure.Health;
 using Toner.Infrastructure.Jobs;
 using Toner.Infrastructure.Logging;
@@ -177,8 +179,15 @@ builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<To
 builder.Services.AddScoped<IExceptionLogger, TonerExceptionLogger>();
 builder.Services.AddScoped<DataSeeder>();
 
+// Singletons: CachedHealthCheck recuerda el último resultado unos segundos (AUDIT.md H-15).
+builder.Services.AddSingleton<BlobStorageHealthCheck>();
+builder.Services.AddSingleton<SmtpHealthCheck>();
 builder.Services.AddHealthChecks()
-    .AddCheck<PostgresHealthCheck>("postgres");
+    .AddCheck<PostgresHealthCheck>("postgres", tags: new[] { HealthEndpoints.ReadyTag })
+    .AddCheck<BlobStorageHealthCheck>("blob", tags: new[] { HealthEndpoints.ReadyTag })
+    // Degraded y no Unhealthy: el correo de contraseña temporal se reintenta por Hangfire, así que un
+    // SMTP caído no debe poner la app en 503.
+    .AddCheck<SmtpHealthCheck>("smtp", failureStatus: HealthStatus.Degraded, tags: new[] { HealthEndpoints.ReadyTag });
 
 // Caché in-memory para catálogos y el resumen del dashboard (CODE_QUALITY_AUDIT.md hallazgo #10).
 // Sin SizeLimit a propósito: lo que se cachea está acotado por construcción — una entrada para
@@ -436,9 +445,7 @@ app.UseMiddleware<MustChangePasswordMiddleware>();
 app.MapControllers();
 app.MapHub<UpdatesHub>("/hubs/updates");
 
-// AllowAnonymous explícito: el FallbackPolicy de arriba exige autenticación por defecto en TODO
-// endpoint, y un orquestador (Docker/K8s) que verifica liveness/readiness no puede autenticarse.
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapTonerHealthChecks();
 
 RecurringJob.AddOrUpdate<PendingAssignmentJob>(
     "retry-pending-assignments",
