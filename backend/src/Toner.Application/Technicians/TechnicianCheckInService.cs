@@ -33,6 +33,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     private readonly GeoOptions _geo;
     private readonly EvidenceOptions _evidence;
     private readonly IInventoryConsumptionService _consumption;
+    private readonly IStockLock _stockLock;
     private readonly IWorkCalendarService _calendar;
     private readonly TimeProvider _time;
     private readonly ILogger<TechnicianCheckInService> _logger;
@@ -49,11 +50,13 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         IWorkCalendarService calendar,
         TimeProvider time,
         IInventoryConsumptionService consumption,
+        IStockLock stockLock,
         ILogger<TechnicianCheckInService> logger)
     {
         _calendar = calendar;
         _time = time;
         _consumption = consumption;
+        _stockLock = stockLock;
         _geo = geo.Value;
         _evidence = evidence.Value;
         _logger = logger;
@@ -268,6 +271,24 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
     public async Task<TechnicianSelfStatusDto> CheckOutAsync(Guid technicianId, CheckOutRequest request, CancellationToken cancellationToken = default)
     {
+        // Todo el cierre corre en una transacción de stock (AUDIT.md H-41): las piezas usadas bloquean su saldo desde
+        // que se lee hasta el único SaveChanges, así que dos cierres simultáneos no pueden consumir la misma unidad.
+        // Ante un fallo transitorio el cierre se repite entero (todo se vuelve a leer dentro); si el commit quedó en
+        // duda, "el TimeLog que estaba abierto ya está cerrado" dice si se aplicó.
+        Guid? closingLogId = null;
+        await _stockLock.RunInStockTransactionAsync(
+            ct => CloseVisitAsync(technicianId, request, id => closingLogId = id, ct),
+            async ct => closingLogId is { } id && await _db.TimeLogs.AnyAsync(t => t.Id == id && t.EndTime != null, ct),
+            cancellationToken);
+
+        var status = await GetMyStatusAsync(technicianId, cancellationToken);
+        // Se conserva en el DTO por compatibilidad con los clientes: ya nunca hay stock negativo que avisar.
+        status.StockWarnings = Array.Empty<string>();
+        return status;
+    }
+
+    private async Task CloseVisitAsync(Guid technicianId, CheckOutRequest request, Action<Guid> onClosingLog, CancellationToken cancellationToken)
+    {
         var technician = await _db.Technicians.FirstOrDefaultAsync(t => t.Id == technicianId, cancellationToken)
             ?? throw new NotFoundException(nameof(Technician), technicianId);
 
@@ -281,6 +302,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             .OrderByDescending(tl => tl.StartTime)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new ConflictException("No se encontró un registro de tiempo abierto.");
+        onClosingLog(openLog.Id);
 
         var isInstallationCheckout = openLog.AssetId.HasValue && request.Resolved;
         var isOrderCheckout = openLog.MaintenanceOrderId.HasValue && request.Resolved;
@@ -369,8 +391,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         }
 
         // Piezas usadas: solo en tickets y órdenes. Se descuentan del inventario de la zona del equipo dentro del mismo
-        // SaveChanges del cierre; si falta stock la visita igual se cierra y vuelve un aviso (no bloquea el campo).
-        IReadOnlyList<string> stockWarnings = Array.Empty<string>();
+        // SaveChanges del cierre; si alguna no tiene saldo, el cierre se rechaza entero (AUDIT.md H-41).
         if (request.Parts.Count > 0)
         {
             if (!isVisitCheckout)
@@ -392,7 +413,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 partsAssetId = order.AssetId;
             }
 
-            stockWarnings = await _consumption.PrepareVisitConsumptionAsync(
+            await _consumption.PrepareVisitConsumptionAsync(
                 new VisitConsumption(partsClientId, partsAssetId, openLog.MaintenanceOrderId, openLog.ServiceTicketId, openLog.Id, request.InitialCounterValue, technician.UserId),
                 request.Parts.ToList(),
                 cancellationToken);
@@ -542,10 +563,6 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         // DUPLICADA, que corrompe tanto los umbrales de mantenimiento como el promedio de impresiones
         // por mes del contrato (CODE_QUALITY_AUDIT.md hallazgo #8).
         await _db.SaveChangesAsync(cancellationToken);
-
-        var status = await GetMyStatusAsync(technicianId, cancellationToken);
-        status.StockWarnings = stockWarnings;
-        return status;
     }
 
     // El ClientId denormalizado de las tablas de fase 3b se captura al escribir. En este servicio el

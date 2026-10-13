@@ -114,21 +114,39 @@ public class InventoryConsumptionTests
         Assert.Equal(9, await db.InventoryMovements.Where(m => m.InventoryLocationId == s.MainId && m.InventoryItemId == s.Fusor).SumAsync(m => m.Delta));
     }
 
+    // AUDIT.md H-41: el inventario nunca queda en negativo — no se consume lo que no existe. Antes la visita se
+    // cerraba igual y solo avisaba "quedó en -2".
     [Fact]
-    public async Task CheckOut_SinStockSuficiente_CierraLaVisitaYAvisaDelNegativo()
+    public async Task CheckOut_SinStockSuficiente_RechazaElCierre_YNoDescuentaNada()
     {
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.Fusor, 1);
         await CheckInAsync(s);
 
-        var status = await CheckOutAsync(s, (s.Fusor, 3));
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => CheckOutAsync(s, (s.Fusor, 3)));
 
-        var warning = Assert.Single(status.StockWarnings);
-        Assert.Contains("Fusor", warning);
-        Assert.Contains("-2", warning);
+        Assert.Contains("Fusor", ex.Message);
+        Assert.Contains("hay 1", ex.Message);
+        Assert.Contains("necesitas 3", ex.Message);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        Assert.Equal(ServiceTicketStatus.Resuelto, (await db.ServiceTickets.SingleAsync()).Status);
-        Assert.Equal(-2, await db.InventoryMovements.Where(m => m.InventoryLocationId == s.ZoneLocationId).SumAsync(m => m.Delta));
+        Assert.Equal(ServiceTicketStatus.EnProceso, (await db.ServiceTickets.SingleAsync()).Status);
+        Assert.Null((await db.TimeLogs.SingleAsync()).EndTime);
+        Assert.Equal(1, await db.InventoryMovements.Where(m => m.InventoryLocationId == s.ZoneLocationId).SumAsync(m => m.Delta));
+    }
+
+    [Fact]
+    public async Task CheckOut_SiUnaDeVariasPiezasNoAlcanza_NoDescuentaNinguna_YNombraSoloLaQueFalta()
+    {
+        var s = await SeedAsync();
+        await StockAsync(s, s.ZoneLocationId, s.Fusor, 5);
+        await CheckInAsync(s);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => CheckOutAsync(s, (s.Fusor, 1), (s.Presor, 2)));
+
+        Assert.Contains("Presor", ex.Message);
+        Assert.DoesNotContain("Fusor", ex.Message);
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        Assert.Equal(5, await db.InventoryMovements.Where(m => m.InventoryLocationId == s.ZoneLocationId).SumAsync(m => m.Delta));
     }
 
     [Fact]
@@ -189,7 +207,7 @@ public class InventoryConsumptionTests
         }
 
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var kit = await new InventoryConsumptionService(db, new BaseKitService(db)).GetKitForAssetAsync(s.AssetId);
+        var kit = await new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock()).GetKitForAssetAsync(s.AssetId);
 
         Assert.Equal("Sur", kit.LocationName);
         Assert.False(kit.UsesMainWarehouse);
@@ -204,7 +222,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        var kit = await new InventoryConsumptionService(db, new BaseKitService(db)).GetKitForAssetAsync(null);
+        var kit = await new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock()).GetKitForAssetAsync(null);
 
         Assert.Empty(kit.Items);
         Assert.True(kit.UsesMainWarehouse);
@@ -222,7 +240,7 @@ public class InventoryConsumptionTests
         }
 
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
 
         var found = (await service.SearchPartsAsync(s.AssetId, "empa", null, null)).Items;
         Assert.Equal(6, Assert.Single(found).Stock);
@@ -238,7 +256,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 5);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
         var request = new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 2, DeliveredToUser = true, CounterValue = 1000 };
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.RegisterTonerAsync(request, Tech(s)));
@@ -264,7 +282,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 9);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
         var past = DateTime.UtcNow.AddDays(-20);
 
@@ -282,18 +300,25 @@ public class InventoryConsumptionTests
     }
 
     [Fact]
-    public async Task Toner_RechazaItemQueNoEsToner_YAvisaDeStockNegativo()
+    public async Task Toner_RechazaItemQueNoEsToner_YRechazaSiNoHayStock()
     {
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Coordinador, null, null);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.Fusor, Quantity = 1, CounterValue = 10 }, staff));
 
+        // AUDIT.md H-41: sin tóner en la zona no se puede registrar uno instalado (antes: aviso de negativo).
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 10 }, staff));
+        Assert.Contains("Stock insuficiente", ex.Message);
+        Assert.Equal(0, await db.InventoryMovements.CountAsync(m => m.InventoryItemId == s.TonerId));
+
+        await StockAsync(s, s.ZoneLocationId, s.TonerId, 1);
         var entry = await service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 10 }, staff);
-        Assert.Contains("Stock insuficiente", entry.StockWarning);
+        Assert.Null(entry.StockWarning);
     }
 
     [Fact]
@@ -315,7 +340,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 9);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
         RegisterTonerRequest At(DateTime when, long counter) =>
             new() { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, OccurredAt = when, CounterValue = counter };
@@ -337,7 +362,7 @@ public class InventoryConsumptionTests
     {
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db));
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>

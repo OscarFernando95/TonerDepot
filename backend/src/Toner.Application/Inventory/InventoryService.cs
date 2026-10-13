@@ -223,11 +223,10 @@ public class InventoryService : IInventoryService
 
         // Lectura del saldo + chequeo + inserción, en exclusiva sobre (ítem, origen) (AUDIT.md H-17). Las dos
         // filas del traspaso van en el mismo SaveChanges: o quedan ambas o ninguna.
-        await _stockLock.RunExclusiveAsync(
-            request.ItemId,
-            request.FromLocationId,
+        await _stockLock.RunInStockTransactionAsync(
             async ct =>
             {
+                await _stockLock.LockAsync(new[] { (request.ItemId, request.FromLocationId) }, ct);
                 var available = await BalanceAsync(request.FromLocationId, request.ItemId, ct);
                 if (available < request.Quantity)
                 {
@@ -257,8 +256,31 @@ public class InventoryService : IInventoryService
         await EnsureLocationExistsAsync(request.LocationId, cancellationToken);
 
         var movement = NewMovement(request.ItemId, request.LocationId, InventoryMovementType.Ajuste, request.Delta, request.Notes, userId, null);
-        _db.InventoryMovements.Add(movement);
-        await _db.SaveChangesAsync(cancellationToken);
+        if (request.Delta >= 0)
+        {
+            _db.InventoryMovements.Add(movement);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            // Un ajuste que resta no puede dejar el saldo por debajo de cero (AUDIT.md H-41): misma exclusividad
+            // por (ítem, ubicación) que el traspaso, para que dos restas simultáneas no se salten el chequeo.
+            await _stockLock.RunInStockTransactionAsync(
+                async ct =>
+                {
+                    await _stockLock.LockAsync(new[] { (request.ItemId, request.LocationId) }, ct);
+                    var available = await BalanceAsync(request.LocationId, request.ItemId, ct);
+                    if (available + request.Delta < 0)
+                    {
+                        throw new ConflictException($"Saldo insuficiente: hay {available} y el ajuste resta {-request.Delta}. El inventario no puede quedar en negativo.");
+                    }
+
+                    _db.InventoryMovements.Add(movement);
+                    await _db.SaveChangesAsync(ct);
+                },
+                ct => _db.InventoryMovements.AnyAsync(m => m.Id == movement.Id, ct),
+                cancellationToken);
+        }
 
         return await GetMovementAsync(movement.Id, cancellationToken);
     }

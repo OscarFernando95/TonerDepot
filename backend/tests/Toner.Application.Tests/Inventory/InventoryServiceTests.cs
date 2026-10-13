@@ -205,4 +205,21 @@ public class InventoryServiceTests
         Assert.False(new CreateInventoryItemRequestValidator().Validate(new CreateInventoryItemRequest { Name = "X", Category = "Cualquiera" }).IsValid);
         Assert.True(new CreateInventoryItemRequestValidator().Validate(new CreateInventoryItemRequest { Name = "X", Category = "Toner" }).IsValid);
     }
+
+    // AUDIT.md H-41: un ajuste negativo no puede dejar el saldo por debajo de cero.
+    [Fact]
+    public async Task Ajuste_NegativoQueDejariaSaldoNegativo_SeRechaza_YDentroDelSaldoSiPasa()
+    {
+        var s = await SeedAsync();
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = Service(db);
+        await service.RegisterEntryAsync(new RegisterEntryRequest { LocationId = s.MainId, ItemId = s.ItemId, Quantity = 4 }, s.UserId);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.AdjustAsync(new AdjustStockRequest { ItemId = s.ItemId, LocationId = s.MainId, Delta = -5, Notes = "pérdida" }, s.UserId));
+        Assert.Contains("Saldo insuficiente", ex.Message);
+
+        await service.AdjustAsync(new AdjustStockRequest { ItemId = s.ItemId, LocationId = s.MainId, Delta = -4, Notes = "conteo" }, s.UserId);
+        Assert.Equal(0, await db.InventoryMovements.Where(m => m.InventoryLocationId == s.MainId && m.InventoryItemId == s.ItemId).SumAsync(m => m.Delta));
+    }
 }
