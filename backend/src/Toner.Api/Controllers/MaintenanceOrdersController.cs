@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using Toner.Application.Common.Paging;
 using FluentValidation;
@@ -38,14 +39,14 @@ public class MaintenanceOrdersController : ControllerBase
     [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
     public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
+        return Ok(await _orderService.ListAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
     public async Task<ActionResult<MaintenanceOrderDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.GetByIdAsync(CurrentUser, id, cancellationToken));
+        return Ok(await _orderService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));
     }
 
     // Mantenimiento a demanda de un equipo instalado, fuera de los umbrales del cronograma.
@@ -55,7 +56,7 @@ public class MaintenanceOrdersController : ControllerBase
     {
         await _createManualValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var order = await _orderService.CreateManualAsync(request, CurrentUser.UserId, cancellationToken);
+        var order = await _orderService.CreateManualAsync(request, User.ToRequestingUser().UserId, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = order.Id }, order);
     }
 
@@ -65,7 +66,7 @@ public class MaintenanceOrdersController : ControllerBase
     {
         await _assignValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(await _orderService.AssignAsync(id, request, CurrentUser.UserId, cancellationToken));
+        return Ok(await _orderService.AssignAsync(id, request, User.ToRequestingUser().UserId, cancellationToken));
     }
 
     [HttpPost("{id:guid}/complete")]
@@ -74,7 +75,7 @@ public class MaintenanceOrdersController : ControllerBase
     {
         await _completeValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(await _orderService.CompleteAsync(id, request, CurrentUser.UserId, cancellationToken));
+        return Ok(await _orderService.CompleteAsync(id, request, User.ToRequestingUser().UserId, cancellationToken));
     }
 
     [HttpPost("{id:guid}/cancel")]
@@ -89,19 +90,5 @@ public class MaintenanceOrdersController : ControllerBase
     public async Task<ActionResult<PagedResult<AssignmentHistoryDto>>> GetAssignmentHistory(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
         return Ok(await _orderService.GetAssignmentHistoryAsync(id, cursor, pageSize, cancellationToken));
-    }
-
-    private RequestingUser CurrentUser
-    {
-        get
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role)!;
-            var clientIdClaim = User.FindFirstValue("client_id");
-            var clientId = clientIdClaim is not null ? Guid.Parse(clientIdClaim) : (Guid?)null;
-            var technicianIdClaim = User.FindFirstValue("technician_id");
-            var technicianId = technicianIdClaim is not null ? Guid.Parse(technicianIdClaim) : (Guid?)null;
-            return new RequestingUser(userId, role, clientId, technicianId);
-        }
     }
 }

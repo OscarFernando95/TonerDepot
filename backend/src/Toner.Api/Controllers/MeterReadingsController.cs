@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using Toner.Application.Common.Paging;
 using FluentValidation;
@@ -29,7 +30,7 @@ public class MeterReadingsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListForMeterReadingAsync(CurrentUser, page, pageSize, cancellationToken));
+        return Ok(await _assetService.ListForMeterReadingAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
     }
 
     // Pestaña de respaldo (app móvil, solo Técnico) — activos instalados en sus ciudades de cobertura,
@@ -38,7 +39,7 @@ public class MeterReadingsController : ControllerBase
     [HttpGet("by-coverage")]
     public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> ListByCoverage([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListForMeterReadingByCoverageAsync(CurrentUser, page, pageSize, cancellationToken));
+        return Ok(await _assetService.ListForMeterReadingByCoverageAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
     }
 
     [HttpPost("{assetId:guid}")]
@@ -46,20 +47,6 @@ public class MeterReadingsController : ControllerBase
     {
         await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(await _assetService.AddMeterReadingAsync(assetId, request, CurrentUser, cancellationToken));
-    }
-
-    private RequestingUser CurrentUser
-    {
-        get
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role)!;
-            var clientIdClaim = User.FindFirstValue("client_id");
-            var clientId = clientIdClaim is not null ? Guid.Parse(clientIdClaim) : (Guid?)null;
-            var technicianIdClaim = User.FindFirstValue("technician_id");
-            var technicianId = technicianIdClaim is not null ? Guid.Parse(technicianIdClaim) : (Guid?)null;
-            return new RequestingUser(userId, role, clientId, technicianId);
-        }
+        return Ok(await _assetService.AddMeterReadingAsync(assetId, request, User.ToRequestingUser(), cancellationToken));
     }
 }
