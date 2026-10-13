@@ -191,25 +191,46 @@ public class AssetService : IAssetService
             throw new ConflictException($"No se puede pasar de '{asset.LifecycleStatus}' a '{newStatus}'.");
         }
 
+        // Un activo vinculado a un contrato activo (ContractAsset sin EndDate) no puede pasar
+        // directamente a Bodega ni a Dado de baja — hay que desvincularlo primero. Mientras esté
+        // vinculado, la única transición que queda disponible es Mantenimiento. Decisión de producto
+        // 2026-10-11: reemplaza el comportamiento anterior (pasar a Bodega cerraba el ContractAsset
+        // solo, sin que nadie lo decidiera explícitamente) — y cierra, de paso, el hueco real en Dado
+        // de baja, que hoy dejaba el ContractAsset abierto y el activo como si siguiera facturándose
+        // a un cliente ya dado de baja.
+        if (newStatus is AssetLifecycleStatus.EnBodega or AssetLifecycleStatus.DadoDeBaja)
+        {
+            // También mira el ChangeTracker local, no solo la BD: ContractAssetService.EndAsync llama
+            // acá mismo en la misma operación en la que recién le puso EndDate al ContractAsset que se
+            // está cerrando — ese cambio todavía no está guardado, así que la consulta a la BD lo
+            // seguiría viendo como activo si no se descuenta acá (mismo patrón que el fix de
+            // TechnicianAssets.Local del check-out — ver TechnicianCheckInService).
+            var dbActiveContractAssetIds = await _db.ContractAssets
+                .Where(ca => ca.AssetId == asset.Id && ca.EndDate == null)
+                .Select(ca => ca.Id)
+                .ToListAsync(cancellationToken);
+            var hasActiveContract = dbActiveContractAssetIds.Any(contractAssetId =>
+                _db.ContractAssets.Local.FirstOrDefault(ca => ca.Id == contractAssetId)?.EndDate is null);
+            if (hasActiveContract)
+            {
+                throw new ConflictException(
+                    $"El activo está vinculado a un contrato activo. Desvincúlalo del contrato antes de pasarlo a '{newStatus}'.");
+            }
+        }
+
         ApplyStatusChange(asset, request, newStatus, changedByUserId);
 
-        if (newStatus == AssetLifecycleStatus.EnBodega)
+        if (newStatus == AssetLifecycleStatus.Instalado)
         {
-            // Invariante: un activo EnBodega nunca puede tener un vínculo de contrato activo. Volver a
-            // bodega (desde Instalado o EnMantenimiento) cierra automáticamente cualquier ContractAsset
-            // que siga abierto, en vez de dejarlo huérfano a la espera de que alguien lo cierre a mano.
-            var activeLinks = await _db.ContractAssets
-                .Where(ca => ca.AssetId == asset.Id && ca.EndDate == null)
-                .ToListAsync(cancellationToken);
+            await LinkAssetToZoneTechniciansAsync(asset, cancellationToken);
+        }
 
-            foreach (var link in activeLinks)
-            {
-                link.EndDate = DateTime.UtcNow;
-            }
-
-            // Un activo que ya no está instalado bajo ningún contrato no debe seguir generando órdenes de
-            // mantenimiento — se pausa su cronograma (si tenía uno). Se reactiva solo al reinstalarse
-            // (MaintenanceScheduleEngine.UpsertForInstallationAsync lo reactiva explícitamente).
+        if (newStatus is AssetLifecycleStatus.EnBodega or AssetLifecycleStatus.DadoDeBaja)
+        {
+            // Ya no puede estar generando trabajo: ni en bodega ni dado de baja sigue bajo un contrato
+            // (el chequeo de arriba lo garantiza), así que su cronograma de mantenimiento se pausa.
+            // Se reactiva solo al reinstalarse (MaintenanceScheduleEngine.UpsertForInstallationAsync lo
+            // reactiva explícitamente).
             var schedule = await _db.MaintenanceSchedules.FirstOrDefaultAsync(s => s.AssetId == asset.Id, cancellationToken);
             if (schedule is not null)
             {
@@ -218,6 +239,47 @@ public class AssetService : IAssetService
         }
 
         return asset;
+    }
+
+    // Tercer disparador del auto-vínculo por zona (los otros dos: TechnicianService.
+    // LinkInstalledAssetsInZonesAsync al asignar la zona, y ZoneService.
+    // LinkInstalledAssetsForZoneTechniciansAsync al agregarle un municipio). Este cubre el caso que
+    // faltaba: un activo que queda Instalado DESPUÉS de que la zona y su técnico ya existían — sin
+    // esto, ese activo no aparecía vinculado (ni en "Otras máquinas" ni habilitado para tóner) hasta
+    // que un admin lo vinculara a mano o volviera a tocar la zona. No hace SaveChangesAsync — el
+    // caller (ChangeStatusAsync o ContractAssetService.AddAsync) decide cuándo persistir, mismo
+    // patrón que el resto de este método.
+    private async Task LinkAssetToZoneTechniciansAsync(Asset asset, CancellationToken cancellationToken)
+    {
+        var zoneId = await _db.ClientLocations
+            .Where(cl => cl.Id == asset.CurrentClientLocationId)
+            .Select(cl => cl.City.ZoneId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (zoneId is null)
+        {
+            return;
+        }
+
+        var technicianIds = await _db.TechnicianZones
+            .Where(tz => tz.ZoneId == zoneId)
+            .Select(tz => tz.TechnicianId)
+            .ToListAsync(cancellationToken);
+
+        if (technicianIds.Count == 0)
+        {
+            return;
+        }
+
+        var alreadyLinked = await _db.TechnicianAssets
+            .Where(ta => ta.AssetId == asset.Id && technicianIds.Contains(ta.TechnicianId))
+            .Select(ta => ta.TechnicianId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var technicianId in technicianIds.Except(alreadyLinked))
+        {
+            _db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = technicianId, AssetId = asset.Id });
+        }
     }
 
     private void ApplyStatusChange(Asset asset, ChangeAssetStatusRequest request, AssetLifecycleStatus newStatus, Guid changedByUserId)
@@ -479,18 +541,21 @@ public class AssetService : IAssetService
     {
         var query = _db.Assets.Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado);
 
-        // Admin/Coordinador ven todos los activos instalados. Un Técnico solo ve los que un
-        // administrador le vinculó explícitamente (TechnicianAsset) — decisión de arquitectura del
-        // 2026-09-27: la cobertura por ciudad (TechnicianCoverage) no otorga visibilidad de activos
-        // por sí sola, así que un técnico recién asignado a una ciudad no ve nada hasta que se le
-        // vinculen sus activos. Para el caso "el técnico titular no está disponible" existe una lista
-        // de respaldo aparte, ver ListForMeterReadingByCoverageAsync — nunca se fusionan.
+        // Admin/Coordinador ven todos los activos instalados. Un Técnico ve aquí SOLO el caso
+        // excepcional: activos vinculados a mano por un admin que quedan FUERA de su zona de cobertura
+        // (ej. revisar una máquina ajena a petición de un admin) — decisión de producto 2026-10-11. Los
+        // activos instalados dentro de su propia zona ya se vinculan solos al asignarle la zona (ver
+        // TechnicianService.LinkInstalledAssetsInZonesAsync) y se listan en
+        // ListForMeterReadingByCoverageAsync; se excluyen aquí para no duplicarlos entre las dos listas.
         if (requestingUser.IsTechnician)
         {
             var technicianId = requestingUser.TechnicianId
                 ?? throw new ForbiddenException("Tu usuario no tiene un técnico asociado.");
 
-            query = query.Where(a => a.TechnicianAssets.Any(ta => ta.TechnicianId == technicianId));
+            query = query.Where(a => a.TechnicianAssets.Any(ta => ta.TechnicianId == technicianId)
+                && !(a.CurrentClientLocation != null
+                    && a.CurrentClientLocation.City.Zone != null
+                    && a.CurrentClientLocation.City.Zone.TechnicianZones.Any(tz => tz.TechnicianId == technicianId)));
         }
 
         return await ProjectMeterReadingAssetsAsync(query, page, pageSize, cancellationToken);

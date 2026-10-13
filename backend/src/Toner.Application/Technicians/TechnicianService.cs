@@ -5,6 +5,7 @@ using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Technicians.Dtos;
 using Toner.Domain.Entities;
+using Toner.Domain.Enums;
 
 namespace Toner.Application.Technicians;
 
@@ -64,14 +65,52 @@ public class TechnicianService : ITechnicianService
         var current = await _db.TechnicianZones.Where(tz => tz.TechnicianId == technicianId).ToListAsync(cancellationToken);
 
         _db.TechnicianZones.RemoveRange(current.Where(tz => !wanted.Contains(tz.ZoneId)));
-        foreach (var zoneId in wanted.Where(id => current.All(tz => tz.ZoneId != id)))
+
+        var addedZoneIds = wanted.Where(id => current.All(tz => tz.ZoneId != id)).ToList();
+        foreach (var zoneId in addedZoneIds)
         {
             _db.TechnicianZones.Add(new TechnicianZone { TechnicianId = technicianId, ZoneId = zoneId });
+        }
+
+        if (addedZoneIds.Count > 0)
+        {
+            await LinkInstalledAssetsInZonesAsync(technicianId, addedZoneIds, cancellationToken);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
 
         return await ZonesOf(technicianId).ToListAsync(cancellationToken);
+    }
+
+    // Al asignarle una zona a un técnico, los activos ya instalados en esa zona pasan a ser también "suyos" (no
+    // solo visibles por cobertura): se vinculan como si un admin los hubiera vinculado uno por uno. Decisión de
+    // producto 2026-10-11 — reemplaza, para el caso normal (misma zona), la separación estricta entre cobertura y
+    // vínculo explícito del 2026-09-27; esa separación sigue existiendo solo para el caso excepcional (un activo
+    // fuera de la zona del técnico, que un admin vincula a mano — ver AssetService.ListForMeterReadingAsync).
+    //
+    // Nota: solo cubre los activos YA instalados al momento de asignar la zona. Un activo que se instale después
+    // en una zona ya asignada no se vincula solo — requiere que un admin reasigne la zona o lo vincule a mano.
+    private async Task LinkInstalledAssetsInZonesAsync(
+        Guid technicianId, IReadOnlyCollection<Guid> zoneIds, CancellationToken cancellationToken)
+    {
+        var alreadyLinkedAssetIds = await _db.TechnicianAssets
+            .Where(ta => ta.TechnicianId == technicianId)
+            .Select(ta => ta.AssetId)
+            .ToListAsync(cancellationToken);
+
+        var assetIdsToLink = await _db.Assets
+            .Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado
+                && a.CurrentClientLocation != null
+                && a.CurrentClientLocation.City.ZoneId != null
+                && zoneIds.Contains(a.CurrentClientLocation.City.ZoneId!.Value)
+                && !alreadyLinkedAssetIds.Contains(a.Id))
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var assetId in assetIdsToLink)
+        {
+            _db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = technicianId, AssetId = assetId });
+        }
     }
 
     private async Task EnsureTechnicianExistsAsync(Guid technicianId, CancellationToken cancellationToken)

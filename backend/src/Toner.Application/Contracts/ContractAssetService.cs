@@ -86,13 +86,29 @@ public class ContractAssetService : IContractAssetService
         return result;
     }
 
-    public async Task<ContractAssetDto> EndAsync(Guid contractId, Guid id, CancellationToken cancellationToken = default)
+    // Finalizar el vínculo exige decidir ahí mismo el destino del activo (Bodega o Dado de baja, con
+    // motivo) — nunca lo deja "Instalado" sin contrato esperando que alguien se acuerde de moverlo
+    // después. El motivo queda en su historial de estados (AssetStatusLog, vía AssetService).
+    public async Task<ContractAssetDto> EndAsync(
+        Guid contractId, Guid id, EndContractAssetRequest request, Guid changedByUserId, CancellationToken cancellationToken = default)
     {
         var contractAsset = await _db.ContractAssets
             .FirstOrDefaultAsync(ca => ca.Id == id && ca.ContractId == contractId, cancellationToken)
             ?? throw new NotFoundException(nameof(ContractAsset), id);
 
+        // Primero el vínculo, luego el cambio de estado: AssetService.PrepareStatusChangeAsync exige
+        // que el activo no tenga ya un contrato activo para pasar a Bodega/Dado de baja (ver su
+        // comentario), y éste es justo el contrato que se está cerrando — sin el EndDate puesto antes,
+        // esa validación se auto-bloquearía. Como todavía no se ha guardado, AssetService también
+        // revisa el ChangeTracker local (no solo la BD) para no contarlo como "sigue activo".
         contractAsset.EndDate ??= DateTime.UtcNow;
+
+        await _assetService.PrepareStatusChangeAsync(
+            contractAsset.AssetId,
+            new ChangeAssetStatusRequest { NewStatus = request.NewAssetStatus, Notes = request.Reason },
+            changedByUserId,
+            cancellationToken);
+
         await _db.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(id, cancellationToken);

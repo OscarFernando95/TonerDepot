@@ -16,11 +16,16 @@ public class ContractAssetsController : ControllerBase
 {
     private readonly IContractAssetService _contractAssetService;
     private readonly IValidator<AddContractAssetRequest> _addValidator;
+    private readonly IValidator<EndContractAssetRequest> _endValidator;
 
-    public ContractAssetsController(IContractAssetService contractAssetService, IValidator<AddContractAssetRequest> addValidator)
+    public ContractAssetsController(
+        IContractAssetService contractAssetService,
+        IValidator<AddContractAssetRequest> addValidator,
+        IValidator<EndContractAssetRequest> endValidator)
     {
         _contractAssetService = contractAssetService;
         _addValidator = addValidator;
+        _endValidator = endValidator;
     }
 
     [HttpGet]
@@ -39,9 +44,12 @@ public class ContractAssetsController : ControllerBase
     }
 
     [HttpPatch("{id:guid}/end")]
-    public async Task<ActionResult<ContractAssetDto>> End(Guid contractId, Guid id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ContractAssetDto>> End(
+        Guid contractId, Guid id, [FromBody] EndContractAssetRequest request, CancellationToken cancellationToken)
     {
-        return Ok(await _contractAssetService.EndAsync(contractId, id, cancellationToken));
+        await _endValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        return Ok(await _contractAssetService.EndAsync(contractId, id, request, CurrentUserId, cancellationToken));
     }
 
     private Guid CurrentUserId => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);

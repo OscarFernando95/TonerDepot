@@ -446,8 +446,16 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             // El técnico que instala un activo queda vinculado a él: es lo que gobierna qué ve en
             // "Lectura de contadores". Idempotente (índice único TechnicianId+AssetId) y dentro del
             // único SaveChanges de abajo, así que no queda el check-out cerrado sin el vínculo.
-            var alreadyLinked = await _db.TechnicianAssets
-                .AnyAsync(ta => ta.TechnicianId == technicianId && ta.AssetId == openLog.AssetId.Value, cancellationToken);
+            //
+            // El chequeo también mira TechnicianAssets.Local (no solo la BD): PrepareStatusChangeAsync,
+            // llamado arriba, puede haber dejado ya en el ChangeTracker (sin persistir todavía) el mismo
+            // vínculo si el técnico cubre por zona el municipio de esta instalación (ver AssetService.
+            // LinkAssetToZoneTechniciansAsync) — sin mirar lo local, este Add duplicaba la fila y el
+            // índice único tiraba 409 al hacer SaveChanges (hallazgo 2026-10-11, check-out de instalación).
+            var alreadyLinked = _db.TechnicianAssets.Local
+                .Any(ta => ta.TechnicianId == technicianId && ta.AssetId == openLog.AssetId.Value)
+                || await _db.TechnicianAssets
+                    .AnyAsync(ta => ta.TechnicianId == technicianId && ta.AssetId == openLog.AssetId.Value, cancellationToken);
             if (!alreadyLinked)
             {
                 _db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = technicianId, AssetId = openLog.AssetId.Value });

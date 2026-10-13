@@ -59,6 +59,13 @@ public class ZoneService : IZoneService
             .Where(c => c.ZoneId == id || wanted.Contains(c.Id))
             .ToListAsync(cancellationToken);
 
+        // Municipios que entran a la zona y no estaban ya en ella — antes de mutar ZoneId, para saber
+        // cuáles son realmente nuevos.
+        var newlyAddedCityIds = affected
+            .Where(c => wanted.Contains(c.Id) && c.ZoneId != id)
+            .Select(c => c.Id)
+            .ToList();
+
         foreach (var city in affected)
         {
             city.ZoneId = wanted.Contains(city.Id) ? id : null;
@@ -66,7 +73,63 @@ public class ZoneService : IZoneService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        if (newlyAddedCityIds.Count > 0)
+        {
+            await LinkInstalledAssetsForZoneTechniciansAsync(id, newlyAddedCityIds, cancellationToken);
+        }
+
         return await GetAsync(id, cancellationToken);
+    }
+
+    // Si la zona ya tiene técnico(s) asignado(s) (TechnicianZone), los activos ya instalados en un
+    // municipio que se le agrega ahora se vinculan solos — mismo criterio que al asignar la zona a un
+    // técnico (ver TechnicianService.LinkInstalledAssetsInZonesAsync). Decisión de producto 2026-10-11:
+    // sin esto, agregar un municipio a una zona con técnico ya asignado dejaba sus activos sin vincular
+    // hasta que alguien volviera a tocar la asignación de zona del técnico.
+    private async Task LinkInstalledAssetsForZoneTechniciansAsync(
+        Guid zoneId, IReadOnlyCollection<Guid> cityIds, CancellationToken cancellationToken)
+    {
+        var technicianIds = await _db.TechnicianZones
+            .Where(tz => tz.ZoneId == zoneId)
+            .Select(tz => tz.TechnicianId)
+            .ToListAsync(cancellationToken);
+
+        if (technicianIds.Count == 0)
+        {
+            return;
+        }
+
+        var installedAssetIds = await _db.Assets
+            .Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado
+                && a.CurrentClientLocation != null
+                && cityIds.Contains(a.CurrentClientLocation.CityId))
+            .Select(a => a.Id)
+            .ToListAsync(cancellationToken);
+
+        if (installedAssetIds.Count == 0)
+        {
+            return;
+        }
+
+        var existingLinks = (await _db.TechnicianAssets
+            .Where(ta => technicianIds.Contains(ta.TechnicianId) && installedAssetIds.Contains(ta.AssetId))
+            .Select(ta => new { ta.TechnicianId, ta.AssetId })
+            .ToListAsync(cancellationToken))
+            .Select(x => (x.TechnicianId, x.AssetId))
+            .ToHashSet();
+
+        foreach (var technicianId in technicianIds)
+        {
+            foreach (var assetId in installedAssetIds)
+            {
+                if (existingLinks.Add((technicianId, assetId)))
+                {
+                    _db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = technicianId, AssetId = assetId });
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
