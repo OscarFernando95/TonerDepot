@@ -63,57 +63,63 @@ public class AuthServiceTimingSafetyTests
     }
 
     [Fact]
-    public async Task LoginAsync_TiempoDeCedulaInexistenteEsComparableAlDeContrasenaIncorrecta()
+    public async Task LoginAsync_CedulaInexistente_VerificaContraUnSenuelo_ConElMismoCostoQueUnHashReal()
     {
-        // Sanity check con el hasher real (BCrypt, workFactor 12): confirma que "cédula inexistente"
-        // no es órdenes de magnitud más rápido que "cédula válida, password incorrecta" — que es
-        // justo la señal que permitiría enumerar cédulas por tiempos de red. Tolerancia amplia (>=
-        // 40% del tiempo del camino real) para no volverse un test frágil por ruido de scheduling;
-        // lo que importa es descartar el caso "microsegundos vs. cientos de milisegundos" de antes.
-        var hasher = new BCryptPasswordHasher();
+        // Antes este test cronometraba BCrypt con reloj de pared y fallaba de forma intermitente
+        // cuando otras clases competían por CPU en paralelo (AUDIT.md H-06). La propiedad que de
+        // verdad impide el oráculo de tiempos es estructural, y se comprueba sin medir tiempo:
+        //   1) "cédula inexistente" hace un Verify() igual que "contraseña incorrecta"
+        //      (ver los tests anteriores), y
+        //   2) el hash señuelo contra el que compara tiene el MISMO work factor que los hashes
+        //      reales: mismo Verify() sobre el mismo costo => mismo tiempo.
+        var hasherSpy = new PasswordHasherSpy();
+        using var db = TonerTestDb.CreateContext(Guid.NewGuid().ToString());
 
-        var dbNameKnown = Guid.NewGuid().ToString();
-        using var arrangeDb = TonerTestDb.CreateContext(dbNameKnown);
+        await BuildService(db, hasherSpy).LoginAsync(new LoginRequest { Cedula = "0000000000", Password = "cualquiera" });
+
+        var decoyHash = Assert.Single(hasherSpy.VerifiedAgainstHashes);
+        var realHash = new BCryptPasswordHasher().Hash("Password123!");
+        Assert.Equal(WorkFactorOf(realHash), WorkFactorOf(decoyHash));
+    }
+
+    [Fact]
+    public async Task LoginAsync_ContrasenaIncorrecta_VerificaContraElHashRealDelUsuario()
+    {
+        // Contrapartida del test del señuelo: sin esto, un cambio que comparara SIEMPRE contra el
+        // señuelo pasaría el test anterior y rompería el login legítimo.
+        var hasher = new BCryptPasswordHasher();
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
         var role = TestEntities.Role(RoleNames.Coordinador);
         var user = TestEntities.User(role, cedula: "5050505050");
         user.PasswordHash = hasher.Hash("Password123!");
         arrangeDb.AddRange(role, user);
         await arrangeDb.SaveChangesAsync();
 
-        const int iterations = 3;
+        var hasherSpy = new PasswordHasherSpy();
+        using var actDb = TonerTestDb.CreateContext(dbName);
 
-        var knownElapsedMs = await MeasureAverageMillisecondsAsync(dbNameKnown, hasher, "5050505050", iterations);
-        var unknownElapsedMs = await MeasureAverageMillisecondsAsync(Guid.NewGuid().ToString(), hasher, "0000000000", iterations);
+        var result = await BuildService(actDb, hasherSpy)
+            .LoginAsync(new LoginRequest { Cedula = "5050505050", Password = "contraseña-incorrecta" });
 
-        Assert.True(
-            unknownElapsedMs >= knownElapsedMs * 0.4,
-            $"El camino de cédula inexistente ({unknownElapsedMs:F1}ms) fue desproporcionadamente más " +
-            $"rápido que el de contraseña incorrecta ({knownElapsedMs:F1}ms) — sugiere que se está " +
-            "saltando el hashing.");
+        Assert.False(result.Succeeded);
+        Assert.Equal(user.PasswordHash, Assert.Single(hasherSpy.VerifiedAgainstHashes));
     }
 
-    private static async Task<double> MeasureAverageMillisecondsAsync(string dbName, IPasswordHasher hasher, string cedula, int iterations)
-    {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        for (var i = 0; i < iterations; i++)
-        {
-            using var db = TonerTestDb.CreateContext(dbName);
-            var service = BuildService(db, hasher);
-            await service.LoginAsync(new LoginRequest { Cedula = cedula, Password = "contraseña-incorrecta" });
-        }
-        stopwatch.Stop();
-        return stopwatch.Elapsed.TotalMilliseconds / iterations;
-    }
+    // "$2a$12$<salt+hash>" => 12
+    private static int WorkFactorOf(string bcryptHash) => int.Parse(bcryptHash.Split('$')[2]);
 
     private sealed class PasswordHasherSpy : IPasswordHasher
     {
-        public int VerifyCallCount { get; private set; }
+        public int VerifyCallCount => VerifiedAgainstHashes.Count;
+
+        public List<string> VerifiedAgainstHashes { get; } = new();
 
         public string Hash(string password) => throw new NotSupportedException();
 
         public bool Verify(string password, string passwordHash)
         {
-            VerifyCallCount++;
+            VerifiedAgainstHashes.Add(passwordHash);
             return false;
         }
     }

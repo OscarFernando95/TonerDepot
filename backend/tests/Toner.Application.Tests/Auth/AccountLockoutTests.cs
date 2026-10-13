@@ -85,11 +85,14 @@ public class AccountLockoutTests
     }
 
     [Fact]
-    public async Task LoginAsync_TiempoDeCuentaBloqueadaEsComparableAlDeCedulaInexistente()
+    public async Task LoginAsync_CuentaBloqueada_CuestaLoMismoQueCedulaInexistente()
     {
-        // Ambas ramas (cuenta bloqueada y cédula inexistente) hacen exactamente un Verify() contra
-        // el hash señuelo y ningún SaveChangesAsync — deberían costar prácticamente lo mismo. Cotas
-        // amplias en ambas direcciones para no volverse un test frágil por ruido de scheduling.
+        // Antes este test comparaba tiempos de reloj de pared y fallaba de forma intermitente bajo
+        // carga paralela (AUDIT.md H-06). Las dos ramas cuestan lo mismo si y solo si cumplen lo
+        // mismo que el diseño promete, y eso sí es determinista:
+        //   - exactamente un Verify() en cada rama,
+        //   - contra el MISMO hash señuelo (mismo work factor, mismo costo),
+        //   - y la rama de bloqueo no escribe en BD (no hay un SaveChanges que la haga más lenta).
         var lockedDbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(lockedDbName);
         var role = TestEntities.Role(RoleNames.Coordinador);
@@ -99,17 +102,25 @@ public class AccountLockoutTests
         user.LockedOutUntil = DateTime.UtcNow.AddMinutes(15);
         arrangeDb.AddRange(role, user);
         await arrangeDb.SaveChangesAsync();
+        var lockedUntilBefore = user.LockedOutUntil;
 
-        const int iterations = 3;
+        var lockedHasher = new RecordingPasswordHasher();
+        using (var lockedDb = TonerTestDb.CreateContext(lockedDbName))
+            await BuildService(lockedDb, lockedHasher).LoginAsync(new LoginRequest { Cedula = "1212121212", Password = "cualquiera" });
 
-        var lockedElapsedMs = await MeasureAverageMillisecondsAsync(lockedDbName, "1212121212", "cualquiera", iterations);
-        var unknownElapsedMs = await MeasureAverageMillisecondsAsync(Guid.NewGuid().ToString(), "0000000000", "cualquiera", iterations);
+        var unknownHasher = new RecordingPasswordHasher();
+        using (var unknownDb = TonerTestDb.CreateContext(Guid.NewGuid().ToString()))
+            await BuildService(unknownDb, unknownHasher).LoginAsync(new LoginRequest { Cedula = "0000000000", Password = "cualquiera" });
 
-        Assert.True(
-            lockedElapsedMs >= unknownElapsedMs * 0.3 && lockedElapsedMs <= unknownElapsedMs * 3.0,
-            $"El camino de cuenta bloqueada ({lockedElapsedMs:F1}ms) difiere demasiado del de cédula " +
-            $"inexistente ({unknownElapsedMs:F1}ms) — ambos deberían costar lo mismo (un solo Verify() " +
-            "contra el hash señuelo, sin escritura a BD).");
+        var lockedHash = Assert.Single(lockedHasher.VerifiedAgainstHashes);
+        var unknownHash = Assert.Single(unknownHasher.VerifiedAgainstHashes);
+        Assert.Equal(unknownHash, lockedHash);
+
+        // Sin escritura en la rama de bloqueo: el contador y el bloqueo quedan intactos.
+        using var checkDb = TonerTestDb.CreateContext(lockedDbName);
+        var stored = await checkDb.Users.SingleAsync(u => u.Cedula == "1212121212");
+        Assert.Equal(5, stored.FailedLoginAttempts);
+        Assert.Equal(lockedUntilBefore, stored.LockedOutUntil);
     }
 
     [Fact]
@@ -227,19 +238,6 @@ public class AccountLockoutTests
         var result = await BuildService(actDb).LoginAsync(new LoginRequest { Cedula = "1616161616", Password = "Password123!" });
 
         Assert.True(result.Succeeded);
-    }
-
-    private async Task<double> MeasureAverageMillisecondsAsync(string dbName, string cedula, string password, int iterations)
-    {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        for (var i = 0; i < iterations; i++)
-        {
-            using var db = TonerTestDb.CreateContext(dbName);
-            var service = BuildService(db);
-            await service.LoginAsync(new LoginRequest { Cedula = cedula, Password = password });
-        }
-        stopwatch.Stop();
-        return stopwatch.Elapsed.TotalMilliseconds / iterations;
     }
 
     // Envuelve el hasher real (para que Verify siga siendo criptográficamente representativo en
