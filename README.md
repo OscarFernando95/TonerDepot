@@ -15,7 +15,7 @@ Toner/
 │       ├── Toner.Infrastructure/  # EF Core, migraciones, Hangfire, Blob Storage, email, FCM
 │       └── Toner.Api/             # Controllers, JWT, composition root
 ├── frontend-web/       # Vue 3 + TypeScript + Vite, Element Plus, Pinia, Vue Router
-├── mobile/              # Flutter (pendiente)
+├── mobile/              # App móvil Flutter del técnico (ver mobile/README.md)
 └── docker-compose.yml   # Postgres + Azurite + smtp4dev
 ```
 
@@ -496,6 +496,6 @@ Módulos completados:
 11. **Frontend web** — proyecto Vue conectado a todos los módulos anteriores, con control de acceso por rol replicado en la UI (incluye el selector de estado de activos limitado a transiciones válidas, la vista "Mi trabajo" del técnico, y "Mis activos"/"Mis contratos" del cliente).
 12. **Dashboard de indicadores** — MTTR, cumplimiento de SLA (global y por prioridad), % de mantenimientos a tiempo, backlog de tickets abiertos/sin asignar por ciudad, y utilización de técnicos; endpoint compuesto Staff-only con selector de período en la UI.
 
-**Fuera del MVP por ahora, según lo acordado**: la app móvil del técnico (Flutter, módulo 9 original de la lista) queda pendiente — todo lo que necesita (check-in/check-out, mis tickets/órdenes) ya está expuesto por la API y probado desde la versión web de "Mi trabajo".
+**App móvil del técnico**: vive en `mobile/` (Flutter) y consume la misma API que la vista web de "Mi trabajo" (check-in/check-out, mis tickets/órdenes). Su estado y cómo correrla están en `mobile/README.md`.
 
 Ver historial de conversación / commits para el detalle de decisiones de arquitectura.
