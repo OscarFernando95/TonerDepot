@@ -96,12 +96,21 @@ public class ContractAssetService : IContractAssetService
             .FirstOrDefaultAsync(ca => ca.Id == id && ca.ContractId == contractId, cancellationToken)
             ?? throw new NotFoundException(nameof(ContractAsset), id);
 
+        // Un vínculo ya finalizado no se puede finalizar de nuevo: el activo pudo haber vuelto a
+        // instalarse (otro contrato, o sin contrato) desde entonces, y reenviar este PATCH (doble clic,
+        // pantalla desactualizada, reintento del cliente) lo mandaría a Bodega/Dado de baja sin que nadie
+        // lo decidiera sobre el activo en su estado actual.
+        if (contractAsset.EndDate is not null)
+        {
+            throw new ConflictException("Este vínculo ya fue finalizado.");
+        }
+
         // Primero el vínculo, luego el cambio de estado: AssetService.PrepareStatusChangeAsync exige
         // que el activo no tenga ya un contrato activo para pasar a Bodega/Dado de baja (ver su
         // comentario), y éste es justo el contrato que se está cerrando — sin el EndDate puesto antes,
         // esa validación se auto-bloquearía. Como todavía no se ha guardado, AssetService también
         // revisa el ChangeTracker local (no solo la BD) para no contarlo como "sigue activo".
-        contractAsset.EndDate ??= DateTime.UtcNow;
+        contractAsset.EndDate = DateTime.UtcNow;
 
         await _assetService.PrepareStatusChangeAsync(
             contractAsset.AssetId,
