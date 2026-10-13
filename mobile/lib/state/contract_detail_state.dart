@@ -102,12 +102,20 @@ class ContractDetailState extends ChangeNotifier {
     contract = await _contractApi.getById(contractId);
   });
 
-  Future<String?> endAssetAssociation(String contractAssetId) =>
-      _runAction(() async {
-        await _contractAssetApi.endAssociation(contractId, contractAssetId);
-        contractAssets = await _contractAssetApi.list(contractId);
-        contract = await _contractApi.getById(contractId);
-      });
+  Future<String?> endAssetAssociation(
+    String contractAssetId, {
+    required String reason,
+    required String newAssetStatus,
+  }) => _runAction(() async {
+    await _contractAssetApi.endAssociation(
+      contractId,
+      contractAssetId,
+      reason: reason,
+      newAssetStatus: newAssetStatus,
+    );
+    contractAssets = await _contractAssetApi.list(contractId);
+    contract = await _contractApi.getById(contractId);
+  });
 
   Future<String?> _runAction(Future<void> Function() action) async {
     busyWithAction = true;
