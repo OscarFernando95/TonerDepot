@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as techniciansApi from '../../api/technicians'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
