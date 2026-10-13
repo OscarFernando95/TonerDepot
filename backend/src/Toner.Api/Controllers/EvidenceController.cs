@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Toner.Application.Common.Exceptions;
 using Toner.Application.Evidences;
 using Toner.Application.Evidences.Dtos;
 using Toner.Domain.Common;
@@ -38,7 +39,21 @@ public class EvidenceController : ControllerBase
         return File(content.Content, content.ContentType);
     }
 
-    // null = staff (ve todo). Un usuario con rol Tecnico queda restringido a su propio técnico.
-    private Guid? RequesterTechnicianId =>
-        User.IsInRole(RoleNames.Tecnico) && Guid.TryParse(User.FindFirstValue("technician_id"), out var id) ? id : null;
+    // null = staff (ve todo). Un usuario con rol Tecnico queda restringido a su propio técnico y, si su
+    // token no trae un technician_id válido, se rechaza: devolver null aquí lo trataría como staff y le
+    // mostraría las evidencias de todos los clientes (falla abierto — AUDIT.md H-09).
+    private Guid? RequesterTechnicianId
+    {
+        get
+        {
+            if (!User.IsInRole(RoleNames.Tecnico))
+            {
+                return null;
+            }
+
+            return Guid.TryParse(User.FindFirstValue("technician_id"), out var id) && id != Guid.Empty
+                ? id
+                : throw new ForbiddenException("Tu usuario no tiene un perfil de técnico asociado.");
+        }
+    }
 }
