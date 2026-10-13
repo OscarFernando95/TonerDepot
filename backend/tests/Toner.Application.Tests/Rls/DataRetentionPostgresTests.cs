@@ -120,6 +120,61 @@ public class DataRetentionPostgresTests
             : "vencida-pero-vista-hace-2d").ToList();
     }
 
+    [PostgresFact]
+    public async Task Purga_ExceptionLogs_SoloLosAnterioresAlCorte()
+    {
+        var marker = "H27-" + Guid.NewGuid().ToString("N")[..8];
+        try
+        {
+            await using (var owner = OwnerContext())
+            {
+                owner.ExceptionLogs.AddRange(
+                    new ExceptionLog { Source = marker, ExceptionType = "X", Message = "vieja", CreatedAt = Now.AddDays(-100) },
+                    new ExceptionLog { Source = marker, ExceptionType = "X", Message = "reciente", CreatedAt = Now.AddDays(-10) });
+                await owner.SaveChangesAsync();
+            }
+
+            var tenant = new TenantContextAccessor();
+            using var scope = tenant.Push(() => TenantContext.Staff);
+            await using var appDb = AppContext(tenant);
+            var job = new DataRetentionJob(
+                appDb, Options.Create(new DataRetentionOptions()),
+                new NoopExceptionLogger(), NullLogger<DataRetentionJob>.Instance, tenant);
+
+            await job.ApplyAsync(Now);
+
+            await using var check = OwnerContext();
+            var left = await check.ExceptionLogs.Where(l => l.Source == marker).Select(l => l.Message).ToListAsync();
+            Assert.Equal(new[] { "reciente" }, left);
+        }
+        finally
+        {
+            await using var cleanup = OwnerContext();
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"ExceptionLogs\" WHERE \"Source\" = {0}", marker);
+        }
+    }
+
+    // El GRANT por columna debe alcanzar para el WHERE de la purga y NADA más: la app sigue sin poder
+    // leer el stack trace, el mensaje ni el correo (hallazgo #14).
+    [PostgresFact]
+    public async Task ToneApp_SoloPuedeLeerCreatedAt_DeExceptionLogs()
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(PostgresFactAttribute.ConnectionString);
+        await conn.OpenAsync();
+
+        await using (var ok = new Npgsql.NpgsqlCommand("SELECT count(\"CreatedAt\") FROM \"ExceptionLogs\"", conn))
+        {
+            await ok.ExecuteScalarAsync(); // no debe lanzar
+        }
+
+        foreach (var column in new[] { "StackTrace", "Message", "UserEmail" })
+        {
+            await using var denied = new Npgsql.NpgsqlCommand($"SELECT \"{column}\" FROM \"ExceptionLogs\" LIMIT 1", conn);
+            var ex = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => denied.ExecuteScalarAsync());
+            Assert.Equal("42501", ex.SqlState); // insufficient_privilege
+        }
+    }
+
     [Fact]
     public void Opciones_PlazoMenorAlMinimo_FallaAlArrancar()
     {
@@ -127,6 +182,8 @@ public class DataRetentionPostgresTests
             new DataRetentionOptions { UserSessionsDays = 0 }.EnsureValid());
 
         Assert.Contains("Retention:UserSessionsDays", ex.Message);
+        Assert.Contains("Retention:ExceptionLogsDays",
+            Assert.Throws<InvalidOperationException>(() => new DataRetentionOptions { ExceptionLogsDays = 3 }.EnsureValid()).Message);
         new DataRetentionOptions().EnsureValid(); // el valor por defecto (90) es válido
     }
 }

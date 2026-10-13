@@ -228,7 +228,7 @@ Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren s
 |---|---|---|
 | `retry-pending-assignments` | cada 10 min | Reintenta asignar tickets/órdenes que quedaron sin técnico por horario, festivo o fuera de oficina. |
 | `evaluate-maintenance-schedules` | diario, 00:00 hora de `WorkCalendar:TimeZoneId` (Bogotá) | Evalúa los cronogramas de mantenimiento por tiempo. |
-| `data-retention` | diario, 03:00 hora de Bogotá | Purga `UserSessions` terminadas hace más de `Retention:UserSessionsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. `ExceptionLogs` **no** se purga todavía: la app no tiene `SELECT` sobre esa tabla (ver hallazgo #14) y la purga por fecha lo necesita. |
+| `data-retention` | diario, 03:00 hora de Bogotá | Purga `UserSessions` terminadas y `ExceptionLogs` con más de `Retention:UserSessionsDays` / `Retention:ExceptionLogsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. Sobre `ExceptionLogs` la app solo tiene `SELECT` de la columna `CreatedAt` (migración `GrantExceptionLogsCreatedAtSelect`): puede purgar por fecha, no leer stacks ni correos. |
 
 ## Autenticación
 

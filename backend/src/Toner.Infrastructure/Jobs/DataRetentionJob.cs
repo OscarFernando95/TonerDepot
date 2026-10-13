@@ -2,24 +2,25 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Toner.Application.Common.Interfaces;
+using Toner.Infrastructure.Persistence;
 
 namespace Toner.Infrastructure.Jobs;
 
 // Job recurrente (Hangfire): purga diaria de datos operativos que crecen sin techo (AUDIT.md H-27).
 //
-// Hoy solo UserSessions. ExceptionLogs queda fuera a propósito: el rol de la aplicación no tiene SELECT
-// sobre esa tabla (migración AddRowLevelSecurity, hallazgo #14) y un DELETE con WHERE por fecha lo
-// necesita; habilitarlo es una decisión de seguridad pendiente, no algo que este job deba saltarse.
+// UserSessions y ExceptionLogs. Sobre ExceptionLogs toner_app solo tiene SELECT de la columna CreatedAt
+// (migración GrantExceptionLogsCreatedAtSelect): lo justo para el WHERE de la purga, sin poder leer el
+// stack trace ni el correo (hallazgo #14).
 public class DataRetentionJob
 {
-    private readonly IApplicationDbContext _db;
+    private readonly TonerDbContext _db;
     private readonly DataRetentionOptions _options;
     private readonly IExceptionLogger _exceptionLogger;
     private readonly ILogger<DataRetentionJob> _logger;
     private readonly ITenantContextAccessor _tenantContextAccessor;
 
     public DataRetentionJob(
-        IApplicationDbContext db,
+        TonerDbContext db,
         IOptions<DataRetentionOptions> options,
         IExceptionLogger exceptionLogger,
         ILogger<DataRetentionJob> logger,
@@ -51,7 +52,7 @@ public class DataRetentionJob
         }
     }
 
-    // Público para poder probarlo con una hora fija. Devuelve cuántas sesiones se eliminaron.
+    // Público para poder probarlo con una hora fija. Devuelve cuántas filas se eliminaron en total.
     public async Task<int> ApplyAsync(DateTime nowUtc, CancellationToken cancellationToken = default)
     {
         var cutoff = nowUtc.AddDays(-_options.UserSessionsDays);
@@ -74,6 +75,18 @@ public class DataRetentionJob
                 deleted, _options.UserSessionsDays);
         }
 
-        return deleted;
+        var exceptionCutoff = nowUtc.AddDays(-_options.ExceptionLogsDays);
+        var deletedLogs = await _db.ExceptionLogs
+            .Where(l => l.CreatedAt < exceptionCutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        if (deletedLogs > 0)
+        {
+            _logger.LogInformation(
+                "Retención: {Deleted} registro(s) de ExceptionLogs con más de {Days} días eliminados.",
+                deletedLogs, _options.ExceptionLogsDays);
+        }
+
+        return deleted + deletedLogs;
     }
 }
