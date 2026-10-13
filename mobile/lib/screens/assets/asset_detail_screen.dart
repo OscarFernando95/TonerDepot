@@ -118,6 +118,20 @@ class _AssetDetailBody extends StatelessWidget {
     reasonController.dispose();
     if (confirmed != true) return;
 
+    // Deja que la animación de cierre del diálogo termine antes de disparar
+    // el siguiente cambio de estado. Navigator.pop() resuelve el Future de
+    // showDialog ANTES de que la transición de salida termine de verdad —
+    // si la petición de abajo se rechaza casi al instante (ej. 409 por
+    // validación, sin tocar la base de datos), el notifyListeners() que
+    // sigue reconstruye la pantalla mientras Flutter todavía está
+    // desmontando la ruta del diálogo, lo que dispara
+    // "'_dependents.isEmpty': is not true" (pantalla roja — hallazgo
+    // 2026-10-12, "Pedir mantenimiento" sobre un activo con orden ya
+    // abierta). Con una petición exitosa no se nota porque la ida y vuelta
+    // real a la red ya alcanza a cubrir la animación.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!context.mounted) return;
+
     final error = await state.requestMaintenance(
       includesGeneral: general,
       includesUnits: units,
@@ -258,6 +272,13 @@ class _AssetDetailBody extends StatelessWidget {
                     ? null
                     : () async {
                         Navigator.of(dialogContext).pop();
+                        // Deja que la animación de cierre del diálogo
+                        // termine antes de tocar el estado de nuevo — ver
+                        // el comentario largo en _showRequestMaintenanceDialog.
+                        await Future<void>.delayed(
+                          const Duration(milliseconds: 300),
+                        );
+                        if (!context.mounted) return;
                         final error = await state.updateAsset(
                           assetModelId: modelId!,
                           serialNumber: serialController.text.trim(),
@@ -431,6 +452,13 @@ class _AssetDetailBody extends StatelessWidget {
                   ? null
                   : () async {
                       Navigator.of(dialogContext).pop();
+                      // Deja que la animación de cierre del diálogo termine
+                      // antes de tocar el estado de nuevo — ver el
+                      // comentario largo en _showRequestMaintenanceDialog.
+                      await Future<void>.delayed(
+                        const Duration(milliseconds: 300),
+                      );
+                      if (!context.mounted) return;
                       final error = await state.changeStatus(
                         newStatus: newStatus,
                         clientLocationId: clientLocationId,
