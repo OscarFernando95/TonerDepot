@@ -252,7 +252,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       <el-table-column label="" width="250">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
-          <el-button v-if="activeTab !== 'coverage'" size="small" @click="openToner(row)">Tóner</el-button>
+          <el-button size="small" @click="openToner(row)">Tóner</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -288,7 +288,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
               <el-table-column label="" width="250">
                 <template #default="{ row }">
                   <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
-                  <el-button v-if="activeTab !== 'coverage'" size="small" @click="openToner(row)">Tóner</el-button>
+                  <el-button size="small" @click="openToner(row)">Tóner</el-button>
                 </template>
               </el-table-column>
             </el-table>

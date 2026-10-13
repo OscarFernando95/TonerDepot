@@ -276,9 +276,10 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                   for (final asset in group.assets)
                     _assetCard(
                       asset,
-                      // El técnico registra tóner solo sobre SUS máquinas (el servidor rechaza las demás).
-                      showToner: !coverage,
-                      showLastToner: !coverage,
+                      // Las máquinas de su zona quedan vinculadas al técnico solas (servidor), así que
+                      // puede registrar tóner también desde "Por cobertura"; las demás las rechaza el servidor.
+                      showToner: true,
+                      showLastToner: true,
                     ),
                 ],
               ),
