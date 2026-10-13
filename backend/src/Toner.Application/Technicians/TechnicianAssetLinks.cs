@@ -10,6 +10,11 @@ namespace Toner.Application.Technicians;
 // producto 2026-10-11). Antes vivía copiada en AssetService, TechnicianService y ZoneService, cada copia con su
 // propio parche para no duplicar filas contra el índice único TechnicianId+AssetId.
 //
+// Un TechnicianAsset concede permisos (qué máquinas ve el técnico y en cuáles registra tóner), así que el
+// vínculo automático también se RETIRA cuando deja de aplicar: el técnico pierde la zona, el municipio sale de
+// la zona, o el activo deja de estar Instalado en ella. Solo se retiran los de origen Zone: uno Manual es una
+// decisión de un administrador (o la instalación que el técnico confirmó) y no depende de la cobertura.
+//
 // Sigue el patrón de colaborador del proyecto (ver ContractAssetService.AddAsync + AssetService.
 // PrepareStatusChangeAsync): recibe el DbContext scoped del caller, deja los cambios trackeados y NO llama a
 // SaveChangesAsync — el caller que orquesta la operación decide cuándo persistir, así que un cambio de zonas
@@ -35,6 +40,10 @@ internal static class TechnicianAssetLinks
                 Source = TechnicianAssetSource.Zone
             });
         }
+
+        // Un activo que salió de la zona (bodega, baja, otra sede) deja de estar cubierto por quien lo cubría.
+        db.TechnicianAssets.RemoveRange(existing.Where(l =>
+            l.Source == TechnicianAssetSource.Zone && !wantedTechnicianIds.Contains(l.TechnicianId)));
     }
 
     // Cambiaron las zonas de estos técnicos, o los municipios de una zona que ellos cubren: vincula los activos
@@ -63,10 +72,16 @@ internal static class TechnicianAssetLinks
                 Source = TechnicianAssetSource.Zone
             });
         }
+
+        // Lo que la cobertura efectiva ya no sostiene: un técnico sin zona queda sin vínculos automáticos.
+        var stillWanted = wanted.ToHashSet();
+        db.TechnicianAssets.RemoveRange(existing.Where(l =>
+            l.Source == TechnicianAssetSource.Zone && !stillWanted.Contains((l.TechnicianId, l.AssetId))));
     }
 
-    // Vínculo explícito (el técnico instaló el equipo, o lo hizo un administrador): idempotente y a prueba de que
-    // un sync de la misma operación ya haya dejado el vínculo en el ChangeTracker sin guardar.
+    // Vínculo explícito (el técnico instaló el equipo, o lo hizo un administrador): idempotente, a prueba de que
+    // un sync de la misma operación ya haya dejado el vínculo en el ChangeTracker sin guardar, y lo vuelve Manual
+    // si existía por zona.
     public static async Task<TechnicianAsset> EnsureManualAsync(
         IApplicationDbContext db, Guid technicianId, Guid assetId, CancellationToken cancellationToken)
     {
@@ -76,6 +91,9 @@ internal static class TechnicianAssetLinks
 
         if (existing is not null)
         {
+            // Una decisión explícita gana sobre la derivada: si el vínculo existía por zona, pasa a manual y
+            // deja de depender de la cobertura.
+            existing.Source = TechnicianAssetSource.Manual;
             return existing;
         }
 

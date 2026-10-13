@@ -199,5 +199,154 @@ public class TechnicianAssetLinksTests
         using var assertDb = TonerTestDb.CreateContext(dbName);
         var link = await assertDb.TechnicianAssets.SingleAsync(ta => ta.AssetId == asset.Id);
         Assert.Equal(w.Technician.Id, link.TechnicianId);
+        // Quien instaló el equipo lo conserva aunque luego pierda la zona: el sync por zona lo había dejado
+        // como Zone y la instalación confirmada lo vuelve explícito.
+        Assert.Equal(TechnicianAssetSource.Manual, link.Source);
+    }
+
+    // ── Revocación ───────────────────────────────────────────────────────────────────────────────────────
+    // TechnicianAsset concede permisos (ver y registrar tóner): lo automático se retira cuando deja de aplicar,
+    // y lo manual nunca se retira por cambios de cobertura.
+
+    [Fact]
+    public async Task SetZones_RemovingTheZone_RevokesZoneLinks_ButKeepsManualOnes()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var byZone = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        var byHand = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        var outsideByHand = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationOutOfZone.Id);
+        await w.SeedAsync(dbName, technicianCoversZone: true, byZone, byHand, outsideByHand,
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = byZone.Id, Source = TechnicianAssetSource.Zone },
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = byHand.Id, Source = TechnicianAssetSource.Manual },
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = outsideByHand.Id, Source = TechnicianAssetSource.Manual });
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            await TechnicianService(db).SetZonesAsync(w.Technician.Id, new SetTechnicianZonesRequest());
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var remaining = await assertDb.TechnicianAssets.Select(ta => ta.AssetId).ToListAsync();
+        Assert.DoesNotContain(byZone.Id, remaining);
+        Assert.Contains(byHand.Id, remaining);
+        Assert.Contains(outsideByHand.Id, remaining);
+    }
+
+    [Fact]
+    public async Task SetCities_RemovingACityFromTheZone_RevokesTheZoneLinksOfItsAssets()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var asset = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        await w.SeedAsync(dbName, technicianCoversZone: true, asset,
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = asset.Id, Source = TechnicianAssetSource.Zone });
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            var saves = CountSaves(db);
+            await new ZoneService(db).SetCitiesAsync(w.Zone.Id, new SetZoneCitiesRequest());
+            Assert.Equal(1, saves());
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        Assert.Empty(assertDb.TechnicianAssets);
+        Assert.Null((await assertDb.Cities.SingleAsync(c => c.Id == w.InZone.Id)).ZoneId);
+    }
+
+    [Fact]
+    public async Task SetCities_MovingACityToAnotherZone_RevokesFromTheOldTechniciansAndLinksTheNewOnes()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var otherZone = new Zone { Name = "Zona Sur" };
+        var otherRole = TestEntities.Role(RoleNames.Tecnico);
+        var otherUser = TestEntities.User(otherRole);
+        var otherTechnician = TestEntities.Technician(otherUser, isActive: true, status: TechnicianStatus.Disponible);
+        var asset = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        await w.SeedAsync(dbName, technicianCoversZone: true, asset, otherZone, otherRole, otherUser, otherTechnician,
+            new TechnicianZone { TechnicianId = otherTechnician.Id, ZoneId = otherZone.Id },
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = asset.Id, Source = TechnicianAssetSource.Zone });
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            // Neiva pasa de Norte a Sur.
+            await new ZoneService(db).SetCitiesAsync(otherZone.Id, new SetZoneCitiesRequest { CityIds = new[] { w.InZone.Id } });
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var link = await assertDb.TechnicianAssets.SingleAsync();
+        Assert.Equal(otherTechnician.Id, link.TechnicianId);
+        Assert.Equal(TechnicianAssetSource.Zone, link.Source);
+    }
+
+    [Fact]
+    public async Task ChangeStatus_InstalledAssetBackToBodega_RevokesZoneLinks_ButKeepsManualOnes()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var asset = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        var otherRole = TestEntities.Role(RoleNames.Tecnico);
+        var otherUser = TestEntities.User(otherRole);
+        var manualTechnician = TestEntities.Technician(otherUser, isActive: true, status: TechnicianStatus.Disponible);
+        await w.SeedAsync(dbName, technicianCoversZone: true, asset, otherRole, otherUser, manualTechnician,
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = asset.Id, Source = TechnicianAssetSource.Zone },
+            new TechnicianAsset { TechnicianId = manualTechnician.Id, AssetId = asset.Id, Source = TechnicianAssetSource.Manual });
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            await AssetService(db).ChangeStatusAsync(
+                asset.Id, new ChangeAssetStatusRequest { NewStatus = nameof(AssetLifecycleStatus.EnBodega) }, Guid.NewGuid());
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var link = await assertDb.TechnicianAssets.SingleAsync();
+        Assert.Equal(manualTechnician.Id, link.TechnicianId);
+    }
+
+    [Fact]
+    public async Task LinkAsset_OverAZoneLink_PromotesItToManual_SoItSurvivesLosingTheZone()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var asset = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        await w.SeedAsync(dbName, technicianCoversZone: true, asset,
+            new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = asset.Id, Source = TechnicianAssetSource.Zone });
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            var dto = await TechnicianService(db).LinkAssetAsync(w.Technician.Id, new AddTechnicianAssetRequest { AssetId = asset.Id });
+            Assert.Equal(nameof(TechnicianAssetSource.Manual), dto.Source);
+        }
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            await TechnicianService(db).SetZonesAsync(w.Technician.Id, new SetTechnicianZonesRequest());
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var link = await assertDb.TechnicianAssets.SingleAsync();
+        Assert.Equal(TechnicianAssetSource.Manual, link.Source);
+    }
+
+    [Fact]
+    public async Task UnlinkAsset_ZoneLink_IsRejected_ManualLinkIsRemoved()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var byZone = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationInZone.Id);
+        var byHand = TestEntities.Asset(w.Model, AssetLifecycleStatus.Instalado, w.LocationOutOfZone.Id);
+        var zoneLink = new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = byZone.Id, Source = TechnicianAssetSource.Zone };
+        var manualLink = new TechnicianAsset { TechnicianId = w.Technician.Id, AssetId = byHand.Id, Source = TechnicianAssetSource.Manual };
+        await w.SeedAsync(dbName, technicianCoversZone: true, byZone, byHand, zoneLink, manualLink);
+
+        using var db = TonerTestDb.CreateContext(dbName);
+        var service = TechnicianService(db);
+
+        await Assert.ThrowsAsync<Common.Exceptions.ConflictException>(() => service.UnlinkAssetAsync(w.Technician.Id, zoneLink.Id));
+        await service.UnlinkAssetAsync(w.Technician.Id, manualLink.Id);
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        Assert.Equal(zoneLink.Id, (await assertDb.TechnicianAssets.SingleAsync()).Id);
     }
 }
