@@ -238,6 +238,12 @@ builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
 builder.Services.AddScoped<PendingAssignmentService>();
 builder.Services.AddScoped<PendingAssignmentJob>();
+
+// Plazo de retención de datos operativos (AUDIT.md H-27). Falla al arrancar si es menor al mínimo.
+var dataRetentionOptions = builder.Configuration.GetSection("Retention").Get<DataRetentionOptions>() ?? new DataRetentionOptions();
+dataRetentionOptions.EnsureValid();
+builder.Services.Configure<DataRetentionOptions>(builder.Configuration.GetSection("Retention"));
+builder.Services.AddScoped<DataRetentionJob>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // Contraseña generada al crear/resetear un usuario (hallazgo #3 de SECURITY_AUDIT.md).
@@ -451,6 +457,16 @@ RecurringJob.AddOrUpdate<PendingAssignmentJob>(
     "retry-pending-assignments",
     job => job.RunAsync(CancellationToken.None),
     "*/10 * * * *");
+
+// Purga diaria de sesiones terminadas, a las 03:00 hora de Bogotá (fuera del horario laboral).
+RecurringJob.AddOrUpdate<DataRetentionJob>(
+    "data-retention",
+    job => job.RunAsync(CancellationToken.None),
+    "0 3 * * *",
+    new RecurringJobOptions
+    {
+        TimeZone = RecurringJobTimeZone.Resolve(builder.Configuration["WorkCalendar:TimeZoneId"])
+    });
 
 // Cron.Daily en la zona del calendario laboral (00:00 hora de Bogotá), no en UTC (AUDIT.md H-26).
 RecurringJob.AddOrUpdate<MaintenanceScheduleEvaluationJob>(
