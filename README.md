@@ -224,6 +224,12 @@ Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, qu
 
 Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren sobre **Hangfire**, con almacenamiento en el mismo Postgres (sin dependencia adicional de Redis). El dashboard de Hangfire se expone solo para el rol Administrador (pendiente de cablear).
 
+| Job | Horario | Qué hace |
+|---|---|---|
+| `retry-pending-assignments` | cada 10 min | Reintenta asignar tickets/órdenes que quedaron sin técnico por horario, festivo o fuera de oficina. |
+| `evaluate-maintenance-schedules` | diario, 00:00 hora de `WorkCalendar:TimeZoneId` (Bogotá) | Evalúa los cronogramas de mantenimiento por tiempo. |
+| `data-retention` | diario, 03:00 hora de Bogotá | Purga `UserSessions` terminadas hace más de `Retention:UserSessionsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. `ExceptionLogs` **no** se purga todavía: la app no tiene `SELECT` sobre esa tabla (ver hallazgo #14) y la purga por fecha lo necesita. |
+
 ## Autenticación
 
 Al arrancar, la API siembra automáticamente los 5 roles fijos (`Administrador`, `Coordinador`, `Tecnico`, `Cliente`, `Ventas`) y, si aún no existe ningún Administrador, crea uno de arranque a partir de `AdminBootstrap:Cedula`/`Email`/`Password` en `appsettings.Development.json` (ver `appsettings.Development.json.example` para los nombres de las claves — cada quien define sus propios valores locales, no hay credenciales fijas documentadas aquí). Ese usuario nace con `MustChangePassword = true`, así que el primer login exige cambiarla.
