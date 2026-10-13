@@ -17,10 +17,12 @@ public interface IInventoryConsumptionService
         VisitConsumption visit, IReadOnlyList<UsedPartRequest> parts, CancellationToken cancellationToken = default);
 
     // Kit base (efectivo) del modelo del equipo, con el saldo de la ubicación de donde se descontaría.
-    Task<VisitKitDto> GetKitForAssetAsync(Guid? assetId, CancellationToken cancellationToken = default);
+    // clientLocationId es el respaldo cuando no hay assetId (ticket de equipo no catalogado): resuelve la zona por
+    // la sede del ticket en vez de caer directo a la bodega principal.
+    Task<VisitKitDto> GetKitForAssetAsync(Guid? assetId, Guid? clientLocationId = null, CancellationToken cancellationToken = default);
 
     // Búsqueda de repuestos con el saldo de esa misma ubicación.
-    Task<PagedResult<PartOptionDto>> SearchPartsAsync(Guid? assetId, string? search, int? page, int? pageSize, CancellationToken cancellationToken = default, string? category = null);
+    Task<PagedResult<PartOptionDto>> SearchPartsAsync(Guid? assetId, string? search, int? page, int? pageSize, CancellationToken cancellationToken = default, string? category = null, Guid? clientLocationId = null);
 
     // Tóner entregado o cambiado en una máquina. Un técnico solo puede en las máquinas que tiene vinculadas.
     Task<TonerEntryDto> RegisterTonerAsync(RegisterTonerRequest request, RequestingUser requester, CancellationToken cancellationToken = default);
