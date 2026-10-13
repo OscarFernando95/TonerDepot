@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Toner.Application.Auth;
 using Toner.Application.Common.Paging;
 using Microsoft.Extensions.Logging;
-using Toner.Application.Auth;
 using Toner.Application.Auth.Dtos;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
