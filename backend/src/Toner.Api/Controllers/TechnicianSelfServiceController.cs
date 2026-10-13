@@ -29,6 +29,7 @@ public class TechnicianSelfServiceController : ControllerBase
 {
     private readonly ITechnicianCheckInService _checkInService;
     private readonly IValidator<CheckInRequest> _checkInValidator;
+    private readonly IValidator<CheckOutRequest> _checkOutValidator;
     private readonly IAssetService _assetService;
     private readonly IMaintenanceOrderService _maintenanceOrderService;
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
@@ -39,6 +40,7 @@ public class TechnicianSelfServiceController : ControllerBase
     public TechnicianSelfServiceController(
         ITechnicianCheckInService checkInService,
         IValidator<CheckInRequest> checkInValidator,
+        IValidator<CheckOutRequest> checkOutValidator,
         IAssetService assetService,
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
@@ -50,6 +52,7 @@ public class TechnicianSelfServiceController : ControllerBase
         _evidenceService = evidenceService;
         _checkInService = checkInService;
         _checkInValidator = checkInValidator;
+        _checkOutValidator = checkOutValidator;
         _assetService = assetService;
         _maintenanceOrderService = maintenanceOrderService;
         _maintenanceScheduleService = maintenanceScheduleService;
@@ -149,6 +152,8 @@ public class TechnicianSelfServiceController : ControllerBase
     [HttpPost("check-out")]
     public async Task<ActionResult<TechnicianSelfStatusDto>> CheckOut([FromBody] CheckOutRequest request, CancellationToken cancellationToken)
     {
+        await _checkOutValidator.ValidateAndThrowAsync(request, cancellationToken);
+
         return Ok(await _checkInService.CheckOutAsync(CurrentTechnicianId, request, cancellationToken));
     }
 
