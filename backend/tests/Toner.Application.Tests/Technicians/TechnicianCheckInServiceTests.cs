@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Assets;
 using Toner.Application.Assignment;
@@ -429,7 +430,7 @@ public class TechnicianCheckInServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = BuildService(actDb);
 
-        await Assert.ThrowsAsync<ConflictException>(() =>
+        await Assert.ThrowsAsync<ValidationException>(() =>
             service.CheckOutAsync(technician.Id, new CheckOutRequest { Resolved = true, Area = "Recepción", InitialCounterValue = 1000 }));
     }
 
@@ -509,7 +510,7 @@ public class TechnicianCheckInServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = BuildService(actDb);
 
-        await Assert.ThrowsAsync<ConflictException>(() =>
+        await Assert.ThrowsAsync<ValidationException>(() =>
             service.CheckOutAsync(technician.Id, new CheckOutRequest { Resolved = true, Area = "Recepción" }));
 
         using var assertDb = TonerTestDb.CreateContext(dbName);

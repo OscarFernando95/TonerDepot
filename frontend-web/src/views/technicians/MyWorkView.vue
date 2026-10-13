@@ -11,6 +11,7 @@ import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto, type Maintenanc
 import PhotoPicker from '../../components/technicians/PhotoPicker.vue'
 import VisitPartsPicker from '../../components/inventory/VisitPartsPicker.vue'
 import { getCurrentPosition } from '../../composables/useGeolocation'
+import { apiErrorMessage } from '../../utils/apiError'
 
 // Foto "antes" del check-in: se pide en un diálogo y el flujo espera a que el técnico la confirme o cancele.
 const photoDialogVisible = ref(false)
@@ -206,7 +207,7 @@ async function loadAll(silent = false) {
     pendingInstallations.value = installationsRes.data
     coverageSchedules.value = coverageSchedulesRes.data
   } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar tu trabajo.')
+    ElMessage.error(apiErrorMessage(err, 'No se pudo cargar tu trabajo.'))
   } finally {
     loading.value = false
   }
@@ -232,7 +233,7 @@ async function checkInVisit(target: { ticketId?: string; orderId?: string }) {
     await loadAll()
   } catch (err: any) {
     console.error('Check-in fallido:', err)
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-in.')
+    ElMessage.error(apiErrorMessage(err, 'No se pudo hacer check-in.'))
   } finally {
     checkingIn.value = null
   }
@@ -261,7 +262,7 @@ async function checkInInstallation(installation: selfApi.PendingInstallationDto)
     await loadAll()
   } catch (err: any) {
     console.error('Check-in de instalación fallido:', err)
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-in.')
+    ElMessage.error(apiErrorMessage(err, 'No se pudo hacer check-in.'))
   } finally {
     checkingIn.value = null
   }
@@ -275,7 +276,7 @@ async function claimTicketRow(ticket: ServiceTicketDto) {
     ticketsTab.value = 'mine'
     await loadAll()
   } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo tomar el ticket.')
+    ElMessage.error(apiErrorMessage(err, 'No se pudo tomar el ticket.'))
   } finally {
     claiming.value = null
   }
@@ -289,7 +290,7 @@ async function claimOrderRow(order: MaintenanceOrderDto) {
     ordersTab.value = 'mine'
     await loadAll()
   } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo tomar la orden.')
+    ElMessage.error(apiErrorMessage(err, 'No se pudo tomar la orden.'))
   } finally {
     claiming.value = null
   }
@@ -356,7 +357,7 @@ async function doCheckOut() {
     counterPhoto.value = null
     await loadAll()
   } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo hacer check-out.')
+    ElMessage.error(apiErrorMessage(err, 'No se pudo hacer check-out.'))
   } finally {
     checkingOut.value = false
   }

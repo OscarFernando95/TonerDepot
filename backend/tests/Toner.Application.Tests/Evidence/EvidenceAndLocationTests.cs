@@ -176,7 +176,7 @@ public class EvidenceAndLocationTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
             TestCheckIn.Create(db, requirePhotos: true).CheckInAsync(s.TechnicianId, new CheckInRequest { ServiceTicketId = s.TicketId }));
 
         Assert.Contains("foto", ex.Message);
@@ -253,7 +253,7 @@ public class EvidenceAndLocationTests
         var wrongKind = await UploadAsync(s, EvidenceKind.Despues);
         using (var db = TonerTestDb.CreateContext(s.DbName))
         {
-            await Assert.ThrowsAsync<ConflictException>(() =>
+            await Assert.ThrowsAsync<ValidationException>(() =>
                 TestCheckIn.Create(db, requirePhotos: true).CheckInAsync(s.TechnicianId, new CheckInRequest { ServiceTicketId = s.TicketId, BeforeEvidenceId = wrongKind }));
         }
 
@@ -284,7 +284,7 @@ public class EvidenceAndLocationTests
 
         using (var db = TonerTestDb.CreateContext(s.DbName))
         {
-            await Assert.ThrowsAsync<ConflictException>(() =>
+            await Assert.ThrowsAsync<ValidationException>(() =>
                 TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest { Resolved = true }));
         }
 
@@ -344,7 +344,7 @@ public class EvidenceAndLocationTests
         var after = await UploadAsync(s, EvidenceKind.Despues);
 
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
             TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
             {
                 Resolved = true, AfterEvidenceId = after, InitialCounterValue = 1000
@@ -360,7 +360,7 @@ public class EvidenceAndLocationTests
         var wrongKind = await UploadAsync(s, EvidenceKind.Despues);
 
         using var db = TonerTestDb.CreateContext(s.DbName);
-        await Assert.ThrowsAsync<ConflictException>(() =>
+        await Assert.ThrowsAsync<ValidationException>(() =>
             TestCheckIn.Create(db, requirePhotos: true).CheckOutAsync(s.TechnicianId, new CheckOutRequest
             {
                 Resolved = true, AfterEvidenceId = after, InitialCounterValue = 1000, CounterEvidenceId = wrongKind
