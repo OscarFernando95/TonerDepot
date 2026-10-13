@@ -209,6 +209,17 @@ Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, qu
 | azurite    | 10000   | Emulador de Azure Blob Storage (evidencias)         |
 | smtp4dev   | 5080 (UI), 2525 (SMTP) | Captura de correos salientes en desarrollo (notificaciones al coordinador). El puerto 5000 se evita porque en macOS lo usa AirPlay Receiver. |
 
+## Salud (health checks)
+
+| Ruta | Qué comprueba | Respuesta |
+|---|---|---|
+| `/health/live` | Solo que el proceso responde; **sin dependencias**. | `200` siempre que la app esté arriba. |
+| `/health/ready` | Postgres, Azure Blob y SMTP. | `503` si Postgres o Blob fallan; SMTP caído da `200` con estado `Degraded` (los correos se reintentan por Hangfire). |
+| `/health` | Alias de `/health/ready` (compatibilidad). | Igual que `ready`. |
+
+- **Azure App Service → Health check:** apúntalo a `/health/live`. Un `503` ahí saca la instancia de rotación, y que Blob o SMTP estén caídos no debe tumbar todas las instancias a la vez. Usa `/health/ready` para monitoreo/alertas o el calentamiento de un slot antes del swap.
+- Son anónimos y su resultado se cachea 10 s por dependencia. La respuesta lista nombre, estado y duración de cada check; nunca excepciones ni cadenas de conexión.
+
 ## Jobs programados
 
 Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren sobre **Hangfire**, con almacenamiento en el mismo Postgres (sin dependencia adicional de Redis). El dashboard de Hangfire se expone solo para el rol Administrador (pendiente de cablear).
