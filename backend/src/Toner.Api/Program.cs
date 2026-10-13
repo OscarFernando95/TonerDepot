@@ -167,9 +167,8 @@ builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
             npgsql => npgsql
                 .MigrationsAssembly("Toner.Infrastructure")
                 // Tolera un blip de red o un reinicio breve de Postgres, no una caída prolongada
-                // (hallazgo #13) — sin transacciones explícitas en todo el código (verificado), así
-                // que no hay conflicto con el requisito de EF Core de envolverlas en un execution
-                // strategy.
+                // (hallazgo #13). La única transacción explícita del código (PostgresStockLock, AUDIT.md
+                // H-17) ya va envuelta en el execution strategy, como exige EF Core con este retry.
                 .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
         .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>(), sp.GetRequiredService<RealtimeChangeInterceptor>(),
             sp.GetRequiredService<PushChangeInterceptor>()));
@@ -204,6 +203,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
 builder.Services.AddScoped<IDeviceTokenService, DeviceTokenService>();
+builder.Services.AddScoped<IStockLock, PostgresStockLock>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IBaseKitService, BaseKitService>();
 builder.Services.AddScoped<IInventoryConsumptionService, InventoryConsumptionService>();

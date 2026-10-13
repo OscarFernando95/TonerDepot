@@ -15,7 +15,7 @@ public class InventoryServiceTests
 {
     private sealed record Setup(string DbName, Guid MainId, Guid ZoneLocationId, Guid ItemId, Guid UserId);
 
-    private static InventoryService Service(Infrastructure.Persistence.TonerDbContext db) => new(db);
+    private static InventoryService Service(Infrastructure.Persistence.TonerDbContext db) => new(db, new PassThroughStockLock());
 
     private static async Task<Setup> SeedAsync()
     {

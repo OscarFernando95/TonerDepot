@@ -22,7 +22,7 @@ public class InventoryPostgresTests
         var itemName = "PG-Item-" + Guid.NewGuid().ToString("N")[..8];
         Guid itemId, zoneLocationId = Guid.Empty, zoneId = Guid.Empty;
         await using var db = OwnerContext();
-        var service = new InventoryService(db);
+        var service = new InventoryService(db, new PostgresStockLock(db));
 
         try
         {
