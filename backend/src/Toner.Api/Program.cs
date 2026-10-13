@@ -452,9 +452,14 @@ RecurringJob.AddOrUpdate<PendingAssignmentJob>(
     job => job.RunAsync(CancellationToken.None),
     "*/10 * * * *");
 
+// Cron.Daily en la zona del calendario laboral (00:00 hora de Bogotá), no en UTC (AUDIT.md H-26).
 RecurringJob.AddOrUpdate<MaintenanceScheduleEvaluationJob>(
     "evaluate-maintenance-schedules",
     job => job.RunAsync(CancellationToken.None),
-    Cron.Daily);
+    Cron.Daily,
+    new RecurringJobOptions
+    {
+        TimeZone = RecurringJobTimeZone.Resolve(builder.Configuration["WorkCalendar:TimeZoneId"])
+    });
 
 app.Run();
