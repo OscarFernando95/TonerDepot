@@ -422,8 +422,13 @@ public class AssetServiceTests
         Assert.Empty(result);
     }
 
-    [Fact]
-    public async Task ChangeStatusAsync_BackToEnBodega_EndsActiveContractAssetLink()
+    // Decisión de producto 2026-10-11: pasar a Bodega/Dado de baja ya no cierra el vínculo solo — hay que
+    // desvincular primero (ContractAssetService.EndAsync). Reemplaza al test anterior, que afirmaba el cierre
+    // automático. La invariante "un activo EnBodega nunca tiene vínculo activo" se mantiene, ahora rechazando.
+    [Theory]
+    [InlineData(AssetLifecycleStatus.EnBodega)]
+    [InlineData(AssetLifecycleStatus.DadoDeBaja)]
+    public async Task ChangeStatusAsync_ToBodegaOrBajaWithActiveContractLink_ThrowsAndChangesNothing(AssetLifecycleStatus target)
     {
         var dbName = Guid.NewGuid().ToString();
         using var arrangeDb = TonerTestDb.CreateContext(dbName);
@@ -442,17 +447,49 @@ public class AssetServiceTests
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
 
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.ChangeStatusAsync(
+            asset.Id,
+            new ChangeAssetStatusRequest { NewStatus = target.ToString() },
+            Guid.NewGuid()));
+
+        Assert.Contains("contrato activo", ex.Message);
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var untouchedLink = await assertDb.ContractAssets.SingleAsync(ca => ca.Id == link.Id);
+        Assert.Null(untouchedLink.EndDate);
+        var untouchedAsset = await assertDb.Assets.SingleAsync(a => a.Id == asset.Id);
+        Assert.Equal(AssetLifecycleStatus.Instalado, untouchedAsset.LifecycleStatus);
+        Assert.Equal(location.Id, untouchedAsset.CurrentClientLocationId);
+    }
+
+    [Fact]
+    public async Task ChangeStatusAsync_ToEnBodegaWithOnlyAnEndedContractLink_Succeeds()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var client = TestEntities.Client();
+        var city = TestEntities.City();
+        var location = TestEntities.ClientLocation(client, city);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        var contract = TestEntities.Contract(client);
+        var endedLink = TestEntities.ContractAsset(contract, asset, endDate: DateTime.UtcNow.AddDays(-1));
+
+        arrangeDb.AddRange(brand, model, client, city, location, asset, contract, endedLink);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
+
         await service.ChangeStatusAsync(
             asset.Id,
             new ChangeAssetStatusRequest { NewStatus = nameof(AssetLifecycleStatus.EnBodega) },
             Guid.NewGuid());
 
         using var assertDb = TonerTestDb.CreateContext(dbName);
-        var updatedLink = await assertDb.ContractAssets.SingleAsync(ca => ca.Id == link.Id);
-        Assert.NotNull(updatedLink.EndDate);
         var updatedAsset = await assertDb.Assets.SingleAsync(a => a.Id == asset.Id);
         Assert.Equal(AssetLifecycleStatus.EnBodega, updatedAsset.LifecycleStatus);
-        Assert.Null(updatedAsset.CurrentClientLocationId);
     }
 
     [Fact]
