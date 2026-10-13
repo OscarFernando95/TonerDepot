@@ -10,12 +10,17 @@ class InventoryApi {
   InventoryApi(this._client);
   final ApiClient _client;
 
-  /// Kit base del modelo del equipo con el saldo de su zona. Sin [assetId] el kit viene vacío.
-  Future<VisitKit> getKit(String? assetId) async {
+  /// Kit base del modelo del equipo con el saldo de su zona. Sin [assetId] el kit viene vacío; si además
+  /// hay [clientLocationId] (ticket de equipo no catalogado), el saldo se resuelve por la zona de esa
+  /// sede en vez de caer directo a la bodega principal.
+  Future<VisitKit> getKit(String? assetId, {String? clientLocationId}) async {
     try {
       final response = await _client.dio.get(
         '/inventory/kit',
-        queryParameters: {'assetId': ?assetId},
+        queryParameters: {
+          'assetId': ?assetId,
+          'clientLocationId': ?clientLocationId,
+        },
       );
       return VisitKit.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {
@@ -24,9 +29,11 @@ class InventoryApi {
     }
   }
 
-  /// Ítems activos con el saldo de la zona del equipo (paginación offset).
+  /// Ítems activos con el saldo de la zona del equipo (o, sin equipo catalogado, de la zona de
+  /// [clientLocationId] — ver [getKit]) (paginación offset).
   Future<PagedResult<PartOption>> searchParts({
     String? assetId,
+    String? clientLocationId,
     String? search,
     String? category,
     int page = 1,
@@ -38,6 +45,7 @@ class InventoryApi {
         '/inventory/parts',
         queryParameters: {
           'assetId': ?assetId,
+          'clientLocationId': ?clientLocationId,
           if (trimmed != null && trimmed.isNotEmpty) 'search': trimmed,
           'category': ?category,
           'page': page,

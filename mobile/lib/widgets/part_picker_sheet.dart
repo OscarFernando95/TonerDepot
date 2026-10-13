@@ -14,12 +14,14 @@ class PartPickerSheet extends StatefulWidget {
     super.key,
     required this.api,
     this.assetId,
+    this.clientLocationId,
     this.category,
     this.title = 'Agregar repuesto',
   });
 
   final InventoryApi api;
   final String? assetId;
+  final String? clientLocationId;
   final String? category;
   final String title;
 
@@ -27,6 +29,7 @@ class PartPickerSheet extends StatefulWidget {
     BuildContext context, {
     required InventoryApi api,
     String? assetId,
+    String? clientLocationId,
     String? category,
     String title = 'Agregar repuesto',
   }) {
@@ -40,6 +43,7 @@ class PartPickerSheet extends StatefulWidget {
       builder: (_) => PartPickerSheet(
         api: api,
         assetId: assetId,
+        clientLocationId: clientLocationId,
         category: category,
         title: title,
       ),
@@ -88,6 +92,7 @@ class _PartPickerSheetState extends State<PartPickerSheet> {
     try {
       final page = await widget.api.searchParts(
         assetId: widget.assetId,
+        clientLocationId: widget.clientLocationId,
         search: _searchController.text,
         category: widget.category,
       );

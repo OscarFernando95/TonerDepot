@@ -123,6 +123,12 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
   String? get _partsAssetId =>
       widget.activeOrder?.assetId ?? widget.activeTicket?.assetId;
 
+  // Respaldo para cuando el ticket es de un equipo no catalogado (sin _partsAssetId): la sede del
+  // ticket sigue conociéndose, así que el saldo se resuelve por su zona en vez de caer directo a la
+  // bodega principal — ver InventoryConsumptionService.ResolveSourceAsync, backend.
+  String? get _partsClientLocationId =>
+      _partsAssetId == null ? widget.activeTicket?.clientLocationId : null;
+
   // Restringe el selector de fecha a la vigencia del contrato cuando se conoce (instalaciones) — evita
   // que el técnico elija una fecha que el backend va a rechazar de todos modos. Fuera de ese caso
   // (órdenes, tickets) no hay contrato a la mano en el cliente, así que se deja el rango histórico
@@ -509,6 +515,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
                     selection: _parts,
                     api: widget.inventoryApi,
                     assetId: _partsAssetId,
+                    clientLocationId: _partsClientLocationId,
                     loadKit: _loadsKit,
                   ),
                 const SizedBox(height: 16),

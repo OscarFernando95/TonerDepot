@@ -17,12 +17,17 @@ class PartsSection extends StatefulWidget {
     required this.selection,
     required this.api,
     required this.assetId,
+    this.clientLocationId,
     required this.loadKit,
   });
 
   final PartsSelection selection;
   final InventoryApi api;
   final String? assetId;
+  // Respaldo cuando no hay assetId (ticket de equipo no catalogado): resuelve el saldo por la zona de
+  // la sede del ticket en vez de caer directo a la bodega principal — ver InventoryConsumptionService.
+  // ResolveSourceAsync, backend.
+  final String? clientLocationId;
   final bool loadKit;
 
   @override
@@ -47,7 +52,10 @@ class _PartsSectionState extends State<PartsSection> {
       _error = null;
     });
     try {
-      final kit = await widget.api.getKit(widget.assetId);
+      final kit = await widget.api.getKit(
+        widget.assetId,
+        clientLocationId: widget.clientLocationId,
+      );
       if (!mounted) return;
       widget.selection.setKit(kit);
       setState(() {
@@ -71,6 +79,7 @@ class _PartsSectionState extends State<PartsSection> {
       context,
       api: widget.api,
       assetId: widget.assetId,
+      clientLocationId: widget.clientLocationId,
     );
     if (option != null) widget.selection.addExtra(option);
   }
