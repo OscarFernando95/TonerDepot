@@ -15,14 +15,15 @@ import '../widgets/list_filter_dropdown.dart';
 import '../widgets/toner_sheet.dart';
 
 /// Técnico ve dos pestañas propias de la app, sin equivalente en la web:
-/// "Vinculados" (activos que un admin le asignó explícitamente) y "Por
-/// cobertura" (respaldo — todos los activos instalados en sus ciudades de
-/// cobertura, estén o no vinculados a él o a otro técnico; ver
-/// AssetService.ListForMeterReadingByCoverageAsync, backend — cubre el caso
-/// de un técnico titular ausente). Administrador/Coordinador no hacen
-/// soporte a los activos, así que ven exactamente lo mismo que
-/// MeterReadingsView.vue: filtros de ciudad/cliente + agrupar por ciudad o
-/// ver como lista, sin esas pestañas.
+/// "Por cobertura" (todos los activos instalados en las ciudades de su zona
+/// asignada; ver AssetService.ListForMeterReadingByCoverageAsync, backend —
+/// se vinculan solos al asignarle la zona, ver
+/// TechnicianService.LinkInstalledAssetsInZonesAsync) y "Otras máquinas"
+/// (el caso excepcional: activos que un admin vinculó a mano y que quedan
+/// fuera de esa zona, ej. para que el técnico revise algo puntual).
+/// Administrador/Coordinador no hacen soporte a los activos, así que ven
+/// exactamente lo mismo que MeterReadingsView.vue: filtros de ciudad/cliente
+/// + agrupar por ciudad o ver como lista, sin esas pestañas.
 class MeterReadingsScreen extends StatefulWidget {
   const MeterReadingsScreen({super.key});
 
@@ -31,7 +32,7 @@ class MeterReadingsScreen extends StatefulWidget {
 }
 
 class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
-  String _tab = 'linked';
+  String _tab = 'coverage';
   bool _isStaff = false;
 
   @override
@@ -198,8 +199,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
     final onRefresh = coverage ? state.loadCoverage : state.load;
     final emptyMessage = coverage
         ? 'No hay equipos instalados en las ciudades de tu cobertura.'
-        : 'No hay equipos vinculados para registrar contadores.';
-    // Técnico sin máquinas vinculadas: explicación en vez de una lista en blanco.
+        : 'No tienes máquinas vinculadas por fuera de tu zona de cobertura.';
+    // Técnico sin máquinas vinculadas fuera de zona: explicación en vez de una lista en blanco.
     final emptyIsTechnicianLinked = !coverage && !_isStaff;
 
     if (loading && groups.isEmpty) {
@@ -247,7 +248,11 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
               data: Theme.of(context)
                   .copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                initiallyExpanded: groups.length == 1,
+                // Nunca auto-expandida (ni con un solo grupo): abrirla ya expandida desde el primer
+                // frame choca con el Row+Expanded de _assetCard adentro — "BoxConstraints forces an
+                // infinite width" en cascada y la pantalla queda en blanco. Pasó inadvertido hasta
+                // ahora porque es la primera vez que esta pestaña tiene exactamente un municipio con
+                // datos reales (hallazgo 2026-10-11, Ethan/Isnos).
                 tilePadding: const EdgeInsets.symmetric(horizontal: 4),
                 title: Container(
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -323,22 +328,29 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FilledButton(
-                  onPressed: () => _openRegisterSheet(asset),
-                  child: const Text('Registrar'),
-                ),
-                if (showToner) ...[
-                  const SizedBox(height: 6),
-                  OutlinedButton(
-                    onPressed: () => _openTonerSheet(asset),
-                    child: const Text('Tóner'),
+            // IntrinsicWidth: como hijo directo (sin Expanded) de un Row, esta Column recibe ancho
+            // unbounded del Row — crossAxisAlignment.stretch necesita un ancho finito al que estirar
+            // los botones, así que sin esto Flutter tira "BoxConstraints forces an infinite width" en
+            // cuanto la tarjeta llega a construirse de verdad (hallazgo 2026-10-11: pasó inadvertido
+            // hasta ahora porque nunca se había renderizado una tarjeta con datos reales en esta vista).
+            IntrinsicWidth(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FilledButton(
+                    onPressed: () => _openRegisterSheet(asset),
+                    child: const Text('Registrar'),
                   ),
+                  if (showToner) ...[
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: () => _openTonerSheet(asset),
+                      child: const Text('Tóner'),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ],
         ),
@@ -497,8 +509,8 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                 selected: _tab,
                 onChanged: (value) => setState(() => _tab = value),
                 segments: const [
-                  ClaySegment(value: 'linked', label: 'Mis máquinas'),
                   ClaySegment(value: 'coverage', label: 'Por cobertura'),
+                  ClaySegment(value: 'linked', label: 'Otras máquinas'),
                 ],
               ),
             ),
@@ -510,7 +522,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
   }
 }
 
-/// Técnico sin ninguna máquina vinculada.
+/// Técnico sin ninguna máquina vinculada por fuera de su zona de cobertura.
 class _NoLinkedMachines extends StatelessWidget {
   const _NoLinkedMachines();
 
@@ -525,14 +537,15 @@ class _NoLinkedMachines extends StatelessWidget {
         ),
         SizedBox(height: 12),
         Text(
-          'Todavía no tienes máquinas vinculadas.',
+          'No tienes otras máquinas vinculadas.',
           textAlign: TextAlign.center,
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
         ),
         SizedBox(height: 8),
         Text(
-          'Se vinculan solas cuando completas la instalación de un equipo; si necesitas otras, '
-          'pídele a un administrador que te las vincule desde Técnicos → Activos.',
+          'Aquí aparecen solo los equipos que un administrador te vincula a mano cuando quedan '
+          'fuera de tu zona de cobertura (ej. para que revises algo puntual). Las máquinas de tu '
+          'zona están en la pestaña "Por cobertura".',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.inkSecondary),
         ),
