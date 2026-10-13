@@ -221,4 +221,81 @@ public class ContractAssetServiceTests
         Assert.NotNull(item.AverageMonthlyPrints);
         Assert.InRange(item.AverageMonthlyPrints!.Value, 1500, 1550);
     }
+
+    [Fact]
+    public async Task EndAsync_LinkAlreadyEnded_ThrowsAndDoesNotTouchTheAsset()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        // El activo ya volvió a estar Instalado (sin vínculo activo) después de que este vínculo se cerró:
+        // un PATCH repetido sobre el vínculo viejo no debe sacarlo de servicio.
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        var endedLink = TestEntities.ContractAsset(contract, asset, endDate: DateTime.UtcNow.AddDays(-3));
+        arrangeDb.AddRange(city, client, location, contract, brand, model, asset, endedLink);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.EndAsync(
+            contract.Id,
+            endedLink.Id,
+            new EndContractAssetRequest { Reason = "Reintento", NewAssetStatus = nameof(AssetLifecycleStatus.EnBodega) },
+            Guid.NewGuid()));
+
+        Assert.Contains("ya fue finalizado", ex.Message);
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var untouched = await assertDb.Assets.SingleAsync(a => a.Id == asset.Id);
+        Assert.Equal(AssetLifecycleStatus.Instalado, untouched.LifecycleStatus);
+        Assert.Empty(await assertDb.AssetStatusLogs.Where(l => l.AssetId == asset.Id).ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(AssetLifecycleStatus.EnBodega)]
+    [InlineData(AssetLifecycleStatus.DadoDeBaja)]
+    public async Task EndAsync_ActiveLink_EndsLinkAndMovesAssetWithReasonInTheSameSave(AssetLifecycleStatus destination)
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var city = TestEntities.City();
+        var client = TestEntities.Client();
+        var location = TestEntities.ClientLocation(client, city);
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, location.Id);
+        var link = TestEntities.ContractAsset(contract, asset);
+        arrangeDb.AddRange(city, client, location, contract, brand, model, asset, link);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new ContractAssetService(actDb, new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb)));
+        var userId = Guid.NewGuid();
+
+        var dto = await service.EndAsync(
+            contract.Id,
+            link.Id,
+            new EndContractAssetRequest { Reason = "Cliente devolvió el equipo", NewAssetStatus = destination.ToString() },
+            userId);
+
+        Assert.NotNull(dto.EndDate);
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var endedLink = await assertDb.ContractAssets.SingleAsync(ca => ca.Id == link.Id);
+        Assert.NotNull(endedLink.EndDate);
+        var movedAsset = await assertDb.Assets.SingleAsync(a => a.Id == asset.Id);
+        Assert.Equal(destination, movedAsset.LifecycleStatus);
+        var log = await assertDb.AssetStatusLogs.SingleAsync(l => l.AssetId == asset.Id);
+        Assert.Equal(AssetLifecycleStatus.Instalado, log.PreviousStatus);
+        Assert.Equal(destination, log.NewStatus);
+        Assert.Equal("Cliente devolvió el equipo", log.Notes);
+        Assert.Equal(userId, log.ChangedByUserId);
+    }
 }

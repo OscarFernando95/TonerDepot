@@ -20,6 +20,22 @@ import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/status_chip.dart';
 
+/// Espera a que termine la animación de salida de un diálogo recién cerrado.
+///
+/// Navigator.pop() resuelve el Future de showDialog ANTES de que la transición
+/// de salida termine de verdad: si la petición que sigue se rechaza casi al
+/// instante (ej. 409 por validación, sin tocar la base de datos), el
+/// notifyListeners() reconstruye la pantalla mientras Flutter todavía desmonta
+/// la ruta del diálogo y salta "'_dependents.isEmpty': is not true" (pantalla
+/// roja — hallazgo 2026-10-12, "Pedir mantenimiento" sobre un activo con orden
+/// ya abierta). Con una petición exitosa no se nota porque la ida y vuelta de
+/// red ya cubre la animación. Úsala entre `Navigator.pop()` y cualquier cambio
+/// de estado que dispare un rebuild, y revisa `context.mounted` después.
+Future<void> _waitForDialogExit() => Future<void>.delayed(_dialogExitDuration);
+
+// Más que la transición por defecto de un diálogo (150 ms), con margen.
+const _dialogExitDuration = Duration(milliseconds: 300);
+
 /// Detalle de activo — Administrador/Coordinador (única puerta de entrada es
 /// el destino "Activos" del drawer, roles: staffRoles). La sección de
 /// lecturas de contador es espejo de AssetDetailView.vue, igual que el
@@ -117,6 +133,9 @@ class _AssetDetailBody extends StatelessWidget {
     final reason = reasonController.text.trim();
     reasonController.dispose();
     if (confirmed != true) return;
+
+    await _waitForDialogExit();
+    if (!context.mounted) return;
 
     final error = await state.requestMaintenance(
       includesGeneral: general,
@@ -258,6 +277,8 @@ class _AssetDetailBody extends StatelessWidget {
                     ? null
                     : () async {
                         Navigator.of(dialogContext).pop();
+                        await _waitForDialogExit();
+    if (!context.mounted) return;
                         final error = await state.updateAsset(
                           assetModelId: modelId!,
                           serialNumber: serialController.text.trim(),
@@ -431,6 +452,8 @@ class _AssetDetailBody extends StatelessWidget {
                   ? null
                   : () async {
                       Navigator.of(dialogContext).pop();
+                      await _waitForDialogExit();
+    if (!context.mounted) return;
                       final error = await state.changeStatus(
                         newStatus: newStatus,
                         clientLocationId: clientLocationId,

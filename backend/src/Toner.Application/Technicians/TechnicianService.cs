@@ -5,6 +5,7 @@ using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Technicians.Dtos;
 using Toner.Domain.Entities;
+using Toner.Domain.Enums;
 
 namespace Toner.Application.Technicians;
 
@@ -64,10 +65,15 @@ public class TechnicianService : ITechnicianService
         var current = await _db.TechnicianZones.Where(tz => tz.TechnicianId == technicianId).ToListAsync(cancellationToken);
 
         _db.TechnicianZones.RemoveRange(current.Where(tz => !wanted.Contains(tz.ZoneId)));
+
         foreach (var zoneId in wanted.Where(id => current.All(tz => tz.ZoneId != id)))
         {
             _db.TechnicianZones.Add(new TechnicianZone { TechnicianId = technicianId, ZoneId = zoneId });
         }
+
+        // Los activos Instalado de las zonas que entran quedan vinculados (decisión de producto 2026-10-11).
+        // Mismo SaveChangesAsync que el cambio de zonas: ver TechnicianAssetLinks.
+        await TechnicianAssetLinks.SyncForTechniciansAsync(_db, new[] { technicianId }, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -114,7 +120,8 @@ public class TechnicianService : ITechnicianService
                 ClientName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Client.Name : null,
                 ClientLocationName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Name : null,
                 CityName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.City.Name : null,
-                Area = ta.Asset.Area
+                Area = ta.Asset.Area,
+                Source = ta.Source.ToString()
             })
             .ToListAsync(cancellationToken);
     }
@@ -127,15 +134,17 @@ public class TechnicianService : ITechnicianService
             throw new NotFoundException(nameof(Technician), technicianId);
         }
 
-        var alreadyLinked = await _db.TechnicianAssets
-            .AnyAsync(ta => ta.TechnicianId == technicianId && ta.AssetId == request.AssetId, cancellationToken);
-        if (alreadyLinked)
+        var alreadyLinkedManually = await _db.TechnicianAssets.AnyAsync(
+            ta => ta.TechnicianId == technicianId && ta.AssetId == request.AssetId && ta.Source == TechnicianAssetSource.Manual,
+            cancellationToken);
+        if (alreadyLinkedManually)
         {
             throw new ConflictException("El técnico ya tiene vinculado ese activo.");
         }
 
-        var link = new TechnicianAsset { TechnicianId = technicianId, AssetId = request.AssetId };
-        _db.TechnicianAssets.Add(link);
+        // Si el vínculo existía solo por la zona, vincularlo a mano lo vuelve explícito: ya no se retira al
+        // cambiar la cobertura.
+        var link = await TechnicianAssetLinks.EnsureManualAsync(_db, technicianId, request.AssetId, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         return await _db.TechnicianAssets
@@ -150,7 +159,8 @@ public class TechnicianService : ITechnicianService
                 ClientName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Client.Name : null,
                 ClientLocationName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.Name : null,
                 CityName = ta.Asset.CurrentClientLocation != null ? ta.Asset.CurrentClientLocation.City.Name : null,
-                Area = ta.Asset.Area
+                Area = ta.Asset.Area,
+                Source = ta.Source.ToString()
             })
             .FirstAsync(cancellationToken);
     }
@@ -160,6 +170,14 @@ public class TechnicianService : ITechnicianService
         var link = await _db.TechnicianAssets
             .FirstOrDefaultAsync(ta => ta.Id == technicianAssetId && ta.TechnicianId == technicianId, cancellationToken)
             ?? throw new NotFoundException(nameof(TechnicianAsset), technicianAssetId);
+
+        // Un vínculo por zona lo sostiene la cobertura: borrarlo a mano solo lo haría reaparecer en el próximo
+        // cambio de zonas. Para retirarlo hay que quitarle al técnico la zona (o el municipio a la zona).
+        if (link.Source == TechnicianAssetSource.Zone)
+        {
+            throw new ConflictException(
+                "Este vínculo lo da la zona del técnico. Para retirarlo, quítale la zona o saca el municipio de la zona.");
+        }
 
         _db.TechnicianAssets.Remove(link);
         await _db.SaveChangesAsync(cancellationToken);

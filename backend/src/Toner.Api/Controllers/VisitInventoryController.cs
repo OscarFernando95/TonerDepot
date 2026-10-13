@@ -26,21 +26,22 @@ public class VisitInventoryController : ControllerBase
         _tonerValidator = tonerValidator;
     }
 
-    // Kit base (efectivo) del modelo de la máquina con el saldo de su zona. Sin assetId (ticket de equipo no catalogado)
-    // devuelve el kit vacío y la bodega principal como origen.
+    // Kit base (efectivo) del modelo de la máquina con el saldo de su zona. Sin assetId (ticket de equipo no
+    // catalogado) resuelve la zona por clientLocationId (la sede del ticket); sin ninguno de los dos, el kit
+    // vacío y la bodega principal como origen.
     [HttpGet("kit")]
     [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
-    public async Task<ActionResult<VisitKitDto>> GetKit([FromQuery] Guid? assetId, CancellationToken cancellationToken)
+    public async Task<ActionResult<VisitKitDto>> GetKit([FromQuery] Guid? assetId, [FromQuery] Guid? clientLocationId, CancellationToken cancellationToken)
     {
-        return Ok(await _consumption.GetKitForAssetAsync(assetId, cancellationToken));
+        return Ok(await _consumption.GetKitForAssetAsync(assetId, clientLocationId, cancellationToken));
     }
 
     [HttpGet("parts")]
     [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
     public async Task<ActionResult<PagedResult<PartOptionDto>>> SearchParts(
-        [FromQuery] Guid? assetId, [FromQuery] string? search, [FromQuery] string? category, [FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+        [FromQuery] Guid? assetId, [FromQuery] string? search, [FromQuery] string? category, [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] Guid? clientLocationId, CancellationToken cancellationToken)
     {
-        return Ok(await _consumption.SearchPartsAsync(assetId, search, page, pageSize, cancellationToken, category));
+        return Ok(await _consumption.SearchPartsAsync(assetId, search, page, pageSize, cancellationToken, category, clientLocationId));
     }
 
     [HttpPost("toner")]

@@ -47,10 +47,21 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             throw new ConflictException("Alguna de las piezas no existe o está desactivada. Actualiza la lista e inténtalo de nuevo.");
         }
 
-        var source = await ResolveSourceAsync(visit.AssetId, cancellationToken);
+        Guid? clientLocationId = null;
+        if (!visit.AssetId.HasValue && visit.ServiceTicketId.HasValue)
+        {
+            clientLocationId = await _db.ServiceTickets
+                .Where(t => t.Id == visit.ServiceTicketId.Value)
+                .Select(t => (Guid?)t.ClientLocationId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var source = await ResolveSourceAsync(visit.AssetId, clientLocationId, cancellationToken);
         var balances = await BalancesAsync(source.LocationId, ids, cancellationToken);
         var warnings = new List<string>();
-        var note = source.IsMain && visit.AssetId is not null ? "Sin zona para el municipio del equipo: descontado de la bodega principal." : null;
+        var note = source.IsMain && (visit.AssetId is not null || clientLocationId is not null)
+            ? "Sin zona para el municipio del equipo: descontado de la bodega principal."
+            : null;
 
         foreach (var item in items)
         {
@@ -81,9 +92,9 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         return warnings;
     }
 
-    public async Task<VisitKitDto> GetKitForAssetAsync(Guid? assetId, CancellationToken cancellationToken = default)
+    public async Task<VisitKitDto> GetKitForAssetAsync(Guid? assetId, Guid? clientLocationId = null, CancellationToken cancellationToken = default)
     {
-        var source = await ResolveSourceAsync(assetId, cancellationToken);
+        var source = await ResolveSourceAsync(assetId, clientLocationId, cancellationToken);
         var dto = new VisitKitDto { AssetId = assetId, LocationId = source.LocationId, LocationName = source.Name, UsesMainWarehouse = source.IsMain };
 
         if (assetId is null)
@@ -108,7 +119,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
     }
 
     public async Task<PagedResult<PartOptionDto>> SearchPartsAsync(
-        Guid? assetId, string? search, int? page, int? pageSize, CancellationToken cancellationToken = default, string? category = null)
+        Guid? assetId, string? search, int? page, int? pageSize, CancellationToken cancellationToken = default, string? category = null, Guid? clientLocationId = null)
     {
         var query = _db.InventoryItems.Where(i => i.IsActive);
         if (!string.IsNullOrWhiteSpace(category))
@@ -128,7 +139,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             .Select(i => new PartOptionDto { ItemId = i.Id, Name = i.Name, Category = i.Category.ToString(), Unit = i.Unit })
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
-        var source = await ResolveSourceAsync(assetId, cancellationToken);
+        var source = await ResolveSourceAsync(assetId, clientLocationId, cancellationToken);
         var balances = await BalancesAsync(source.LocationId, result.Items.Select(i => i.ItemId).ToList(), cancellationToken);
         foreach (var option in result.Items)
         {
@@ -164,7 +175,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
 
         await EnsureCounterFitsAsync(asset.Id, request.CounterValue.Value, (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime(), cancellationToken);
 
-        var source = await ResolveSourceAsync(asset.Id, cancellationToken);
+        var source = await ResolveSourceAsync(asset.Id, null, cancellationToken);
         var balance = (await BalancesAsync(source.LocationId, new[] { item.Id }, cancellationToken)).GetValueOrDefault(item.Id) - request.Quantity;
 
         var how = request.DeliveredToUser ? "Entregado al usuario para que lo cambie" : "Cambiado por el técnico en la máquina";
@@ -251,9 +262,12 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         }
     }
 
-    // De dónde se descuenta: la ubicación de la zona del municipio donde está instalado el equipo; si no tiene zona (o
-    // el equipo no está catalogado), la bodega principal — nunca bloquea una visita en campo.
-    private async Task<Source> ResolveSourceAsync(Guid? assetId, CancellationToken cancellationToken)
+    // De dónde se descuenta: la ubicación de la zona del municipio donde está instalado el equipo (o, si no hay
+    // equipo catalogado, la zona del municipio de la SEDE del ticket — un ticket externo igual tiene una
+    // ClientLocation conocida); si ninguna de las dos resuelve una zona, la bodega principal — nunca bloquea una
+    // visita en campo. Antes solo miraba el equipo: un ticket de equipo no catalogado (sin AssetId) siempre caía a
+    // la bodega principal aunque su sede sí tuviera zona asignada (hallazgo 2026-10-12).
+    private async Task<Source> ResolveSourceAsync(Guid? assetId, Guid? clientLocationId, CancellationToken cancellationToken)
     {
         Guid? zoneId = null;
         if (assetId.HasValue)
@@ -261,6 +275,13 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             zoneId = await _db.Assets
                 .Where(a => a.Id == assetId.Value)
                 .Select(a => a.CurrentClientLocation != null ? a.CurrentClientLocation.City.ZoneId : null)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+        else if (clientLocationId.HasValue)
+        {
+            zoneId = await _db.ClientLocations
+                .Where(cl => cl.Id == clientLocationId.Value)
+                .Select(cl => (Guid?)cl.City.ZoneId)
                 .FirstOrDefaultAsync(cancellationToken);
         }
 

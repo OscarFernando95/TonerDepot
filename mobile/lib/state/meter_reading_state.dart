@@ -33,27 +33,32 @@ class MeterCityGroup {
 /// también agrupa por cliente dentro de cada ciudad; en el celular, con
 /// pantallas más angostas, una sola agrupación por ciudad es más legible).
 ///
-/// Maneja dos listas independientes:
-/// - `assets` ("Vinculados"): activos que un administrador vinculó
-///   explícitamente al técnico (TechnicianAsset).
-/// - `coverageAssets` ("Por cobertura", respaldo): todos los activos
-///   instalados en las ciudades de cobertura del técnico (derivada de sus zonas),
-///   estén o no vinculados a él o a otro técnico — para cuando el técnico
-///   titular de un activo no está disponible (vacaciones, incapacidad,
-///   renuncia/despido) y de otro modo nadie más podría registrarle lecturas.
-/// Nunca se fusionan: un mismo activo puede aparecer en ambas si, además de
-/// estar vinculado a este técnico, también cae en su cobertura.
+/// Maneja dos listas independientes, sin solapamiento entre ellas (ver
+/// AssetService.ListForMeterReadingAsync, backend):
+/// - `coverageAssets` ("Por cobertura"): todos los activos instalados en las
+///   ciudades de la zona asignada al técnico. Se vinculan solos
+///   (TechnicianAsset) al asignarle la zona — ver
+///   TechnicianService.LinkInstalledAssetsInZonesAsync.
+/// - `assets` ("Otras máquinas"): el caso excepcional — activos que un
+///   administrador vinculó a mano (TechnicianAsset) y que quedan FUERA de la
+///   zona del técnico (ej. para que revise algo puntual que no es suyo).
 class MeterReadingState extends ChangeNotifier {
   MeterReadingState(ApiClient client)
     : _api = MeterReadingApi(client),
       inventoryApi = InventoryApi(client) {
     // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
+    // "TechnicianAsset" es el aviso que emite el backend cuando un admin vincula/desvincula un activo
+    // al técnico. "Technician" es lo que emite al asignarle una zona (TechnicianZone) — incluye el
+    // auto-vínculo de sus activos ya instalados (ver TechnicianService.LinkInstalledAssetsInZonesAsync).
+    // "Zone" es lo que emite al agregar/quitar un municipio de una zona (City.ZoneId) — sin él, "Por
+    // cobertura" se quedaba mostrando el municipio nuevo pero vacío hasta cerrar y reabrir la app,
+    // porque nunca se entendía que debía recargar.
     _unsubscribe = RealtimeService.instance.subscribe(
-      ['MeterReading', 'Asset'],
+      ['MeterReading', 'Asset', 'TechnicianAsset', 'Technician', 'Zone'],
       (e) {
         if (saving) return;
+        load(silent: true);
         if (_coverageLoaded) loadCoverage(silent: true);
-        if (!_coverageLoaded || assets.isNotEmpty) load(silent: true);
       },
     );
   }

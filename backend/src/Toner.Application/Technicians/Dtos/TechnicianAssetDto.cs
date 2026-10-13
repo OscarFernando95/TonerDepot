@@ -11,4 +11,8 @@ public class TechnicianAssetDto
     public string? ClientLocationName { get; set; }
     public string? CityName { get; set; }
     public string? Area { get; set; }
+
+    // "Manual" (lo vinculó un administrador o el técnico lo instaló) | "Zone" (lo da la zona del técnico y se
+    // retira solo si deja de cubrir el activo).
+    public string Source { get; set; } = string.Empty;
 }

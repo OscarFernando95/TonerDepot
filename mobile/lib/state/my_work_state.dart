@@ -20,8 +20,9 @@ import '../services/ticket_api.dart';
 /// órdenes e instalaciones pendientes propias, con check-in/check-out.
 /// Coverage (trabajo de otros técnicos) queda para una siguiente iteración.
 class MyWorkState extends ChangeNotifier {
-  MyWorkState(ApiClient client)
-    : _technicianApi = TechnicianApi(client),
+  MyWorkState(ApiClient client, {required bool Function() isTechnician})
+    : _roleIsTechnician = isTechnician,
+      _technicianApi = TechnicianApi(client),
       _ticketApi = TicketApi(client),
       _orderApi = MaintenanceOrderApi(client),
       inventoryApi = InventoryApi(client) {
@@ -45,6 +46,14 @@ class MyWorkState extends ChangeNotifier {
   final TechnicianApi _technicianApi;
   final TicketApi _ticketApi;
   final MaintenanceOrderApi _orderApi;
+
+  // Este estado vive en la raíz de la app para TODOS los roles (ver main.dart — MyWorkState se crea una
+  // sola vez, antes de saber quién inicia sesión), pero sus llamadas son exclusivas de Técnico. Sin este
+  // chequeo, la suscripción en tiempo real de arriba (cualquier cambio de Ticket/MaintenanceOrder/etc.,
+  // incluido uno que un Admin/Coordinador acabe de generar él mismo) disparaba loadAll() para cualquier
+  // rol y el backend respondía 403 en los tres endpoints de Técnico. Se consulta el rol vigente en cada
+  // llamada (viene de AuthState vía main.dart), así no depende de que alguien lo haya fijado antes.
+  final bool Function() _roleIsTechnician;
 
   /// Kit y repuestos del check-out (la hoja los consulta directamente).
   final InventoryApi inventoryApi;
@@ -112,6 +121,7 @@ class MyWorkState extends ChangeNotifier {
   List<PendingInstallation> get pendingInstallations => installations;
 
   Future<void> loadAll({bool silent = false}) async {
+    if (!_roleIsTechnician()) return;
     if (!silent) {
       loading = true;
       error = null;

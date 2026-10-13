@@ -353,37 +353,97 @@ class _ContractDetailBody extends StatelessWidget {
     );
   }
 
+  /// Finalizar el vínculo exige decidir ahí mismo el destino del activo
+  /// (Bodega o Dado de baja, con motivo) — mismo criterio que
+  /// ContractDetailView.vue en la web. El motivo queda en su historial de
+  /// estados (ver ContractAssetService.EndAsync, backend).
   Future<void> _confirmEndAsset(
     BuildContext context,
     ContractDetailState state,
     ContractAsset contractAsset,
   ) async {
+    var newStatus = 'EnBodega';
+    final reasonController = TextEditingController();
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('¿Finalizar este vínculo?'),
-        content: Text(
-          '${contractAsset.assetBrandName} ${contractAsset.assetModel} dejará de estar asociado a este contrato.',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Finalizar vínculo'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${contractAsset.assetBrandName} ${contractAsset.assetModel} (${contractAsset.assetSerialNumber})',
+                  style: const TextStyle(color: AppColors.inkSecondary),
+                ),
+                const SizedBox(height: 12),
+                const Text('¿Qué pasa con el activo?'),
+                RadioListTile<String>(
+                  value: 'EnBodega',
+                  groupValue: newStatus,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(StatusLabels.assetLifecycle['EnBodega']!),
+                  onChanged: (v) => setDialogState(() => newStatus = v!),
+                ),
+                RadioListTile<String>(
+                  value: 'DadoDeBaja',
+                  groupValue: newStatus,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(StatusLabels.assetLifecycle['DadoDeBaja']!),
+                  onChanged: (v) => setDialogState(() => newStatus = v!),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: reasonController,
+                  maxLength: 500,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo de la finalización',
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: reasonController.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Finalizar vínculo'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('No'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Sí, finalizar'),
-          ),
-        ],
       ),
     );
-    if (confirmed == true && context.mounted) {
-      final error = await state.endAssetAssociation(contractAsset.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error ?? 'Vínculo finalizado.')));
-      }
+
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
+    if (confirmed != true) return;
+
+    // Deja que la animación de cierre del diálogo termine antes de tocar el
+    // estado de nuevo — ver el comentario largo en
+    // AssetDetailScreen._showRequestMaintenanceDialog.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!context.mounted) return;
+
+    final error = await state.endAssetAssociation(
+      contractAsset.id,
+      reason: reason,
+      newAssetStatus: newStatus,
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error ?? 'Vínculo finalizado.')));
     }
   }
 

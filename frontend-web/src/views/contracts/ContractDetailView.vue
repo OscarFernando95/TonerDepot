@@ -9,8 +9,10 @@ import * as contractAssetsApi from '../../api/contractAssets'
 import * as assetsApi from '../../api/assets'
 import * as clientLocationsApi from '../../api/clientLocations'
 import {
+  AssetLifecycleStatusLabels,
   ContractStatuses,
   type AssetDto,
+  type AssetLifecycleStatusName,
   type ClientLocationDto,
   type ContractAssetDto,
   type ContractDto
@@ -45,6 +47,12 @@ const changingStatus = ref(false)
 const addAssetDialogVisible = ref(false)
 const savingAsset = ref(false)
 const addAssetForm = reactive({ assetId: '', clientLocationId: '' })
+
+const endLinkDialogVisible = ref(false)
+const savingEndLink = ref(false)
+const endingLink = ref<ContractAssetDto | null>(null)
+const endLinkForm = reactive({ reason: '', newAssetStatus: 'EnBodega' as AssetLifecycleStatusName })
+const endLinkStatusOptions: AssetLifecycleStatusName[] = ['EnBodega', 'DadoDeBaja']
 
 async function loadAll(silent = false) {
   if (!silent) loading.value = true
@@ -141,20 +149,50 @@ async function saveAddAsset() {
   }
 }
 
-async function endLink(contractAsset: ContractAssetDto) {
-  await ElMessageBox.confirm(
-    `¿Finalizar la vinculación de ${contractAsset.assetBrandName} ${contractAsset.assetModel} (${contractAsset.assetSerialNumber}) con este contrato?`,
-    'Confirmar',
-    { type: 'warning' }
-  )
-  await contractAssetsApi.endContractAsset(contractId, contractAsset.id)
-  ElMessage.success('Vinculación finalizada.')
-  const [{ data: caData }, { data: contractData }] = await Promise.all([
-    contractAssetsApi.listContractAssets(contractId),
-    contractsApi.getContract(contractId)
-  ])
-  contractAssets.value = caData
-  contract.value = contractData
+// Finalizar el vínculo exige decidir ahí mismo el destino del activo (Bodega o Dado de baja, con
+// motivo) — ver ContractAssetService.EndAsync, backend. El motivo queda en su historial de estados.
+function openEndLinkDialog(contractAsset: ContractAssetDto) {
+  endingLink.value = contractAsset
+  endLinkForm.reason = ''
+  endLinkForm.newAssetStatus = 'EnBodega'
+  endLinkDialogVisible.value = true
+}
+
+async function saveEndLink() {
+  if (!endingLink.value) return
+  // Dar de baja no tiene vuelta (ningún estado sale de "Dado de baja"): se confirma aparte, porque el diálogo
+  // trae "Bodega" preseleccionado y el cambio es un solo clic en el radio.
+  if (endLinkForm.newAssetStatus === 'DadoDeBaja') {
+    try {
+      await ElMessageBox.confirm(
+        'Dar de baja el activo es definitivo: no podrá volver a bodega ni instalarse. ¿Continuar?',
+        'Confirmar baja',
+        { type: 'warning' }
+      )
+    } catch {
+      return // el usuario canceló la confirmación
+    }
+  }
+  savingEndLink.value = true
+  try {
+    await contractAssetsApi.endContractAsset(contractId, endingLink.value.id, {
+      reason: endLinkForm.reason,
+      newAssetStatus: endLinkForm.newAssetStatus
+    })
+    ElMessage.success('Vinculación finalizada.')
+    endLinkDialogVisible.value = false
+    const [{ data: caData }, { data: contractData }] = await Promise.all([
+      contractAssetsApi.listContractAssets(contractId),
+      contractsApi.getContract(contractId)
+    ])
+    contractAssets.value = caData
+    contract.value = contractData
+  } catch (err: any) {
+    console.error('ContractDetailView.saveEndLink failed', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo finalizar la vinculación.')
+  } finally {
+    savingEndLink.value = false
+  }
 }
 
 function sortByAssetLabel(a: ContractAssetDto, b: ContractAssetDto) {
@@ -251,7 +289,7 @@ useRealtimeUpdates(['Contract', 'MeterReading'], (e) => { if (e.entity !== 'Cont
           </el-table-column>
           <el-table-column label="" width="160">
             <template #default="{ row }">
-              <el-button v-if="!row.endDate" link @click="endLink(row)">Finalizar vínculo</el-button>
+              <el-button v-if="!row.endDate" link @click="openEndLinkDialog(row)">Finalizar vínculo</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -282,6 +320,36 @@ useRealtimeUpdates(['Contract', 'MeterReading'], (e) => { if (e.entity !== 'Cont
       <template #footer>
         <el-button @click="addAssetDialogVisible = false">Cancelar</el-button>
         <el-button type="primary" :loading="savingAsset" @click="saveAddAsset">Guardar</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="endLinkDialogVisible" title="Finalizar vínculo" width="420px">
+      <p v-if="endingLink" class="dialog-hint">
+        {{ endingLink.assetBrandName }} {{ endingLink.assetModel }} ({{ endingLink.assetSerialNumber }})
+      </p>
+      <el-form :model="endLinkForm" label-position="top">
+        <el-form-item label="¿Qué pasa con el activo?">
+          <el-radio-group v-model="endLinkForm.newAssetStatus">
+            <el-radio v-for="s in endLinkStatusOptions" :key="s" :value="s">
+              {{ AssetLifecycleStatusLabels[s] }}
+            </el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="Motivo de la finalización">
+          <el-input v-model="endLinkForm.reason" type="textarea" :rows="3" maxlength="500" show-word-limit />
+        </el-form-item>
+        <p class="dialog-hint">El motivo queda guardado en el historial de estados del activo.</p>
+      </el-form>
+      <template #footer>
+        <el-button @click="endLinkDialogVisible = false">Cancelar</el-button>
+        <el-button
+          type="primary"
+          :loading="savingEndLink"
+          :disabled="!endLinkForm.reason.trim()"
+          @click="saveEndLink"
+        >
+          Finalizar vínculo
+        </el-button>
       </template>
     </el-dialog>
   </div>

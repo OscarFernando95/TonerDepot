@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
+using Toner.Application.Technicians;
 using Toner.Application.Zones.Dtos;
 using Toner.Domain.Entities;
 using Toner.Domain.Enums;
@@ -59,10 +60,29 @@ public class ZoneService : IZoneService
             .Where(c => c.ZoneId == id || wanted.Contains(c.Id))
             .ToListAsync(cancellationToken);
 
+        // Zonas cuya cobertura cambia: esta, y las de donde salen los municipios que se mueven aquí. Se captura
+        // ANTES de mutar ZoneId.
+        var changedZoneIds = affected
+            .Where(c => c.ZoneId.HasValue)
+            .Select(c => c.ZoneId!.Value)
+            .Append(id)
+            .Distinct()
+            .ToList();
+
         foreach (var city in affected)
         {
             city.ZoneId = wanted.Contains(city.Id) ? id : null;
         }
+
+        // Los técnicos de esas zonas ven cambiar su cobertura: los activos Instalado de los municipios que
+        // entran quedan vinculados y los de los que salen dejan de estarlo (decisión de producto 2026-10-11 +
+        // revocación). Mismo SaveChangesAsync que el cambio de municipios.
+        var technicianIds = await _db.TechnicianZones
+            .Where(tz => changedZoneIds.Contains(tz.ZoneId))
+            .Select(tz => tz.TechnicianId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        await TechnicianAssetLinks.SyncForTechniciansAsync(_db, technicianIds, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 

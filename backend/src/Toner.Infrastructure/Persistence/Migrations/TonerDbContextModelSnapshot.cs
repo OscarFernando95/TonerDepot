@@ -1223,6 +1223,13 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("Manual");
+
                     b.Property<Guid>("TechnicianId")
                         .HasColumnType("uuid");
 

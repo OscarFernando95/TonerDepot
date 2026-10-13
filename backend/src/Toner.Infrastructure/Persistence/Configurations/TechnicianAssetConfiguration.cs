@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Toner.Domain.Entities;
+using Toner.Domain.Enums;
 
 namespace Toner.Infrastructure.Persistence.Configurations;
 
@@ -10,6 +11,8 @@ public class TechnicianAssetConfiguration : IEntityTypeConfiguration<TechnicianA
     {
         builder.ConfigureBaseEntity();
         builder.ToTable("TechnicianAssets");
+
+        builder.Property(ta => ta.Source).HasConversion<string>().HasMaxLength(10).HasDefaultValue(TechnicianAssetSource.Manual);
 
         builder.HasIndex(ta => new { ta.TechnicianId, ta.AssetId }).IsUnique();
 

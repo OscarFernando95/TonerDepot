@@ -36,7 +36,8 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerBiometrics());
     // "Mi trabajo" es 100% self-service de Tecnico (technician_api.dart) —
     // llamarlo para otro rol solo produce errores 403 que nadie va a ver.
-    if (context.read<AuthState>().hasRole(RoleNames.tecnico)) {
+    final isTechnician = context.read<AuthState>().hasRole(RoleNames.tecnico);
+    if (isTechnician) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         context.read<MyWorkState>().loadAll();
       });

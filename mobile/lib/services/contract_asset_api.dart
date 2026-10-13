@@ -50,11 +50,20 @@ class ContractAssetApi {
     }
   }
 
-  /// No es un DELETE — cierra la vigencia (endDate = ahora), idempotente.
-  Future<void> endAssociation(String contractId, String contractAssetId) async {
+  /// No es un DELETE — cierra la vigencia (endDate = ahora) y, en la misma
+  /// operación, pasa el activo a [newAssetStatus] ("EnBodega" o
+  /// "DadoDeBaja") con [reason] en su historial de estados — ver
+  /// ContractAssetService.EndAsync, backend.
+  Future<void> endAssociation(
+    String contractId,
+    String contractAssetId, {
+    required String reason,
+    required String newAssetStatus,
+  }) async {
     try {
       await _client.dio.patch(
         '/contracts/$contractId/assets/$contractAssetId/end',
+        data: {'reason': reason, 'newAssetStatus': newAssetStatus},
       );
     } catch (e, st) {
       debugPrint('ContractAssetApi.endAssociation failed: $e\n$st');
