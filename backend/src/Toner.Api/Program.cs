@@ -233,7 +233,9 @@ builder.Services.Configure<EvidenceOptions>(builder.Configuration.GetSection("Ev
 var evidenceStorageSettings = builder.Configuration.GetSection("EvidenceStorage").Get<EvidenceStorageSettings>() ?? new EvidenceStorageSettings();
 EvidenceStorageSettingsValidator.EnsureValid(evidenceStorageSettings);
 builder.Services.Configure<EvidenceStorageSettings>(builder.Configuration.GetSection("EvidenceStorage"));
-builder.Services.AddSingleton<IEvidenceStorage, AzureBlobEvidenceStorage>();
+builder.Services.AddSingleton<AzureBlobEvidenceStorage>();
+builder.Services.AddSingleton<IEvidenceStorage>(sp => sp.GetRequiredService<AzureBlobEvidenceStorage>());
+builder.Services.AddHostedService<EvidenceStorageInitializer>();
 builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
 builder.Services.AddScoped<PendingAssignmentService>();

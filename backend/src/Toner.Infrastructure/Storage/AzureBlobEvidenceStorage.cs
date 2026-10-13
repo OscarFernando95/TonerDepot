@@ -11,12 +11,18 @@ namespace Toner.Infrastructure.Storage;
 public class AzureBlobEvidenceStorage : IEvidenceStorage
 {
     private readonly BlobContainerClient _container;
-    private bool _containerReady;
+    private readonly SemaphoreSlim _containerGate = new(1, 1);
+    private volatile bool _containerReady;
 
     public AzureBlobEvidenceStorage(IOptions<EvidenceStorageSettings> options)
+        : this(new BlobContainerClient(options.Value.ConnectionString, options.Value.ContainerName))
     {
-        var settings = options.Value;
-        _container = new BlobContainerClient(settings.ConnectionString, settings.ContainerName);
+    }
+
+    // Para pruebas: permite inyectar un cliente de contenedor falso.
+    public AzureBlobEvidenceStorage(BlobContainerClient container)
+    {
+        _container = container;
     }
 
     public async Task SaveAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
@@ -43,15 +49,31 @@ public class AzureBlobEvidenceStorage : IEvidenceStorage
     public async Task DeleteAsync(string key, CancellationToken cancellationToken = default) =>
         await _container.GetBlobClient(key).DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
-    private async Task EnsureContainerAsync(CancellationToken cancellationToken)
+    // Idempotente y seguro entre hilos. Lo llama el arranque (EvidenceStorageInitializer) y, como red de
+    // seguridad, SaveAsync: si Blob estaba caído al arrancar, el primer guardado crea el contenedor.
+    // Un fallo NO se recuerda: el siguiente intento vuelve a probar (AUDIT.md H-35).
+    public async Task EnsureContainerAsync(CancellationToken cancellationToken = default)
     {
         if (_containerReady)
         {
             return;
         }
 
-        // Sin PublicAccessType: el contenedor es privado.
-        await _container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        _containerReady = true;
+        await _containerGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_containerReady)
+            {
+                return;
+            }
+
+            // Sin PublicAccessType: el contenedor es privado.
+            await _container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            _containerReady = true;
+        }
+        finally
+        {
+            _containerGate.Release();
+        }
     }
 }
