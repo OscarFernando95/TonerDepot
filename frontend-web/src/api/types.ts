@@ -341,6 +341,12 @@ export interface AddContractAssetRequest {
   startDate?: string | null
 }
 
+// newAssetStatus: solo 'EnBodega' | 'DadoDeBaja' — ver EndContractAssetRequestValidator, backend.
+export interface EndContractAssetRequest {
+  reason: string
+  newAssetStatus: AssetLifecycleStatusName
+}
+
 export const MaintenanceOrderStatusLabels: Record<string, string> = {
   Pendiente: 'Pendiente',
   Asignada: 'Asignada',
