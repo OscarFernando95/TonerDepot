@@ -112,7 +112,10 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     private static readonly IReadOnlyDictionary<string, string> UniqueViolationMessages = new Dictionary<string, string>
     {
         [TimeLogConfiguration.OpenByTechnicianIndexName] = "Ya tienes una visita en curso. Haz check-out antes de iniciar otra.",
-        [TimeLogConfiguration.OpenByAssetIndexName] = "Otro técnico ya está atendiendo esta instalación."
+        [TimeLogConfiguration.OpenByAssetIndexName] = "Otro técnico ya está atendiendo esta instalación.",
+        // Dos logins simultáneos del mismo técnico: el índice único parcial deja pasar solo a uno (AUDIT.md H-40).
+        [UserSessionConfiguration.SingleActiveSessionIndexName] =
+            "Ya tienes una sesión activa en otro dispositivo. Ciérrala allí primero, o pide a un administrador que la cierre."
     };
 
     private static bool TryGetUniqueViolationMessage(DbUpdateException ex, out string message)
