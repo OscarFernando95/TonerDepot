@@ -1,5 +1,4 @@
 using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
 
@@ -26,14 +25,16 @@ public class SmtpEmailSender : IEmailSender
 
         using var client = new SmtpClient();
 
-        // StartTlsWhenAvailable: se conecta en plano contra smtp4dev (que no ofrece STARTTLS) y se
-        // actualiza sola contra un relay real que sí lo anuncie — un solo código sirve para ambos
-        // entornos sin una bandera de configuración extra.
-        await client.ConnectAsync(_settings.Host, _settings.Port, SecureSocketOptions.StartTlsWhenAvailable, cancellationToken);
+        // Modo configurado (Smtp:SecureSocketOptions, validado al arrancar): StartTls por defecto, que
+        // FALLA si el servidor no ofrece STARTTLS en vez de seguir en texto plano. Antes se usaba
+        // StartTlsWhenAvailable, vulnerable a STARTTLS stripping (AUDIT.md H-04). smtp4dev, que no ofrece
+        // TLS, usa None — permitido solo en Development.
+        await client.ConnectAsync(_settings.Host, _settings.Port, _settings.GetSecureSocketOptions(), cancellationToken);
 
-        if (!string.IsNullOrEmpty(_settings.Username))
+        // El validador garantiza que usuario y contraseña vienen juntos (H-16).
+        if (_settings.HasCredentials)
         {
-            await client.AuthenticateAsync(_settings.Username, _settings.Password, cancellationToken);
+            await client.AuthenticateAsync(_settings.Username!, _settings.Password!, cancellationToken);
         }
 
         await client.SendAsync(message, cancellationToken);

@@ -271,7 +271,7 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"))
 
 var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>()
     ?? throw new InvalidOperationException("Falta la sección de configuración 'Smtp'.");
-SmtpSettingsValidator.EnsureValid(smtpSettings);
+SmtpSettingsValidator.EnsureValid(smtpSettings, builder.Environment.IsDevelopment());
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 
 var passwordDeliverySettings = builder.Configuration.GetSection("PasswordDelivery").Get<PasswordDeliverySettings>()

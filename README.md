@@ -209,6 +209,8 @@ Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, qu
 | azurite    | 10000   | Emulador de Azure Blob Storage (evidencias)         |
 | smtp4dev   | 5080 (UI), 2525 (SMTP) | Captura de correos salientes en desarrollo (notificaciones al coordinador). El puerto 5000 se evita porque en macOS lo usa AirPlay Receiver. |
 
+**SMTP y TLS (`Smtp:SecureSocketOptions`).** Por defecto `StartTls`: si el servidor no ofrece STARTTLS, el envío **falla** en vez de seguir en texto plano (protege el `AUTH` del relay y la contraseña temporal del correo). smtp4dev no ofrece TLS, así que el `appsettings.Development.json.example` usa `None`, que **solo se admite en Development**. Fuera de Development solo se aceptan `StartTls` (puerto **587**, el que se usará en Azure) o `SslOnConnect` (puerto 465); la app no arranca con otra combinación. `Smtp:Username` y `Smtp:Password` van juntos o ninguno.
+
 ## Salud (health checks)
 
 | Ruta | Qué comprueba | Respuesta |

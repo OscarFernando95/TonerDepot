@@ -38,10 +38,9 @@ public class ExternalHealthChecksTests
         Assert.DoesNotContain("127.0.0.1", result.Description);
     }
 
-    [Fact]
-    public async Task Smtp_ServidorQueResponde_EsHealthy()
+    // Servidor SMTP falso mínimo, SIN soporte de STARTTLS (como smtp4dev).
+    private static (int Port, Task Server) StartFakeSmtpWithoutTls(TcpListener listener)
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var server = Task.Run(async () =>
@@ -53,21 +52,42 @@ public class ExternalHealthChecksTests
             await writer.WriteLineAsync("220 fake ESMTP");
             while (await reader.ReadLineAsync() is { } line)
             {
-                var cmd = line.Split(' ')[0].ToUpperInvariant();
-                switch (cmd)
+                switch (line.Split(' ')[0].ToUpperInvariant())
                 {
-                    case "EHLO": await writer.WriteLineAsync("250 fake"); break;
-                    case "NOOP": await writer.WriteLineAsync("250 OK"); break;
+                    case "EHLO": await writer.WriteLineAsync("250 fake"); break; // no anuncia STARTTLS
                     case "QUIT": await writer.WriteLineAsync("221 bye"); return;
                     default: await writer.WriteLineAsync("250 OK"); break;
                 }
             }
         });
-        var check = new SmtpHealthCheck(Options.Create(new SmtpSettings { Host = "127.0.0.1", Port = port }));
+        return (port, server);
+    }
+
+    [Fact]
+    public async Task Smtp_ServidorSinTls_ConModoNone_EsHealthy()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        var (port, server) = StartFakeSmtpWithoutTls(listener);
+        var check = new SmtpHealthCheck(Options.Create(new SmtpSettings { Host = "127.0.0.1", Port = port, SecureSocketOptions = "None" }));
 
         var result = await check.CheckHealthAsync(ContextFor(check, HealthStatus.Degraded));
 
         Assert.Equal(HealthStatus.Healthy, result.Status);
+        await Task.WhenAny(server, Task.Delay(2000));
+    }
+
+    // AUDIT.md H-04: con el modo por defecto (StartTls), un servidor que no ofrece STARTTLS es un FALLO,
+    // no un "sigo en texto plano". Es la misma situación que produce un ataque de STARTTLS stripping.
+    [Fact]
+    public async Task Smtp_ServidorSinTls_ConModoPorDefecto_FallaEnVezDeDegradarATextoPlano()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        var (port, server) = StartFakeSmtpWithoutTls(listener);
+        var check = new SmtpHealthCheck(Options.Create(new SmtpSettings { Host = "127.0.0.1", Port = port }));
+
+        var result = await check.CheckHealthAsync(ContextFor(check, HealthStatus.Degraded));
+
+        Assert.Equal(HealthStatus.Degraded, result.Status);
         await Task.WhenAny(server, Task.Delay(2000));
     }
 

@@ -1,5 +1,4 @@
 using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Toner.Infrastructure.Email;
@@ -25,8 +24,9 @@ public class SmtpHealthCheck : CachedHealthCheck
         try
         {
             using var client = new SmtpClient { Timeout = TimeoutMilliseconds };
-            // Mismas opciones de transporte que SmtpEmailSender, para comprobar el mismo camino.
-            await client.ConnectAsync(_settings.Host, _settings.Port, SecureSocketOptions.StartTlsWhenAvailable, cancellationToken);
+            // Mismo modo de transporte que SmtpEmailSender, para comprobar el mismo camino: si el servidor
+            // deja de ofrecer TLS, el health check lo detecta en vez de "pasar" en texto plano.
+            await client.ConnectAsync(_settings.Host, _settings.Port, _settings.GetSecureSocketOptions(), cancellationToken);
             await client.NoOpAsync(cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
             return HealthCheckResult.Healthy();
