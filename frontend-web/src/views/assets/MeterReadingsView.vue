@@ -12,7 +12,18 @@ const auth = useAuthStore()
 // Para el técnico esta misma pantalla es "Mis máquinas": las que tiene vinculadas, con su contador y su tóner.
 const isTechnician = computed(() => auth.hasRole(RoleNames.Tecnico))
 
+// Dos pestañas, solo Técnico (espejo de MeterReadingsScreen en el móvil):
+// "coverage" (por defecto) — activos instalados en los municipios de su zona, se vinculan solos al
+// asignarle la zona (ver TechnicianService.LinkInstalledAssetsInZonesAsync, backend).
+// "linked" ("Otras máquinas") — el caso excepcional: activos vinculados a mano por un admin que
+// quedan FUERA de su zona (ver AssetService.ListForMeterReadingAsync, que excluye a propósito los que
+// ya caen en cobertura, para no duplicarlos entre las dos pestañas).
+const tab = ref<'linked' | 'coverage'>('coverage')
+const activeTab = computed(() => (isTechnician.value ? tab.value : 'linked'))
+
 const assets = ref<MeterReadingAssetDto[]>([])
+const coverageAssets = ref<MeterReadingAssetDto[]>([])
+const activeAssets = computed(() => (activeTab.value === 'coverage' ? coverageAssets.value : assets.value))
 const tonerDate = new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' })
 function lastTonerLabel(a: MeterReadingAssetDto) {
   if (!a.lastTonerAt) return 'Sin tóner registrado'
@@ -33,17 +44,17 @@ function matches(a: MeterReadingAssetDto, exclude: FilterKey) {
 }
 
 const cityOptions = computed(() =>
-  [...new Set(assets.value.filter((a) => matches(a, 'cityName') && a.cityName).map((a) => a.cityName as string))].sort()
+  [...new Set(activeAssets.value.filter((a) => matches(a, 'cityName') && a.cityName).map((a) => a.cityName as string))].sort()
 )
 const clientOptions = computed(() => {
   const seen = new Map<string, string>()
-  for (const a of assets.value.filter((x) => matches(x, 'clientId') && x.clientId)) {
+  for (const a of activeAssets.value.filter((x) => matches(x, 'clientId') && x.clientId)) {
     seen.set(a.clientId as string, a.clientName as string)
   }
   return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
 })
 
-const filteredAssets = computed(() => assets.value.filter((a) => matches(a, 'cityName') && matches(a, 'clientId')))
+const filteredAssets = computed(() => activeAssets.value.filter((a) => matches(a, 'cityName') && matches(a, 'clientId')))
 
 const NO_CITY = 'Sin ciudad'
 const NO_CLIENT = 'Sin cliente'
@@ -107,6 +118,24 @@ async function loadData(silent = false) {
   }
 }
 
+const loadingCoverage = ref(false)
+
+async function loadCoverage(silent = false) {
+  if (!silent) loadingCoverage.value = true
+  try {
+    const { data } = await meterReadingsApi.listMeterReadingAssetsByCoverage()
+    coverageAssets.value = data
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los equipos de tu cobertura.')
+  } finally {
+    loadingCoverage.value = false
+  }
+}
+
+async function loadAll(silent = false) {
+  await Promise.all([loadData(silent), isTechnician.value ? loadCoverage(silent) : Promise.resolve()])
+}
+
 const tonerDialogRef = ref<InstanceType<typeof TonerDialog> | null>(null)
 
 function openToner(asset: MeterReadingAssetDto) {
@@ -135,7 +164,7 @@ async function handleSave() {
     })
     ElMessage.success('Contador registrado.')
     dialogVisible.value = false
-    await loadData()
+    await loadAll()
   } catch (err: any) {
     ElMessage.error(err.response?.data?.title ?? 'No se pudo registrar el contador.')
   } finally {
@@ -143,8 +172,11 @@ async function handleSave() {
   }
 }
 
-onMounted(loadData)
-useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], () => loadData(true))
+onMounted(loadAll)
+// "Technician"/"Zone": al asignarle una zona a este técnico (o agregarle un municipio a una zona que
+// ya tenía) se auto-vinculan sus activos ya instalados ahí — sin escuchar estos dos tópicos, "Por
+// cobertura" se quedaba mostrando el municipio nuevo pero vacío hasta recargar la página a mano.
+useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Technician', 'Zone'], () => loadAll(true))
 </script>
 
 <template>
@@ -152,19 +184,28 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], ()
     <h1>{{ isTechnician ? 'Mis máquinas' : 'Lectura de contadores' }}</h1>
     <p class="hint">
       <template v-if="isTechnician">
-        Las máquinas que tienes vinculadas. Registra su contador y el tóner que entregas o cambias; así se mantienen al día
-        los cronogramas de mantenimiento y se mide cuánto dura cada tóner.
+        Registra el contador y el tóner que entregas o cambias; así se mantienen al día los cronogramas de mantenimiento y
+        se mide cuánto dura cada tóner.
       </template>
       <template v-else>Registrar el contador aquí mantiene actualizados los cronogramas de mantenimiento de cada activo.</template>
     </p>
 
+    <el-radio-group v-if="isTechnician" v-model="tab" class="tab-toggle">
+      <el-radio-button value="coverage">Por cobertura</el-radio-button>
+      <el-radio-button value="linked">Otras máquinas</el-radio-button>
+    </el-radio-group>
+
     <el-empty
-      v-if="isTechnician && !loading && assets.length === 0"
-      description="Todavía no tienes máquinas vinculadas."
+      v-if="isTechnician && activeTab === 'coverage' && !loadingCoverage && coverageAssets.length === 0"
+      description="No hay equipos instalados en las ciudades de tu cobertura."
+    />
+    <el-empty
+      v-else-if="isTechnician && activeTab === 'linked' && !loading && assets.length === 0"
+      description="No tienes otras máquinas vinculadas."
     >
       <p class="hint">
-        Se vinculan solas cuando completas la instalación de un equipo. Si necesitas otras, pídele a un administrador que
-        te las vincule desde Técnicos → Activos.
+        Aquí aparecen solo los equipos que un administrador te vincula a mano cuando quedan fuera de tu zona de cobertura
+        (ej. para que revises algo puntual). Las máquinas de tu zona están en la pestaña "Por cobertura".
       </p>
     </el-empty>
 
@@ -181,7 +222,12 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], ()
       </el-radio-group>
     </div>
 
-    <el-table v-if="viewMode === 'flat'" :data="filteredAssets" v-loading="loading" stripe>
+    <el-table
+      v-if="viewMode === 'flat'"
+      :data="filteredAssets"
+      v-loading="activeTab === 'coverage' ? loadingCoverage : loading"
+      stripe
+    >
       <el-table-column prop="assetBrandName" label="Marca" width="120" sortable />
       <el-table-column prop="model" label="Modelo" sortable />
       <el-table-column prop="serialNumber" label="Serie" width="140" sortable />
@@ -206,12 +252,12 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], ()
       <el-table-column label="" width="250">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
-          <el-button size="small" @click="openToner(row)">Tóner</el-button>
+          <el-button v-if="activeTab !== 'coverage'" size="small" @click="openToner(row)">Tóner</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-collapse v-else v-model="openGroups" v-loading="loading">
+    <el-collapse v-else v-model="openGroups" v-loading="activeTab === 'coverage' ? loadingCoverage : loading">
       <el-collapse-item v-for="cityGroup in groupedByCity" :key="cityGroup.city" :name="cityGroup.city">
         <template #title>
           {{ cityGroup.city }} ({{ cityGroup.clientGroups.reduce((n, g) => n + g.assets.length, 0) }})
@@ -242,7 +288,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], ()
               <el-table-column label="" width="250">
                 <template #default="{ row }">
                   <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
-                  <el-button size="small" @click="openToner(row)">Tóner</el-button>
+                  <el-button v-if="activeTab !== 'coverage'" size="small" @click="openToner(row)">Tóner</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -278,7 +324,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], ()
       </template>
     </el-dialog>
   </div>
-  <TonerDialog ref="tonerDialogRef" @saved="loadData(true)" />
+  <TonerDialog ref="tonerDialogRef" @saved="loadAll(true)" />
 </template>
 
 <style scoped>
@@ -286,6 +332,10 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory'], ()
   color: var(--el-text-color-secondary);
   font-size: 0.85rem;
   margin: 0 0 1rem;
+}
+
+.tab-toggle {
+  margin-bottom: 1rem;
 }
 
 .filters-bar {
