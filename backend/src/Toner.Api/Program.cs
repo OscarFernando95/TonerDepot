@@ -135,6 +135,11 @@ builder.Services.AddSingleton(sp => new PushChangeInterceptor(
     () => sp.GetRequiredService<IPushNotifier>(),
     sp.GetRequiredService<ILogger<PushChangeInterceptor>>()));
 
+// Nunca a través del PgBouncer de Azure (6432, modo transacción): compartiría el contexto RLS de sesión entre
+// usuarios. La app no arranca si lo intenta (AUDIT.md H-43).
+PostgresConnectionGuard.EnsureNoTransactionPooler(builder.Configuration.GetConnectionString("DefaultConnection"), "DefaultConnection");
+PostgresConnectionGuard.EnsureNoTransactionPooler(builder.Configuration.GetConnectionString("MigrationsConnection"), "MigrationsConnection");
+
 // DefaultConnection usa el rol toner_app (sin privilegios de DDL y sujeto a RLS). Las migraciones
 // usan MigrationsConnection (owner) vía TonerDbContextFactory, no esta configuración.
 builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>

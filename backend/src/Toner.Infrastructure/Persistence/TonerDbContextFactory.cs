@@ -34,6 +34,9 @@ public class TonerDbContextFactory : IDesignTimeDbContextFactory<TonerDbContext>
                 "Falta la cadena de conexión 'MigrationsConnection'. Las migraciones deben correr con el " +
                 "rol owner de Postgres, no con el rol de la aplicación (que no tiene privilegios de DDL).");
 
+        // dotnet ef tampoco debe ir por el PgBouncer de Azure (AUDIT.md H-43).
+        PostgresConnectionGuard.EnsureNoTransactionPooler(connectionString, "MigrationsConnection");
+
         var options = new DbContextOptionsBuilder<TonerDbContext>()
             .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly("Toner.Infrastructure"))
             .Options;
