@@ -42,6 +42,7 @@ using Toner.Infrastructure.Auth;
 using Toner.Infrastructure.Email;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Toner.Api.Health;
+using Toner.Api.RateLimiting;
 using Toner.Infrastructure.Health;
 using Toner.Infrastructure.Jobs;
 using Toner.Infrastructure.Logging;
@@ -92,34 +93,8 @@ builder.Services.AddHsts(options =>
     options.IncludeSubDomains = true;
 });
 
-// Prerequisito real para que el rate limiting por IP (hallazgo #2) siga funcionando por-cliente-real
-// el día que haya un reverse proxy delante — sin esto, RemoteIpAddress vería la IP del proxy para
-// todos. KnownProxies/KnownNetworks se leen de "ReverseProxy" en configuración, vacíos por defecto:
-// sin configurarlos, ASP.NET Core mantiene su default (solo confía en el header si la conexión
-// INMEDIATA viene de loopback), así que hoy, sin proxy, el header simplemente se ignora — no hay
-// forma de spoofear la IP aceptando X-Forwarded-For de cualquier origen sin restricción.
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.ForwardLimit = 1; // Un solo salto: no confiar en una cadena de proxies arbitraria.
-
-    foreach (var proxy in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? Array.Empty<string>())
-    {
-        if (IPAddress.TryParse(proxy, out var address))
-        {
-            options.KnownProxies.Add(address);
-        }
-    }
-
-    foreach (var network in builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? Array.Empty<string>())
-    {
-        var parts = network.Split('/');
-        if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var prefix) && int.TryParse(parts[1], out var prefixLength))
-        {
-            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
-        }
-    }
-});
+// IP real del cliente detrás del proxy (App Service incluido): ver ForwardedHeadersSetup y README.
+builder.Services.Configure<ForwardedHeadersOptions>(options => ForwardedHeadersSetup.Configure(options, builder.Configuration));
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
@@ -335,59 +310,9 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+// Por usuario (sub) con IP de respaldo, y login por IP + cédula (AUDIT.md H-13): ver RateLimitingSetup.
+builder.Services.AddTonerRateLimiting(builder.Configuration);
 
-    options.OnRejected = async (context, cancellationToken) =>
-    {
-        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-        {
-            context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
-        }
-
-        await context.HttpContext.Response.WriteAsJsonAsync(
-            new
-            {
-                title = "Demasiadas solicitudes. Intenta de nuevo más tarde.",
-                status = StatusCodes.Status429TooManyRequests
-            },
-            options: null,
-            contentType: "application/problem+json",
-            cancellationToken: cancellationToken);
-    };
-
-    // Partición por IP de conexión. UseForwardedHeaders ya está configurado y corre ANTES que este
-    // middleware en el pipeline, así que RemoteIpAddress refleja la IP real del cliente incluso
-    // detrás de un reverse proxy — siempre que ese proxy esté declarado en ReverseProxy:KnownProxies
-    // (o :KnownNetworks). Si no se declara, ASP.NET Core ignora el X-Forwarded-For y esto degrada a
-    // un límite compartido por todos los clientes detrás del proxy, en vez de uno por IP real.
-    static string PartitionKey(HttpContext context) =>
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-
-    // Política estricta para login y cambio de contraseña: 5 intentos por minuto por IP, sin cola
-    // (el exceso se rechaza de inmediato con 429 en vez de esperar turno).
-    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-        PartitionKey(context),
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0
-        }));
-
-    // Límite global (aplica a toda la API, incluidos los endpoints anónimos) de 100 requests por
-    // minuto por IP, como tope general contra floods que no sean específicamente de auth.
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            PartitionKey(context),
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0
-            }));
-});
 
 var app = builder.Build();
 
@@ -436,8 +361,6 @@ app.UseHttpsRedirection();
 
 app.UseCors("Frontend");
 
-app.UseRateLimiter();
-
 // Antes de UseAuthentication a propósito: la validación del token (SecurityStampValidator) consulta
 // la tabla Users y abre una conexión, así que ya tiene que haber un TenantContext establecido o el
 // interceptor lanzaría. El contexto se evalúa de forma perezosa contra HttpContext.User, así que esa
@@ -445,6 +368,11 @@ app.UseRateLimiter();
 app.UseMiddleware<TenantContextMiddleware>();
 
 app.UseAuthentication();
+
+// DESPUÉS de autenticar (el límite global se reparte por el sub de un token YA validado) y antes de autorizar
+// (una request rechazada no llega a OpenDbConnectionMiddleware ni abre conexión). AUDIT.md H-13.
+app.UseTonerRateLimiting();
+
 app.UseAuthorization();
 
 // Después de UseAuthentication a propósito — ver OpenDbConnectionMiddleware para el razonamiento
