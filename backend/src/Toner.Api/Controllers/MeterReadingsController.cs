@@ -28,18 +28,26 @@ public class MeterReadingsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> List(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? search, [FromQuery] Guid? cityId, [FromQuery] Guid? clientId,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListForMeterReadingAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
+        var filter = new MeterReadingListFilter(search, cityId, clientId);
+        return Ok(await _assetService.ListForMeterReadingAsync(User.ToRequestingUser(), page, pageSize, filter, cancellationToken));
     }
 
     // Pestaña de respaldo (app móvil, solo Técnico) — activos instalados en sus ciudades de cobertura,
     // para cuando el técnico titular de un activo no está disponible (vacaciones, incapacidad,
     // renuncia/despido) y de otro modo quedaría sin nadie que le registre lecturas.
     [HttpGet("by-coverage")]
-    public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> ListByCoverage([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MeterReadingAssetDto>>> ListByCoverage(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? search, [FromQuery] Guid? cityId, [FromQuery] Guid? clientId,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListForMeterReadingByCoverageAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
+        var filter = new MeterReadingListFilter(search, cityId, clientId);
+        return Ok(await _assetService.ListForMeterReadingByCoverageAsync(User.ToRequestingUser(), page, pageSize, filter, cancellationToken));
     }
 
     [HttpPost("{assetId:guid}")]

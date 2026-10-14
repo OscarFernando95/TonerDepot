@@ -1,3 +1,4 @@
+using Toner.Application.Assets.Dtos;
 using Toner.Application.Assets;
 using Toner.Application.Common;
 using Toner.Application.Maintenance;
@@ -111,5 +112,71 @@ public class TechnicianMachinesTests
         Assert.Null(row.LastTonerAt);
         Assert.Null(row.LastTonerCounter);
         Assert.Equal(0, row.TonerUnitsLast90Days);
+    }
+
+    // ── AUDIT.md H-11 (Paso 3): filtros en el servidor para el listado de lecturas ───────────────────
+
+    private static async Task<(string DbName, Guid CityBogota, Guid CityCali, Guid ClientA, Guid ClientB)> SeedFilterableAsync()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var db = TonerTestDb.CreateContext(dbName);
+        var bogota = TestEntities.City("Bogotá");
+        var cali = TestEntities.City("Cali", "Valle del Cauca");
+        var clientA = TestEntities.Client("Papelería Andina");
+        var clientB = TestEntities.Client("Notaría Central");
+        var locA = TestEntities.ClientLocation(clientA, bogota, "Sede Norte");
+        var locB = TestEntities.ClientLocation(clientB, cali, "Sede Centro");
+        var brand = TestEntities.AssetBrand("Ricoh");
+        var model = TestEntities.AssetModel(brand);
+
+        Asset Installed(ClientLocation l, Client c, string serial)
+        {
+            var a = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, l.Id);
+            a.ClientId = c.Id;
+            a.SerialNumber = serial;
+            return a;
+        }
+
+        db.AddRange(bogota, cali, clientA, clientB, locA, locB, brand, model,
+            Installed(locA, clientA, "SN-AAA-1"), Installed(locA, clientA, "SN-AAA-2"), Installed(locB, clientB, "SN-BBB-1"));
+        await db.SaveChangesAsync();
+        return (dbName, bogota.Id, cali.Id, clientA.Id, clientB.Id);
+    }
+
+    [Fact]
+    public async Task ListForMeterReading_FiltraPorCiudadClienteYTexto_EnElServidor()
+    {
+        var s = await SeedFilterableAsync();
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
+        var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Coordinador, null, null);
+
+        var byCity = await service.ListForMeterReadingAsync(staff, null, null, new MeterReadingListFilter(CityId: s.CityCali));
+        Assert.Equal(new[] { "SN-BBB-1" }, byCity.Items.Select(i => i.SerialNumber));
+        Assert.Equal(1, byCity.TotalCount);
+
+        var byClient = await service.ListForMeterReadingAsync(staff, null, null, new MeterReadingListFilter(ClientId: s.ClientA));
+        Assert.Equal(2, byClient.TotalCount);
+
+        var byText = await service.ListForMeterReadingAsync(staff, null, null, new MeterReadingListFilter(Search: "NOTARÍA"));
+        Assert.Equal(new[] { "SN-BBB-1" }, byText.Items.Select(i => i.SerialNumber));
+
+        var bySerial = await service.ListForMeterReadingAsync(staff, null, null, new MeterReadingListFilter(Search: "aaa-2"));
+        Assert.Equal(new[] { "SN-AAA-2" }, bySerial.Items.Select(i => i.SerialNumber));
+    }
+
+    [Fact]
+    public async Task ListForMeterReading_UnTecnicoNoAmpliaSuAlcancePasandoOtroClienteOCiudad()
+    {
+        var s = await SeedFilterableAsync();
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
+        var techUser = Guid.NewGuid();
+        var technicianId = Guid.NewGuid(); // sin activos vinculados ni zona
+
+        var tech = new RequestingUser(techUser, RoleNames.Tecnico, null, technicianId);
+        var result = await service.ListForMeterReadingAsync(tech, null, null, new MeterReadingListFilter(ClientId: s.ClientA));
+
+        Assert.Empty(result.Items);
     }
 }
