@@ -6,9 +6,9 @@ MVP para gestión de alquiler de impresoras (Ricoh), mantenimiento preventivo, s
 
 ```
 Toner/
-├── backend/            # API .NET 8 en capas
+├── backend/            # API .NET 10 en capas
 │   ├── Toner.sln
-│   ├── global.json      # fija el SDK en 8.0.x
+│   ├── global.json      # fija el SDK en 10.0.x
 │   └── src/
 │       ├── Toner.Domain/          # Entidades, enums, sin dependencias externas
 │       ├── Toner.Application/     # Casos de uso, DTOs, validación (FluentValidation)
@@ -21,11 +21,11 @@ Toner/
 
 ## Requisitos
 
-- **.NET SDK 8.0.x** (el repo fija la versión exacta en `backend/global.json`).
+- **.NET SDK 10.0.x** (el repo fija la versión exacta en `backend/global.json`).
 - **Docker** y **Docker Compose**, para levantar Postgres, Azurite (Blob Storage local) y smtp4dev (captura de correos en desarrollo).
-- Herramienta `dotnet-ef` para migraciones: `dotnet tool install --global dotnet-ef`.
+- Herramienta `dotnet-ef` para migraciones: va fijada en `backend/dotnet-tools.json` (misma versión que EF Core). Instálala con `cd backend && dotnet tool restore`; dentro de `backend/`, `dotnet ef` usa esa versión aunque tengas otra global.
 
-> Si tu máquina tiene más de una instalación de .NET (por ejemplo, la fórmula `dotnet` de Homebrew junto con el cask `dotnet-sdk`), verifica con `dotnet --list-sdks` que el 8.0.x sea visible desde el `dotnet` que se resuelve en tu `PATH`. El `global.json` del backend fuerza el SDK 8.x para este proyecto siempre que esa versión sea accesible.
+> Si tu máquina tiene más de una instalación de .NET (por ejemplo, la fórmula `dotnet` de Homebrew junto con el cask `dotnet-sdk`), verifica con `dotnet --list-sdks` que el 10.0.x sea visible desde el `dotnet` que se resuelve en tu `PATH`. El `global.json` del backend fuerza el SDK 10.x para este proyecto siempre que esa versión sea accesible.
 
 ## Levantar el entorno local
 

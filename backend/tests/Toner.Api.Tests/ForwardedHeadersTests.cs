@@ -191,4 +191,15 @@ public class ForwardedHeadersTests
 
         Assert.Equal("198.51.100.20", ip);
     }
+
+    // ── AUDIT.md H-07: en .NET 10 KnownNetworks pasa a KnownIPNetworks (System.Net.IPNetwork) ──────────────
+
+    [Fact]
+    public async Task KnownNetworks_EnCidr_ConfiaEnElProxyDeEsaRed_YNoEnOtra()
+    {
+        var config = new Dictionary<string, string?> { ["ReverseProxy:KnownNetworks:0"] = "10.20.0.0/16" };
+
+        Assert.Equal("198.51.100.20", await SeenIpAsync(config, directIp: "10.20.3.4", xForwardedFor: "198.51.100.20"));
+        Assert.Equal("10.21.3.4", await SeenIpAsync(config, directIp: "10.21.3.4", xForwardedFor: "198.51.100.20"));
+    }
 }

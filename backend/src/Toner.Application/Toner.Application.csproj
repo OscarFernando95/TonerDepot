@@ -6,15 +6,15 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
     <!-- IMemoryCache (hallazgo #10). Explícita y no transitiva a propósito: EF Core ya la arrastra,
          pero apoyarse en eso es justo lo que rompió el build al limpiar paquetes sin usar en el
          hallazgo #37. Si esta capa usa el tipo, declara la dependencia. -->
-    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.13" />
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

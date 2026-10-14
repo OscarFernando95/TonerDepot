@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Toner.Api.Auth;
 using Toner.Api.Middleware;
 using Toner.Api.Serialization;
@@ -73,15 +73,11 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Description = "Ingresa el token JWT (sin el prefijo 'Bearer ')."
     });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    // Swashbuckle 10 / Microsoft.OpenApi 2: el requisito referencia el esquema por nombre dentro del documento.
+    // El id tiene que coincidir con el de AddSecurityDefinition o Swagger UI no manda el token.
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
     });
 });
 

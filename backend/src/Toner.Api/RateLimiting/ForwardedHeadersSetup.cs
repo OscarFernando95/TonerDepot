@@ -25,7 +25,7 @@ public static class ForwardedHeadersSetup
         if (configuration.GetValue("ReverseProxy:TrustAllProxies", false))
         {
             options.KnownProxies.Clear();
-            options.KnownNetworks.Clear();
+            options.KnownIPNetworks.Clear();
             return;
         }
 
@@ -39,10 +39,10 @@ public static class ForwardedHeadersSetup
 
         foreach (var network in configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? Array.Empty<string>())
         {
-            var parts = network.Split('/');
-            if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var prefix) && int.TryParse(parts[1], out var prefixLength))
+            // System.Net.IPNetwork (.NET 8+) sustituye al IPNetwork de HttpOverrides, obsoleto en .NET 10 (AUDIT.md H-07).
+            if (System.Net.IPNetwork.TryParse(network, out var parsed))
             {
-                options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
+                options.KnownIPNetworks.Add(parsed);
             }
         }
     }
