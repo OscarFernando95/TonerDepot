@@ -34,7 +34,13 @@ public class OpenDbConnectionMiddleware
     {
         // /hubs también se salta: un WebSocket vive horas, y abrir aquí la conexión a Postgres la retendría todo ese
         // tiempo por cliente conectado (agotaría el pool). El hub no consulta la base de datos.
-        if (!context.Request.Path.StartsWithSegments("/health") && !context.Request.Path.StartsWithSegments("/hubs"))
+        // Endpoints de transferencia larga (subir o servir una foto por red móvil) marcados con
+        // [NoRequestScopedDbConnection]: no retienen una conexión del pool mientras se mueven los bytes (AUDIT.md
+        // H-14). Este middleware va después de UseAuthorization, así que el endpoint ya está resuelto.
+        var skipForEndpoint = context.GetEndpoint()?.Metadata.GetMetadata<NoRequestScopedDbConnectionAttribute>() is not null;
+
+        if (!skipForEndpoint
+            && !context.Request.Path.StartsWithSegments("/health") && !context.Request.Path.StartsWithSegments("/hubs"))
         {
             await db.Database.OpenConnectionAsync(context.RequestAborted);
         }

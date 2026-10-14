@@ -6,6 +6,8 @@ using Toner.Application.Evidences;
 using Toner.Application.Evidences.Dtos;
 using Toner.Domain.Common;
 
+using Toner.Api.Middleware;
+
 namespace Toner.Api.Controllers;
 
 // Consulta de las fotos de evidencia de un ticket u orden. Staff ve todo; un técnico solo lo que tiene
@@ -29,6 +31,7 @@ public class EvidenceController : ControllerBase
         Ok(await _service.ListAsync(ticketId, orderId, RequesterTechnicianId, cancellationToken));
 
     [HttpGet("{id:guid}/content")]
+    [NoRequestScopedDbConnection] // no retener una conexión del pool mientras se descarga la foto (AUDIT.md H-14)
     public async Task<IActionResult> GetContent(Guid id, CancellationToken cancellationToken)
     {
         var content = await _service.GetContentAsync(id, RequesterTechnicianId, cancellationToken);

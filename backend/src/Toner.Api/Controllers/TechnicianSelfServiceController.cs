@@ -17,6 +17,8 @@ using Toner.Application.Tickets;
 using Toner.Application.Tickets.Dtos;
 using Toner.Domain.Common;
 
+using Toner.Api.Middleware;
+
 namespace Toner.Api.Controllers;
 
 // Autoservicio del propio técnico: check-in/check-out. Deliberadamente en un controller aparte de
@@ -127,6 +129,7 @@ public class TechnicianSelfServiceController : ControllerBase
     // Foto de evidencia (antes / después / contador). Se sube ANTES del check-in/out y su id viaja en esa petición.
     // multipart/form-data: file + kind (Antes|Despues|Contador) + exactamente uno de ticketId / orderId.
     [HttpPost("evidence")]
+    [NoRequestScopedDbConnection] // no retener una conexión del pool mientras sube la foto (AUDIT.md H-14)
     [RequestSizeLimit(12 * 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = 12 * 1024 * 1024)]
     public async Task<ActionResult<EvidenceDto>> UploadEvidence(
