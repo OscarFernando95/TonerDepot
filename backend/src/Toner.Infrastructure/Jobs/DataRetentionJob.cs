@@ -9,7 +9,7 @@ namespace Toner.Infrastructure.Jobs;
 
 // Job recurrente (Hangfire): purga diaria de datos operativos que crecen sin techo (AUDIT.md H-27).
 //
-// UserSessions, ExceptionLogs y el archivo de las fotos de evidencia (H-44). Sobre ExceptionLogs toner_app solo
+// UserSessions, ExceptionLogs, el archivo de las fotos de evidencia (H-44) y los archivos huérfanos (H-47). Sobre ExceptionLogs toner_app solo
 // tiene SELECT de la columna CreatedAt
 // (migración GrantExceptionLogsCreatedAtSelect): lo justo para el WHERE de la purga, sin poder leer el
 // stack trace ni el correo (hallazgo #14).
@@ -92,9 +92,70 @@ public class DataRetentionJob
                 deletedLogs, _options.ExceptionLogsDays);
         }
 
-        var purgedEvidence = await PurgeEvidenceContentAsync(nowUtc.AddMonths(-_options.EvidenceMonths), nowUtc, cancellationToken);
+        var evidenceCutoff = nowUtc.AddMonths(-_options.EvidenceMonths);
+        var purgedEvidence = await PurgeEvidenceContentAsync(evidenceCutoff, nowUtc, cancellationToken);
+        // Después de la purga de H-44: las filas vencidas ya están marcadas y sus archivos ya no cuentan como vivos.
+        var orphanFiles = await DeleteOrphanEvidenceFilesAsync(evidenceCutoff, cancellationToken);
 
-        return deleted + deletedLogs + purgedEvidence;
+        return deleted + deletedLogs + purgedEvidence + orphanFiles;
+    }
+
+    // Archivos de evidencia sin fila viva (AUDIT.md H-47). La purga de arriba recorre FILAS, así que un archivo sin fila
+    // nunca la alcanzaba y quedaba fuera de la retención: pasa si el proceso muere entre subir el archivo y el
+    // SaveChanges (el catch de EvidenceService.UploadAsync cubre excepciones, no un corte del proceso) o si se borra
+    // una fila a mano. Se borra el archivo más viejo que la retención que no tiene una fila sin ContentPurgedAt; uno
+    // con fila viva lo deja, aunque su archivo se haya escrito justo antes del corte.
+    private async Task<int> DeleteOrphanEvidenceFilesAsync(DateTime cutoff, CancellationToken cancellationToken)
+    {
+        // Evidences tiene RLS: fuera del contexto de staff no se ven las filas de otros clientes, y el barrido daría por
+        // huérfanos archivos que sí tienen fila. Se niega ANTES de listar o borrar nada.
+        if (_tenantContextAccessor.Current?.IsStaff != true)
+        {
+            throw new InvalidOperationException(
+                "El barrido de archivos huérfanos exige el contexto de staff: con RLS, cualquier otro contexto no ve todas las filas de Evidences.");
+        }
+
+        const int batchSize = 200;
+        var deleted = 0;
+        var batch = new List<string>(batchSize);
+
+        async Task FlushAsync()
+        {
+            var alive = await _db.Evidences
+                .Where(e => batch.Contains(e.FileUrl) && e.ContentPurgedAt == null)
+                .Select(e => e.FileUrl)
+                .ToListAsync(cancellationToken);
+            foreach (var key in batch.Except(alive))
+            {
+                await _evidenceStorage.DeleteAsync(key, cancellationToken);
+                deleted++;
+            }
+            batch.Clear();
+        }
+
+        await foreach (var key in _evidenceStorage.ListKeysOlderThanAsync(cutoff, cancellationToken))
+        {
+            batch.Add(key);
+            if (batch.Count == batchSize)
+            {
+                await FlushAsync();
+            }
+        }
+
+        if (batch.Count > 0)
+        {
+            await FlushAsync();
+        }
+
+        if (deleted > 0)
+        {
+            // Warning: un huérfano es una anomalía (un upload cortado o una fila borrada a mano), no el flujo normal.
+            _logger.LogWarning(
+                "Retención: {Count} archivo(s) de evidencia sin registro vivo y con más de {Months} meses eliminados de Blob.",
+                deleted, _options.EvidenceMonths);
+        }
+
+        return deleted;
     }
 
     // Fotos de evidencia vencidas: se borra el ARCHIVO de Blob y se conserva la fila con ContentPurgedAt (AUDIT.md
