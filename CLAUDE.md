@@ -1,9 +1,9 @@
 # CLAUDE.md — Toner
 
 Convenciones establecidas durante las sesiones de auditoría de seguridad y
-calidad (`SECURITY_AUDIT.md`, `SECURITY_AUDIT_V2.md`, `CODE_QUALITY_AUDIT.md`
-y el historial de commits del proyecto). Aplican por defecto a cualquier
-funcionalidad nueva, sin necesidad de repetirlas en cada prompt.
+calidad (las auditorías ya se retiraron y se unificaron en `PENDIENTES.md`;
+su razonamiento vive en el historial de commits). Aplican por defecto a
+cualquier funcionalidad nueva, sin necesidad de repetirlas en cada prompt.
 
 Cuando una convención de aquí choque con lo que pide un prompt puntual,
 señala el choque en una frase y sigue con lo pedido bajo la convención,
@@ -166,13 +166,16 @@ convención" ahí.
 
 ## Documentación viva
 
-- `SECURITY_AUDIT.md`, `SECURITY_AUDIT_V2.md` y `CODE_QUALITY_AUDIT.md`
-  reflejan el estado real del proyecto, no una foto del día que se
-  escribieron. Cualquier hallazgo nuevo que surja trabajando en una
-  funcionalidad (un problema de rendimiento, un hueco de RLS, una
-  validación faltante) se agrega ahí — con el mismo formato de severidad /
-  esfuerzo que ya usan — en vez de quedarse solo mencionado en el chat.
-- `SECURITY_AUDIT.md` y `SECURITY_AUDIT_V2.md` están excluidos del repo
-  (`.gitignore`) porque documentaron credenciales que estuvieron expuestas
-  en el historial; siguen siendo la fuente de verdad local, solo no se
-  versionan. `CODE_QUALITY_AUDIT.md` sí está versionado.
+- `PENDIENTES.md` (raíz) es la única lista de lo que sigue abierto: solo
+  pendientes reales, nada de lo ya implementado y verificado. Cualquier
+  hallazgo nuevo que surja trabajando en una funcionalidad (un problema de
+  rendimiento, un hueco de RLS, una validación faltante) se agrega ahí —
+  con su ID, prioridad y esfuerzo — en vez de quedarse solo mencionado en el
+  chat. Al cerrarlo, se **quita** de la lista: el registro de lo resuelto es
+  el commit (`fix(H-xx): ...`), no el archivo.
+- `PENDIENTES.md` está excluido del repo (`.gitignore`): el repo es público y
+  la lista incluye huecos de seguridad abiertos. Es la fuente de verdad local.
+- Los comentarios del código citan IDs de las auditorías retiradas
+  (`AUDIT.md H-13`, `SECURITY_AUDIT.md #16`, `CODE_QUALITY_AUDIT.md §8.4`…).
+  Su razonamiento se recupera con `git log --grep "H-13"`;
+  `CODE_QUALITY_AUDIT.md` sigue además en el historial de git.

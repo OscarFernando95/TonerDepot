@@ -19,11 +19,13 @@ mobile/build/
 !.impeccable/design.json
 graphify-out/
 
-# Informes de auditoría de seguridad: se mantienen fuera del repo a propósito. Documentan
-# credenciales que estuvieron expuestas (ver el historial purgado) y este repo es público —
-# versionarlos volvería a publicar justamente lo que se purgó.
+# Lista de pendientes (sustituye a las auditorías): se mantiene fuera del repo a propósito.
+# Este repo es público y la lista incluye huecos de seguridad aún abiertos. Las auditorías
+# de seguridad anteriores también quedaban fuera porque documentaban credenciales expuestas.
+PENDIENTES.md
 SECURITY_AUDIT.md
 SECURITY_AUDIT_V2.md
+AUDIT.md
 
 # Environment
 .env
