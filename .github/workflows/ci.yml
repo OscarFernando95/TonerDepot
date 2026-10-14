@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (.NET 8 + Postgres)
+    name: Backend (.NET 10 + Postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -75,6 +75,12 @@ jobs:
       - name: Instalar dotnet-ef
         working-directory: backend
         run: dotnet tool restore
+
+      # dotnet ef lee los metadatos del proyecto antes de compilar y necesita obj/project.assets.json:
+      # en un checkout limpio no existe hasta hacer el restore (NETSDK1004).
+      - name: Restaurar paquetes
+        working-directory: backend
+        run: dotnet restore Toner.sln
 
       - name: Aplicar migraciones (rol owner)
         working-directory: backend
