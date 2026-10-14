@@ -70,8 +70,11 @@ jobs:
       - name: Crear/verificar roles de la aplicación
         run: ./docker/postgres/create-app-role.sh
 
+      # dotnet-ef fijado en backend/dotnet-tools.json, a la misma versión que EF Core (AUDIT.md H-07): desde EF 9,
+      # database update falla si el modelo tiene cambios sin migrar, y una herramienta de otra versión no está garantizada.
       - name: Instalar dotnet-ef
-        run: dotnet tool install --global dotnet-ef --version 8.0.11
+        working-directory: backend
+        run: dotnet tool restore
 
       - name: Aplicar migraciones (rol owner)
         working-directory: backend
