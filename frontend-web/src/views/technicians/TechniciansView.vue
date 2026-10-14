@@ -47,9 +47,8 @@ const loadingAssets = ref(false)
 const savingAsset = ref(false)
 const assetSearch = ref('')
 
-// GET /assets no tiene filtro server-side (mismo comentario que en el
-// catálogo de activos) — el buscador filtra client-side sobre el catálogo
-// completo de activos Instalado ya cargado.
+// El catálogo de activos Instalado se pide completo al servidor (todas las páginas, AUDIT.md H-11) porque "Vincular
+// todos" necesita el conjunto entero; el buscador filtra sobre ese conjunto ya cargado.
 const availableAssets = computed(() => {
   const linkedIds = new Set(linkedAssets.value.map((l) => l.assetId))
   const q = assetSearch.value.trim().toLowerCase()
@@ -122,10 +121,11 @@ async function openAssetsDialog(technician: TechnicianDto) {
   try {
     const [linkedRes, assetsRes] = await Promise.all([
       techniciansApi.listTechnicianAssets(technician.id),
-      assetsApi.listAssets()
+      // Solo los instalados, filtrado en el servidor y recorriendo todas las páginas (AUDIT.md H-11).
+      assetsApi.listAllAssets({ status: 'Instalado' })
     ])
     linkedAssets.value = linkedRes.data
-    installedAssets.value = assetsRes.data.filter((a) => a.lifecycleStatus === 'Instalado')
+    installedAssets.value = assetsRes
   } catch (err: any) {
     console.error('TechniciansView.openAssetsDialog failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los activos.')

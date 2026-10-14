@@ -49,9 +49,7 @@ function assetOptionLabel(a: AssetDto) {
   return a.area ? `${base} · Área: ${a.area}` : base
 }
 
-const assetsAtLocation = computed(() =>
-  form.clientLocationId ? assets.value.filter((a) => a.currentClientLocationId === form.clientLocationId) : []
-)
+const assetsAtLocation = computed(() => assets.value)
 
 // El selector de Activo solo aparece cuando el cliente elegido tiene contrato (sus equipos están
 // catalogados como Asset con hoja de vida). Para un cliente externo no tiene sentido — nunca tendrá
@@ -114,12 +112,7 @@ async function openCreateDialog() {
     const { data } = await clientsApi.listClients()
     clients.value = data
   }
-  // El inventario de activos para Staff es global; para un Cliente con contrato se resuelve más abajo
-  // (assetsApi.listAssets ya se autofiltra a los activos de su propio cliente en el backend).
-  if (!isClient && assets.value.length === 0) {
-    const { data } = await assetsApi.listAssets()
-    assets.value = data
-  }
+  assets.value = []
 
   // Set last so the watcher below fires once now that clients/locations are ready to load.
   form.clientId = isClient ? (auth.user?.clientId ?? '') : ''
@@ -127,14 +120,27 @@ async function openCreateDialog() {
   if (isClient && form.clientId) {
     const { data } = await clientsApi.getClient(form.clientId)
     selectedClientIsContract.value = data.isContractClient
-    if (selectedClientIsContract.value && assets.value.length === 0) {
-      const { data: assetsData } = await assetsApi.listAssets()
-      assets.value = assetsData
-    }
   }
 
   dialogVisible.value = true
 }
+
+// Los activos del selector se piden por SEDE, en el servidor (AUDIT.md H-11): antes se cargaba todo el inventario y se
+// truncaba en silencio a 200. El backend ya limita a un Cliente a los activos de sus propias sedes.
+watch(
+  () => form.clientLocationId,
+  async (locationId) => {
+    form.assetId = ''
+    assets.value = []
+    if (!locationId) return
+    try {
+      assets.value = await assetsApi.listAllAssets({ clientLocationId: locationId })
+    } catch (err) {
+      console.error('TicketsListView: no se pudieron cargar los activos de la sede', err)
+      ElMessage.error('No se pudieron cargar los activos de la sede.')
+    }
+  }
+)
 
 watch(
   () => form.clientId,

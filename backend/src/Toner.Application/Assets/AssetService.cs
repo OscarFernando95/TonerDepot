@@ -76,7 +76,8 @@ public class AssetService : IAssetService
         return await ToDtoAsync(asset.Id, cancellationToken);
     }
 
-    public async Task<PagedResult<AssetDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AssetDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, AssetListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var query = _db.Assets.AsQueryable();
 
@@ -87,10 +88,51 @@ public class AssetService : IAssetService
             query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId);
         }
 
+        // Filtros del servidor (AUDIT.md H-11), sobre la entidad y ANTES de paginar. Van DESPUÉS del alcance del rol,
+        // así que son un AND: pasar el clientId de otro nunca amplía lo que ve un Cliente.
+        if (filter is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(filter.Status))
+            {
+                var status = EnumParsing.ParseOrThrow<AssetLifecycleStatus>(filter.Status, nameof(filter.Status));
+                query = query.Where(a => a.LifecycleStatus == status);
+            }
+
+            if (filter.ClientLocationId is { } locationId)
+            {
+                query = query.Where(a => a.CurrentClientLocationId == locationId);
+            }
+
+            if (filter.CityId is { } cityId)
+            {
+                query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.CityId == cityId);
+            }
+
+            if (filter.ClientId is { } clientIdFilter)
+            {
+                query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.ClientId == clientIdFilter);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim().ToLower();
+                query = query.Where(a =>
+                    a.SerialNumber.ToLower().Contains(term)
+                    || a.AssetModel.Name.ToLower().Contains(term)
+                    || a.AssetModel.AssetBrand.Name.ToLower().Contains(term)
+                    || (a.Area != null && a.Area.ToLower().Contains(term))
+                    || (a.CurrentClientLocation != null
+                        && (a.CurrentClientLocation.Name.ToLower().Contains(term)
+                            || a.CurrentClientLocation.Client.Name.ToLower().Contains(term)
+                            || a.CurrentClientLocation.City.Name.ToLower().Contains(term))));
+            }
+        }
+
         // La paginación va ANTES de adjuntar las últimas lecturas: así el trabajo extra se hace solo
-        // sobre la página, no sobre el listado completo.
+        // sobre la página, no sobre el listado completo. Desempate por Id: sin él, paginar por offset con marca y
+        // modelo repetidos repite o salta filas.
         var result = await ProjectedFrom(query)
-            .OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model)
+            .OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model).ThenBy(a => a.SerialNumber).ThenBy(a => a.Id)
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
         await AttachLastMeterReadingsAsync(result.Items, cancellationToken);

@@ -14,9 +14,10 @@ const { tagType: statusTagType } = useStatusTag('asset')
 async function loadAssets(silent = false) {
   if (!silent) loading.value = true
   try {
-    const { data } = await assetsApi.listAssets()
-    assets.value = data
+    // El backend limita a un Cliente a los activos de sus sedes; se recorren todas las páginas (AUDIT.md H-11).
+    assets.value = await assetsApi.listAllAssets()
   } catch (err: any) {
+    console.error('MyAssetsView: no se pudieron cargar los activos', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar tus activos.')
   } finally {
     loading.value = false

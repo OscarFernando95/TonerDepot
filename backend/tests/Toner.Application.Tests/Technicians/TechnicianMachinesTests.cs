@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Toner.Application.Assets.Dtos;
 using Toner.Application.Assets;
 using Toner.Application.Common;
@@ -178,5 +179,52 @@ public class TechnicianMachinesTests
         var result = await service.ListForMeterReadingAsync(tech, null, null, new MeterReadingListFilter(ClientId: s.ClientA));
 
         Assert.Empty(result.Items);
+    }
+
+    // ── AUDIT.md H-11 (Paso 3): filtros del servidor en el listado de activos ────────────────────────
+
+    [Fact]
+    public async Task ListAssets_FiltraPorSedeEstadoCiudadClienteYTexto_EnElServidor()
+    {
+        var s = await SeedFilterableAsync();
+        Guid locationB, clientA;
+        using (var arrange = TonerTestDb.CreateContext(s.DbName))
+        {
+            // Un activo en bodega, para el filtro por estado.
+            var model = await arrange.AssetModels.FirstAsync();
+            var stored = TestEntities.Asset(model, AssetLifecycleStatus.EnBodega);
+            stored.SerialNumber = "SN-BODEGA";
+            arrange.Add(stored);
+            await arrange.SaveChangesAsync();
+            locationB = (await arrange.ClientLocations.FirstAsync(l => l.Name == "Sede Centro")).Id;
+            clientA = s.ClientA;
+        }
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
+        var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Coordinador, null, null);
+
+        string[] Serials(Toner.Application.Common.Paging.PagedResult<AssetDto> r) => r.Items.Select(i => i.SerialNumber).OrderBy(x => x).ToArray();
+
+        Assert.Equal(new[] { "SN-BBB-1" }, Serials(await service.ListAsync(staff, null, null, new AssetListFilter(ClientLocationId: locationB))));
+        Assert.Equal(new[] { "SN-BODEGA" }, Serials(await service.ListAsync(staff, null, null, new AssetListFilter(Status: "EnBodega"))));
+        Assert.Equal(new[] { "SN-BBB-1" }, Serials(await service.ListAsync(staff, null, null, new AssetListFilter(CityId: s.CityCali))));
+        Assert.Equal(new[] { "SN-AAA-1", "SN-AAA-2" }, Serials(await service.ListAsync(staff, null, null, new AssetListFilter(ClientId: clientA))));
+        Assert.Equal(new[] { "SN-BBB-1" }, Serials(await service.ListAsync(staff, null, null, new AssetListFilter(Search: "NOTARÍA"))));
+    }
+
+    [Fact]
+    public async Task ListAssets_UnClienteNoVeMasPorPasarElClientIdDeOtro_NiUnEstadoInvalidoEs500()
+    {
+        var s = await SeedFilterableAsync();
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
+        var asClientA = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, s.ClientA, null);
+
+        var other = await service.ListAsync(asClientA, null, null, new AssetListFilter(ClientId: s.ClientB));
+        Assert.Empty(other.Items);
+
+        await Assert.ThrowsAsync<FluentValidation.ValidationException>(() =>
+            service.ListAsync(asClientA, null, null, new AssetListFilter(Status: "NoExiste")));
     }
 }
