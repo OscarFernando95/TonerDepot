@@ -164,6 +164,22 @@ convención" ahí.
   relacionados en el mismo commit (el historial del proyecto sigue este
   patrón consistentemente — úsalo como referencia de granularidad).
 
+## Flujo de ramas
+
+- **`preprod` es la rama de integración**: todo el desarrollo parte de ella y
+  vuelve a ella con un pull request. Cada rama de trabajo sale de `preprod`
+  (`feat/…`, `fix/…`, `chore/…`) y se fusiona con un PR; el CI debe estar en
+  verde antes de fusionar.
+- **`main` solo recibe merges controlados desde `preprod`**, cuando hay un
+  conjunto de cambios listo para producción. Nadie hace push directo a `main`
+  ni abre PRs hacia `main` desde ramas de trabajo.
+- Los PRs se fusionan con **"Create a merge commit"**, no *squash* ni
+  *rebase*: la regla del proyecto es un commit por hallazgo o feature lógica
+  y el historial lo conserva así.
+- Tras cada merge a `main`, `preprod` ya contiene todo `main` (el merge sale
+  de ella); si alguien corrige algo directamente en `main`, se trae de vuelta
+  con `git switch preprod && git merge main`.
+
 ## Documentación viva
 
 - `PENDIENTES.md` (raíz) es la única lista de lo que sigue abierto: solo

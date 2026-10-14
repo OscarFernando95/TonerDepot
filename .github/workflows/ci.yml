@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # preprod es la rama de integración del equipo; main solo recibe merges controlados desde ella.
+    branches: [main, preprod]
   pull_request:
 
 permissions:
