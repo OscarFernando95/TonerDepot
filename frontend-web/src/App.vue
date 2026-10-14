@@ -1,4 +1,9 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import es from 'element-plus/es/locale/lang/es'
+
+// Idioma de Element Plus (antes lo daba app.use(ElementPlus, { locale })). Con la carga bajo demanda (AUDIT.md H-21)
+// se entrega por ConfigProvider, que alcanza a todos los componentes de la app.
+</script>
 
 <template>
   <!--
@@ -22,5 +27,7 @@
     the finish review, the verdict, DESIGN.md, and every shipping raster
     carrying its provenance.
   -->
-  <router-view />
+  <el-config-provider :locale="es">
+    <router-view />
+  </el-config-provider>
 </template>
