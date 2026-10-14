@@ -145,6 +145,12 @@ public class EvidenceService : IEvidenceService
             await EnsureTechnicianOwnsTargetAsync(techId, evidence.ServiceTicketId, evidence.MaintenanceOrderId, cancellationToken);
         }
 
+        // Archivo borrado por la política de retención (AUDIT.md H-44): ni se intenta ir a Blob.
+        if (evidence.ContentPurgedAt is not null)
+        {
+            throw new NotFoundException("La foto se eliminó al cumplirse el plazo de retención.");
+        }
+
         var stream = await _storage.OpenReadAsync(evidence.FileUrl, cancellationToken)
             ?? throw new NotFoundException(nameof(Evidence), evidenceId);
 
@@ -173,7 +179,8 @@ public class EvidenceService : IEvidenceService
         UploadedAt = e.UploadedAt,
         ServiceTicketId = e.ServiceTicketId,
         MaintenanceOrderId = e.MaintenanceOrderId,
-        TimeLogId = e.TimeLogId
+        TimeLogId = e.TimeLogId,
+        ContentPurgedAt = e.ContentPurgedAt
     };
 }
 

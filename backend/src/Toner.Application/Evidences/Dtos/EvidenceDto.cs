@@ -11,4 +11,8 @@ public class EvidenceDto
     public Guid? ServiceTicketId { get; set; }
     public Guid? MaintenanceOrderId { get; set; }
     public Guid? TimeLogId { get; set; }
+
+    // Si tiene valor, el archivo se borró por la política de retención y ya no puede descargarse; el registro se
+    // conserva (AUDIT.md H-44). Los clientes muestran un recuadro en vez de pedir el contenido.
+    public DateTime? ContentPurgedAt { get; set; }
 }

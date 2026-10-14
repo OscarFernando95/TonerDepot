@@ -13,9 +13,17 @@ public class DataRetentionOptions
     // ExceptionLogs: se purgan las filas con CreatedAt anterior al corte.
     public int ExceptionLogsDays { get; set; } = 90;
 
+    // Fotos de evidencia: tras este plazo se borra el ARCHIVO de Blob y se conserva el registro (AUDIT.md H-44).
+    public int EvidenceMonths { get; set; } = 3;
+
     // Falla rápido al arrancar, igual que los demás validadores de configuración (CLAUDE.md, Secretos).
     public void EnsureValid()
     {
+        if (EvidenceMonths < 1)
+        {
+            throw new InvalidOperationException($"Retention:EvidenceMonths debe ser al menos 1 (valor actual: {EvidenceMonths}).");
+        }
+
         if (UserSessionsDays < MinimumDays)
         {
             throw new InvalidOperationException(

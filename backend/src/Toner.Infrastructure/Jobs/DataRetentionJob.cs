@@ -2,19 +2,22 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Toner.Application.Common.Interfaces;
+using Toner.Application.Evidences;
 using Toner.Infrastructure.Persistence;
 
 namespace Toner.Infrastructure.Jobs;
 
 // Job recurrente (Hangfire): purga diaria de datos operativos que crecen sin techo (AUDIT.md H-27).
 //
-// UserSessions y ExceptionLogs. Sobre ExceptionLogs toner_app solo tiene SELECT de la columna CreatedAt
+// UserSessions, ExceptionLogs y el archivo de las fotos de evidencia (H-44). Sobre ExceptionLogs toner_app solo
+// tiene SELECT de la columna CreatedAt
 // (migración GrantExceptionLogsCreatedAtSelect): lo justo para el WHERE de la purga, sin poder leer el
 // stack trace ni el correo (hallazgo #14).
 public class DataRetentionJob
 {
     private readonly TonerDbContext _db;
     private readonly DataRetentionOptions _options;
+    private readonly IEvidenceStorage _evidenceStorage;
     private readonly IExceptionLogger _exceptionLogger;
     private readonly ILogger<DataRetentionJob> _logger;
     private readonly ITenantContextAccessor _tenantContextAccessor;
@@ -22,12 +25,14 @@ public class DataRetentionJob
     public DataRetentionJob(
         TonerDbContext db,
         IOptions<DataRetentionOptions> options,
+        IEvidenceStorage evidenceStorage,
         IExceptionLogger exceptionLogger,
         ILogger<DataRetentionJob> logger,
         ITenantContextAccessor tenantContextAccessor)
     {
         _db = db;
         _options = options.Value;
+        _evidenceStorage = evidenceStorage;
         _exceptionLogger = exceptionLogger;
         _logger = logger;
         _tenantContextAccessor = tenantContextAccessor;
@@ -87,6 +92,55 @@ public class DataRetentionJob
                 deletedLogs, _options.ExceptionLogsDays);
         }
 
-        return deleted + deletedLogs;
+        var purgedEvidence = await PurgeEvidenceContentAsync(nowUtc.AddMonths(-_options.EvidenceMonths), nowUtc, cancellationToken);
+
+        return deleted + deletedLogs + purgedEvidence;
+    }
+
+    // Fotos de evidencia vencidas: se borra el ARCHIVO de Blob y se conserva la fila con ContentPurgedAt (AUDIT.md
+    // H-44) — queda la prueba de que la visita tuvo fotos, quién las tomó y cuándo. Por lotes: la primera corrida en
+    // producción puede encontrar meses de fotos. Primero se borra el blob y después se marca la fila: si algo falla
+    // entre ambos pasos, la siguiente corrida repite el borrado (DeleteIfExists, inocuo) y marca.
+    private async Task<int> PurgeEvidenceContentAsync(DateTime cutoff, DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        const int batchSize = 200;
+        var purged = 0;
+
+        while (true)
+        {
+            var batch = await _db.Evidences
+                .Where(e => e.ContentPurgedAt == null && e.UploadedAt < cutoff)
+                .OrderBy(e => e.UploadedAt)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            foreach (var evidence in batch)
+            {
+                await _evidenceStorage.DeleteAsync(evidence.FileUrl, cancellationToken);
+                evidence.ContentPurgedAt = nowUtc;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            purged += batch.Count;
+
+            if (batch.Count < batchSize)
+            {
+                break;
+            }
+        }
+
+        if (purged > 0)
+        {
+            _logger.LogInformation(
+                "Retención: archivo de {Count} foto(s) de evidencia con más de {Months} meses eliminado de Blob (se conservan los registros).",
+                purged, _options.EvidenceMonths);
+        }
+
+        return purged;
     }
 }

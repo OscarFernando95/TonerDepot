@@ -169,6 +169,31 @@ public class EvidenceAndLocationTests
         Assert.Equal("image/jpeg", (await service.GetContentAsync(id, requesterTechnicianId: s.TechnicianId)).ContentType);
     }
 
+    // AUDIT.md H-44: tras la retención, la fila se conserva y la lista lo indica; el contenido ya no se sirve (aunque el
+    // archivo siguiera en Blob, que aquí sí sigue: prueba que la API ni lo intenta).
+    [Fact]
+    public async Task FotoPurgadaPorRetencion_LaListaLoIndica_YElContenidoDa404()
+    {
+        var s = await SeedAsync();
+        var storage = new InMemoryEvidenceStorage();
+        var id = await UploadAsync(s, EvidenceKind.Antes, storage);
+        var purgedAt = new DateTime(2026, 10, 1, 3, 0, 0, DateTimeKind.Utc);
+        using (var db = TonerTestDb.CreateContext(s.DbName))
+        {
+            (await db.Evidences.SingleAsync(e => e.Id == id)).ContentPurgedAt = purgedAt;
+            await db.SaveChangesAsync();
+        }
+
+        using var actDb = TonerTestDb.CreateContext(s.DbName);
+        var service = BuildEvidence(actDb, storage);
+
+        var listed = Assert.Single(await service.ListAsync(s.TicketId, null, requesterTechnicianId: null));
+        Assert.Equal(purgedAt, listed.ContentPurgedAt);
+
+        var ex = await Assert.ThrowsAsync<NotFoundException>(() => service.GetContentAsync(id, requesterTechnicianId: null));
+        Assert.Contains("retención", ex.Message);
+    }
+
     // ── Check-in con fotos y ubicación ───────────────────────────────────────────────────────────
     [Fact]
     public async Task CheckIn_SinFotoAntes_SeRechazaCuandoLaPoliticaLaExige()

@@ -220,7 +220,9 @@ En desarrollo las evidencias van a Azurite con `EvidenceStorage:ConnectionString
 3. App Service → configuración: `EvidenceStorage__ServiceUri=https://<cuenta>.blob.core.windows.net` y **sin** `EvidenceStorage__ConnectionString`. Si la identidad es *user-assigned*: `EvidenceStorage__ManagedIdentityClientId=<client-id>`.
 4. Comprobar `/health/ready` → `blob: Healthy`. Si falta el rol: `Unhealthy` (la app arranca igual; las subidas fallan).
 5. Cuando funcione: en la cuenta de Storage, **Allow storage account key access = Disabled** — la clave deja de servir aunque se filtre.
-6. **Soft delete de blobs** (p. ej. 30 días). **Pendiente de decisión de negocio/legal:** cuánto tiempo conservar las evidencias (política de ciclo de vida).
+6. **Soft delete de blobs** (p. ej. 30 días), como red de seguridad ante un borrado accidental.
+
+**Retención de las fotos (AUDIT.md H-44):** la aplica la **app**, no una *lifecycle policy* de Azure (que borraría archivos sin marcar los registros). El job `data-retention` borra de Blob el archivo de las fotos con más de `Retention:EvidenceMonths` meses (**3** por defecto) y **conserva el registro** (`ContentPurgedAt`): queda la prueba de quién tomó la foto, cuándo y para qué ticket u orden. La web y la app muestran "Foto eliminada por la política de retención" en su lugar. Con soft delete activo, el archivo es recuperable durante esa ventana adicional.
 
 ## Servicios locales (docker-compose)
 
@@ -252,7 +254,7 @@ Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren s
 | `retry-pending-assignments` | cada 10 min | Reintenta asignar tickets/órdenes que quedaron sin técnico por horario, festivo o fuera de oficina. |
 | `evaluate-maintenance-schedules` | diario, 00:00 hora de `WorkCalendar:TimeZoneId` (Bogotá) | Evalúa los cronogramas de mantenimiento por tiempo. |
 | `dispatch-password-emails` | cada minuto (y al instante tras crear/resetear un usuario) | Pasa a Hangfire los correos de contraseña temporal pendientes del outbox (`PasswordEmailOutbox`), que se escribe en la misma transacción que el usuario: el usuario y su correo existen los dos o ninguno. Entrega *at-least-once*. |
-| `data-retention` | diario, 03:00 hora de Bogotá | Purga `UserSessions` terminadas y `ExceptionLogs` con más de `Retention:UserSessionsDays` / `Retention:ExceptionLogsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. Sobre `ExceptionLogs` la app solo tiene `SELECT` de la columna `CreatedAt` (migración `GrantExceptionLogsCreatedAtSelect`): puede purgar por fecha, no leer stacks ni correos. |
+| `data-retention` | diario, 03:00 hora de Bogotá | Borra el **archivo** de las fotos de evidencia con más de `Retention:EvidenceMonths` (3) meses, conservando el registro. Purga `UserSessions` terminadas y `ExceptionLogs` con más de `Retention:UserSessionsDays` / `Retention:ExceptionLogsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. Sobre `ExceptionLogs` la app solo tiene `SELECT` de la columna `CreatedAt` (migración `GrantExceptionLogsCreatedAtSelect`): puede purgar por fecha, no leer stacks ni correos. |
 
 ## Autenticación
 
