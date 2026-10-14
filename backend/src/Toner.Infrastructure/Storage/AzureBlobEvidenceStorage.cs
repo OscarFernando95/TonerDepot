@@ -15,7 +15,7 @@ public class AzureBlobEvidenceStorage : IEvidenceStorage
     private volatile bool _containerReady;
 
     public AzureBlobEvidenceStorage(IOptions<EvidenceStorageSettings> options)
-        : this(new BlobContainerClient(options.Value.ConnectionString, options.Value.ContainerName))
+        : this(EvidenceContainerClientFactory.Create(options.Value))
     {
     }
 

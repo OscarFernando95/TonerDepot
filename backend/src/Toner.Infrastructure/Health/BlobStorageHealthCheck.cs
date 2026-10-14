@@ -17,8 +17,8 @@ public class BlobStorageHealthCheck : CachedHealthCheck
     public BlobStorageHealthCheck(IOptions<EvidenceStorageSettings> options, TimeSpan? ttl = null, TimeProvider? time = null)
         : base(ttl, time)
     {
-        var settings = options.Value;
-        _container = new BlobContainerClient(settings.ConnectionString, settings.ContainerName);
+        // Misma fábrica (y por tanto misma credencial) que AzureBlobEvidenceStorage.
+        _container = EvidenceContainerClientFactory.Create(options.Value);
     }
 
     protected override async Task<HealthCheckResult> CheckCoreAsync(HealthCheckContext context, CancellationToken cancellationToken)

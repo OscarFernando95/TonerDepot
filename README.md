@@ -203,6 +203,17 @@ Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, qu
 - **Rate limiting** (`RateLimitingSetup`, AUDIT.md H-13): global 100/min **por usuario** autenticado (por IP si es anónimo), login 5/min por **IP + cédula** (compañeros detrás del mismo NAT no se bloquean entre sí) y cambio de contraseña 5/min por usuario. Valores en `RateLimiting:*`.
 - **`AllowedHosts`**: se fija por entorno vía la variable de entorno `AllowedHosts` (sobreescribe el `"*"` de `appsettings.json` por precedencia estándar de configuración) — nada hardcodeado en código. En producción, si queda en `"*"`, la app lo advierte en el log al arrancar (`LogWarning`), para que no pase inadvertido.
 
+## Despliegue en Azure: Blob Storage con Managed Identity
+
+En desarrollo las evidencias van a Azurite con `EvidenceStorage:ConnectionString`. **En Azure no se usa connection string** (equivale a la clave de la cuenta, con acceso total): se usa `EvidenceStorage:ServiceUri` + Managed Identity (AUDIT.md H-18). La app falla al arrancar si no hay ninguna de las dos o si están ambas.
+
+1. App Service → **Identity** → *System assigned* = On.
+2. Cuenta de Storage → **IAM** → rol **Storage Blob Data Contributor** para esa identidad (idealmente acotado al contenedor `evidence`). Incluye crear el contenedor al arrancar.
+3. App Service → configuración: `EvidenceStorage__ServiceUri=https://<cuenta>.blob.core.windows.net` y **sin** `EvidenceStorage__ConnectionString`. Si la identidad es *user-assigned*: `EvidenceStorage__ManagedIdentityClientId=<client-id>`.
+4. Comprobar `/health/ready` → `blob: Healthy`. Si falta el rol: `Unhealthy` (la app arranca igual; las subidas fallan).
+5. Cuando funcione: en la cuenta de Storage, **Allow storage account key access = Disabled** — la clave deja de servir aunque se filtre.
+6. **Soft delete de blobs** (p. ej. 30 días). **Pendiente de decisión de negocio/legal:** cuánto tiempo conservar las evidencias (política de ciclo de vida).
+
 ## Servicios locales (docker-compose)
 
 | Servicio   | Puerto  | Uso                                              |
