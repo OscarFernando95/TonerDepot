@@ -128,8 +128,8 @@ public class InventoryConsumptionPostgresTests
             Assert.Null(entry.StockWarning);
 
             var history = await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-10), null, null, null, staff);
-            Assert.Equal(tonerName, Assert.Single(history.Items.Where(h => h.ItemName == tonerName)).ItemName);
-            Assert.Empty((await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-1), null, null, null, staff)).Items.Where(h => h.ItemName == tonerName));
+            Assert.Equal(tonerName, Assert.Single(history.Items, h => h.ItemName == tonerName).ItemName);
+            Assert.DoesNotContain((await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-1), null, null, null, staff)).Items, h => h.ItemName == tonerName);
         }
         finally
         {
