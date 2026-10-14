@@ -38,9 +38,13 @@ public class ServiceTicketsController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
-    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> List(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? status, [FromQuery] string? priority, [FromQuery] Guid? clientId, [FromQuery] string? search,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _ticketService.ListAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
+        var filter = new ServiceTicketListFilter(status, priority, clientId, search);
+        return Ok(await _ticketService.ListAsync(User.ToRequestingUser(), page, pageSize, filter, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

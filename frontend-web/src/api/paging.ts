@@ -37,7 +37,14 @@ export async function getList<T>(url: string): Promise<AxiosResponse<T[]>> {
 // Para el Paso 3: devuelve el envelope completo, con total/página o cursor según el endpoint.
 export function getPaged<T>(
   url: string,
-  params?: { page?: number; pageSize?: number; cursor?: string }
+  params?: { page?: number; pageSize?: number; cursor?: string } & Record<string, unknown>
 ): Promise<AxiosResponse<PagedResult<T>>> {
-  return http.get<PagedResult<T>>(url, { params })
+  return http.get<PagedResult<T>>(url, { params: withoutEmpty(params) })
+}
+
+// Los filtros vacíos de la UI ('' / null / undefined) no viajan: el servidor los trata como "sin filtro" y la URL
+// queda limpia.
+function withoutEmpty(params?: Record<string, unknown>) {
+  if (!params) return undefined
+  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined))
 }

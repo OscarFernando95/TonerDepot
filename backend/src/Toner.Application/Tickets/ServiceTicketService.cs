@@ -92,9 +92,12 @@ public class ServiceTicketService : IServiceTicketService
         return await ToDtoAsync(ticket.Id, cancellationToken);
     }
 
-    public async Task<PagedResult<ServiceTicketDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ServiceTicketDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, ServiceTicketListFilter? filter = null, CancellationToken cancellationToken = default)
     {
-        var query = Projected(_db);
+        // Sobre la ENTIDAD, antes de proyectar: el DTO expone Status/Priority como texto (ToString) y EF no puede
+        // traducir comparaciones sobre eso.
+        var query = _db.ServiceTickets.AsQueryable();
 
         if (requestingUser.IsTechnician)
         {
@@ -106,7 +109,41 @@ public class ServiceTicketService : IServiceTicketService
             query = query.Where(t => t.ClientId == clientId);
         }
 
-        return await query.OrderByDescending(t => t.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
+        // Filtros del servidor (AUDIT.md H-11): van DESPUÉS del aislamiento del rol, así que son un AND y un clientId
+        // ajeno nunca amplía lo que ve un Cliente o un Técnico.
+        if (filter is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(filter.Status))
+            {
+                var status = EnumParsing.ParseOrThrow<ServiceTicketStatus>(filter.Status, nameof(filter.Status));
+                query = query.Where(t => t.Status == status);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Priority))
+            {
+                var priority = EnumParsing.ParseOrThrow<ServiceTicketPriority>(filter.Priority, nameof(filter.Priority));
+                query = query.Where(t => t.Priority == priority);
+            }
+
+            if (filter.ClientId is { } clientIdFilter)
+            {
+                query = query.Where(t => t.ClientId == clientIdFilter);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim().ToLower();
+                query = query.Where(t =>
+                    t.Description.ToLower().Contains(term)
+                    || t.ClientLocation.Name.ToLower().Contains(term)
+                    || t.ClientLocation.Client.Name.ToLower().Contains(term)
+                    || (t.Asset != null && t.Asset.SerialNumber.ToLower().Contains(term)));
+            }
+        }
+
+        // Desempate por Id: sin él, paginar por offset con CreatedAt repetido puede repetir o saltarse filas.
+        return await ProjectedFrom(query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id))
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<PagedResult<ServiceTicketDto>> ListForLinkedMachinesAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
