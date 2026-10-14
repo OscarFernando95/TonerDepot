@@ -22,6 +22,12 @@ public class DataRetentionPostgresTests
     // con el año 2000 solo califican las filas que siembra cada test.
     private static readonly DateTime Now = new(2000, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
+    // Las pruebas de evidencias cuelgan sus filas del ticket y del usuario de la fixture: hay que sembrarla antes,
+    // o en una base recién migrada (la del CI) no existen.
+    private readonly RlsFixture _fixture;
+
+    public DataRetentionPostgresTests(RlsFixture fixture) => _fixture = fixture;
+
     private static TonerDbContext OwnerContext() =>
         new(new DbContextOptionsBuilder<TonerDbContext>().UseNpgsql(PostgresFactAttribute.OwnerConnectionString).Options);
 
@@ -203,6 +209,7 @@ public class DataRetentionPostgresTests
     [PostgresFact]
     public async Task Evidencias_VencidasBorranElArchivo_YConservanLaFila_LasRecientesNoSeTocan()
     {
+        await _fixture.EnsureSeededAsync();
         var marker = "H44-" + Guid.NewGuid().ToString("N")[..8];
         Guid oldId = Guid.Empty, recentId = Guid.Empty;
         try
@@ -263,6 +270,7 @@ public class DataRetentionPostgresTests
     [PostgresFact]
     public async Task Huerfanos_ViejosSinFilaViva_SeBorran_RecientesYConFilaViva_No()
     {
+        await _fixture.EnsureSeededAsync();
         var marker = "H47-" + Guid.NewGuid().ToString("N")[..8];
         string Key(string name) => $"{marker}/{name}.jpg";
         try
@@ -315,6 +323,7 @@ public class DataRetentionPostgresTests
     [PostgresFact]
     public async Task Huerfanos_SinContextoDeStaff_NoBorraNada()
     {
+        await _fixture.EnsureSeededAsync();
         var marker = "H47-" + Guid.NewGuid().ToString("N")[..8];
         var key = $"{marker}/de-cliente-a.jpg";
         try

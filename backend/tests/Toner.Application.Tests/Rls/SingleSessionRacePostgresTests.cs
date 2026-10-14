@@ -64,6 +64,8 @@ public class SingleSessionRacePostgresTests
     [PostgresFact]
     public async Task DosLoginsSimultaneosDelMismoTecnico_ElSegundoRecibeElMensajeLegible()
     {
+        // No usa RlsFixture: asegura por su cuenta el rol Tecnico, que una base recién migrada no tiene.
+        await RlsFixture.EnsureRolesAsync();
         Guid userId = Guid.Empty;
         var cedula = "7" + Random.Shared.Next(100_000_000, 999_999_999);
         try
