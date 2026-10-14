@@ -37,9 +37,13 @@ public class MaintenanceOrdersController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
-    public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> List(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? status, [FromQuery] Guid? clientId, [FromQuery] string? search,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _orderService.ListAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
+        var filter = new MaintenanceOrderListFilter(status, clientId, search);
+        return Ok(await _orderService.ListAsync(User.ToRequestingUser(), page, pageSize, filter, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
