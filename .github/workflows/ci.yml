@@ -97,6 +97,9 @@ jobs:
       # de fallar) si no llega a Postgres, y eso deja `dotnet test` en verde sin haber probado
       # nada. Aquí se convierte cualquier test no ejecutado en un fallo del CI.
       - name: Fallar si algún test fue saltado
+        # Se compara total con executed en cada .trx: un test saltado cuenta en total pero no en executed. El
+        # contador notExecuted NO sirve: con [Skip] de xunit queda en 0 (comprobado con xunit 2.5.3 y con v3),
+        # así que el chequeo anterior nunca detectaba un salto (AUDIT.md H-48).
         run: |
           shopt -s nullglob
           files=("${{ runner.temp }}"/trx/*.trx)
@@ -104,10 +107,20 @@ jobs:
             echo "::error::No se generó ningún .trx: no se puede comprobar si hubo tests saltados."
             exit 1
           fi
-          if grep -lE 'notExecuted="[1-9]' "${files[@]}"; then
-            echo "::error::Hay tests saltados (¿Postgres no disponible para [PostgresFact]?). Los tests de RLS no pueden saltarse."
-            exit 1
-          fi
+          failed=0
+          for f in "${files[@]}"; do
+            counters=$(grep -oE '<Counters total="[0-9]+" executed="[0-9]+"' "$f" | head -1)
+            total=$(echo "$counters" | sed -E 's/.*total="([0-9]+)".*/\1/')
+            executed=$(echo "$counters" | sed -E 's/.*executed="([0-9]+)".*/\1/')
+            if [ -z "$counters" ]; then
+              echo "::error::$(basename "$f") no tiene contadores: no se puede comprobar si hubo tests saltados."
+              failed=1
+            elif [ "$total" != "$executed" ]; then
+              echo "::error::$(basename "$f"): $((total - executed)) de $total tests no se ejecutaron (¿Postgres no disponible para [PostgresFact]?). Los tests de RLS no pueden saltarse."
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || exit 1
           echo "Ningún test saltado."
 
       - name: Subir resultados de tests
