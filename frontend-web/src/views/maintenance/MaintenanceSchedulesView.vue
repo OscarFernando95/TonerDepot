@@ -1,134 +1,84 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
+import { usePagedList } from '../../composables/usePagedList'
+import * as citiesApi from '../../api/cities'
+import * as clientsApi from '../../api/clients'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as schedulesApi from '../../api/maintenanceSchedules'
 import * as contractsApi from '../../api/contracts'
 import { useAuthStore } from '../../stores/auth'
-import { RoleNames, type ContractDto, type MaintenanceScheduleDto } from '../../api/types'
+import { RoleNames, type CityDto, type ClientDto, type ContractDto, type MaintenanceScheduleDto } from '../../api/types'
 import { formatDateLocal, formatDateUTC } from '../../utils/date'
 
 const auth = useAuthStore()
 const canEvaluateNow = auth.hasRole(RoleNames.Administrador)
 
-const schedules = ref<MaintenanceScheduleDto[]>([])
-const contracts = ref<ContractDto[]>([])
-const loading = ref(false)
 const evaluating = ref(false)
 const backfilling = ref(false)
 
-const viewMode = ref<'grouped' | 'flat'>('grouped')
-const filters = reactive({ cityName: '', clientId: '', contractId: '' })
-
-type FilterKey = keyof typeof filters
-
-function matches(s: MaintenanceScheduleDto, exclude: FilterKey) {
-  const cityOk = exclude === 'cityName' || !filters.cityName || s.cityName === filters.cityName
-  const clientOk = exclude === 'clientId' || !filters.clientId || s.clientId === filters.clientId
-  const contractOk = exclude === 'contractId' || !filters.contractId || s.contractId === filters.contractId
-  return cityOk && clientOk && contractOk
-}
-
-const cityOptions = computed(() =>
-  [...new Set(schedules.value.filter((s) => matches(s, 'cityName') && s.cityName).map((s) => s.cityName as string))].sort()
-)
-const clientOptions = computed(() => {
-  const seen = new Map<string, string>()
-  for (const s of schedules.value.filter((x) => matches(x, 'clientId'))) {
-    seen.set(s.clientId, s.clientName)
+// Listado paginado y filtrado EN EL SERVIDOR (AUDIT.md H-11): antes se traían hasta 200 cronogramas, se filtraban y
+// agrupaban en el cliente y pasado ese tope la lista quedaba incompleta sin avisar.
+const PAGE_SIZE = 25
+const filters = reactive({ search: '', cityId: '', clientId: '', contractId: '', isActive: '' as '' | 'true' | 'false' })
+const {
+  items: schedules,
+  total,
+  page,
+  loading,
+  reload: loadData
+} = usePagedList<MaintenanceScheduleDto, typeof filters>(
+  (params) =>
+    schedulesApi
+      .listMaintenanceSchedulesPaged({ ...params, isActive: params.isActive === '' ? undefined : params.isActive === 'true' })
+      .then((r) => r.data),
+  {
+    filters,
+    pageSize: PAGE_SIZE,
+    label: 'MaintenanceSchedulesView',
+    onError: (err: any) => ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los cronogramas.')
   }
-  return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-})
-const contractLabelById = computed(() => {
-  const map = new Map<string, string>()
-  for (const c of contracts.value) {
-    const start = formatDateUTC(c.startDate)
-    const end = c.endDate ? formatDateUTC(c.endDate) : 'indefinida'
-    map.set(c.id, `${c.clientName} (${start} – ${end})`)
-  }
-  return map
-})
-const contractOptions = computed(() => {
-  const seen = new Set<string>()
-  for (const s of schedules.value.filter((x) => matches(x, 'contractId'))) {
-    seen.add(s.contractId)
-  }
-  return [...seen].map((id) => ({ id, label: contractLabelById.value.get(id) ?? id })).sort((a, b) => a.label.localeCompare(b.label))
-})
-
-const filteredSchedules = computed(() =>
-  schedules.value.filter((s) => matches(s, 'cityName') && matches(s, 'clientId') && matches(s, 'contractId'))
 )
 
+// La búsqueda por texto espera a que se deje de escribir: sin esto cada tecla sería una petición.
+const searchText = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(searchText, (value) => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => (filters.search = value.trim()), 350)
+})
+onBeforeUnmount(() => clearTimeout(searchTimer))
+
+// Opciones de filtro desde catálogos (ya no se derivan de la lista cargada).
+const cityOptions = ref<CityDto[]>([])
+const clientOptions = ref<ClientDto[]>([])
+const contracts = ref<ContractDto[]>([])
+citiesApi.listCities().then(({ data }) => (cityOptions.value = data))
+  .catch((err) => console.error('MaintenanceSchedulesView: no se pudieron cargar las ciudades', err))
+clientsApi.listClients().then(({ data }) => (clientOptions.value = data))
+  .catch((err) => console.error('MaintenanceSchedulesView: no se pudieron cargar los clientes', err))
+contractsApi.listContracts().then(({ data }) => (contracts.value = data))
+  .catch((err) => console.error('MaintenanceSchedulesView: no se pudieron cargar los contratos', err))
+
+const contractOptions = computed(() =>
+  contracts.value
+    .filter((c) => !filters.clientId || c.clientId === filters.clientId)
+    .map((c) => ({
+      id: c.id,
+      label: `${c.clientName} (${formatDateUTC(c.startDate)} – ${c.endDate ? formatDateUTC(c.endDate) : 'indefinida'})`
+    }))
+    .sort((x, y) => x.label.localeCompare(y.label))
+)
+
+const hasFilters = computed(() => !!(filters.search || filters.cityId || filters.clientId || filters.contractId || filters.isActive))
 const emptySchedulesText = computed(() =>
-  filters.cityName || filters.clientId || filters.contractId
-    ? 'No hay cronogramas que coincidan con los filtros.'
-    : 'No hay cronogramas registrados.'
+  hasFilters.value ? 'No hay cronogramas que coincidan con los filtros.' : 'No hay cronogramas registrados.'
 )
 
-const NO_CITY = 'Sin ciudad'
-
-interface ContractGroup {
-  contractId: string
-  contractLabel: string
-  schedules: MaintenanceScheduleDto[]
+function clearFilters() {
+  searchText.value = ''
+  Object.assign(filters, { search: '', cityId: '', clientId: '', contractId: '', isActive: '' })
 }
-interface ClientGroup {
-  clientId: string
-  clientName: string
-  contractGroups: ContractGroup[]
-  scheduleCount: number
-}
-interface CityGroup {
-  city: string
-  clientGroups: ClientGroup[]
-  scheduleCount: number
-}
-
-const groupedByCity = computed<CityGroup[]>(() => {
-  const byCity = new Map<string, Map<string, Map<string, ContractGroup>>>()
-  const clientNames = new Map<string, string>()
-  for (const schedule of filteredSchedules.value) {
-    const city = schedule.cityName ?? NO_CITY
-    clientNames.set(schedule.clientId, schedule.clientName)
-    if (!byCity.has(city)) byCity.set(city, new Map())
-    const byClient = byCity.get(city)!
-    if (!byClient.has(schedule.clientId)) byClient.set(schedule.clientId, new Map())
-    const byContract = byClient.get(schedule.clientId)!
-    if (!byContract.has(schedule.contractId)) {
-      byContract.set(schedule.contractId, {
-        contractId: schedule.contractId,
-        contractLabel: contractLabelById.value.get(schedule.contractId) ?? schedule.contractId,
-        schedules: []
-      })
-    }
-    byContract.get(schedule.contractId)!.schedules.push(schedule)
-  }
-
-  return [...byCity.entries()]
-    .map(([city, byClient]) => {
-      const clientGroups = [...byClient.entries()]
-        .map(([clientId, byContract]) => {
-          const contractGroups = [...byContract.values()].sort((a, b) => a.contractLabel.localeCompare(b.contractLabel))
-          return {
-            clientId,
-            clientName: clientNames.get(clientId) ?? clientId,
-            contractGroups,
-            scheduleCount: contractGroups.reduce((n, c) => n + c.schedules.length, 0)
-          }
-        })
-        .sort((a, b) => a.clientName.localeCompare(b.clientName))
-      return {
-        city,
-        clientGroups,
-        scheduleCount: clientGroups.reduce((n, g) => n + g.scheduleCount, 0)
-      }
-    })
-    .sort((a, b) => a.city.localeCompare(b.city))
-})
-
-const openGroups = ref<string[]>([])
-const groupsInitialized = ref(false)
 
 function printsRemaining(schedule: MaintenanceScheduleDto): number | null {
   if (schedule.lastKnownCounter == null) return null
@@ -181,27 +131,6 @@ function counterDetail(at: string | null, counter: number | null | undefined): s
   return `${formatDateLocal(at)} / ${counter ?? '—'}`
 }
 
-async function loadData(silent = false) {
-  if (!silent) loading.value = true
-  try {
-    const [schedulesRes, contractsRes] = await Promise.all([
-      schedulesApi.listMaintenanceSchedules(),
-      contractsApi.listContracts()
-    ])
-    schedules.value = schedulesRes.data
-    contracts.value = contractsRes.data
-
-    if (!groupsInitialized.value) {
-      openGroups.value = []
-      groupsInitialized.value = true
-    }
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los cronogramas.')
-  } finally {
-    loading.value = false
-  }
-}
-
 async function toggleStatus(schedule: MaintenanceScheduleDto) {
   const nextStatus = !schedule.isActive
   await ElMessageBox.confirm(
@@ -246,8 +175,7 @@ async function backfill() {
   }
 }
 
-onMounted(loadData)
-useRealtimeUpdates(['Schedule'], () => loadData(true))
+useRealtimeUpdates(['Schedule'], () => loadData())
 </script>
 
 <template>
@@ -266,24 +194,27 @@ useRealtimeUpdates(['Schedule'], () => loadData(true))
     </p>
 
     <div class="filters-bar">
-      <el-select v-model="filters.cityName" clearable filterable placeholder="Filtrar por ciudad" style="width: 200px">
-        <el-option v-for="c in cityOptions" :key="c" :label="c" :value="c" />
+      <el-input v-model="searchText" clearable placeholder="Buscar por serie, modelo, cliente, sede o ciudad" style="width: 300px" />
+      <el-select v-model="filters.cityId" clearable filterable placeholder="Ciudad" style="width: 190px">
+        <el-option v-for="c in cityOptions" :key="c.id" :label="c.name" :value="c.id" />
       </el-select>
-      <el-select v-model="filters.clientId" clearable filterable placeholder="Filtrar por cliente" style="width: 220px">
+      <el-select v-model="filters.clientId" clearable filterable placeholder="Cliente" style="width: 210px">
         <el-option v-for="c in clientOptions" :key="c.id" :label="c.name" :value="c.id" />
       </el-select>
-      <el-select v-model="filters.contractId" clearable filterable placeholder="Filtrar por contrato" style="width: 240px">
+      <el-select v-model="filters.contractId" clearable filterable placeholder="Contrato" style="width: 240px">
         <el-option v-for="c in contractOptions" :key="c.id" :label="c.label" :value="c.id" />
       </el-select>
-      <el-radio-group v-model="viewMode" class="view-toggle">
-        <el-radio-button value="grouped">Agrupar por ciudad</el-radio-button>
-        <el-radio-button value="flat">Ver como lista</el-radio-button>
-      </el-radio-group>
+      <el-select v-model="filters.isActive" clearable placeholder="Estado" style="width: 130px">
+        <el-option label="Activo" value="true" />
+        <el-option label="Pausado" value="false" />
+      </el-select>
+      <el-button v-if="hasFilters" link @click="clearFilters">Limpiar filtros</el-button>
+      <span class="results-count">{{ total }} {{ total === 1 ? 'resultado' : 'resultados' }}</span>
     </div>
 
+    <!-- Sin columnas ordenables: con paginación del servidor solo reordenarían la página visible. -->
     <el-table
-      v-if="viewMode === 'flat'"
-      :data="filteredSchedules"
+      :data="schedules"
       v-loading="loading"
       stripe
       :row-class-name="rowUrgencyClass"
@@ -291,20 +222,15 @@ useRealtimeUpdates(['Schedule'], () => loadData(true))
     >
       <el-table-column
         label="Activo"
-        sortable
-        :sort-method="
-          (a: MaintenanceScheduleDto, b: MaintenanceScheduleDto) =>
-            `${a.assetBrandName} ${a.assetModel}`.localeCompare(`${b.assetBrandName} ${b.assetModel}`)
-        "
       >
         <template #default="{ row }">{{ row.assetBrandName }} {{ row.assetModel }} — {{ row.assetSerialNumber }}</template>
       </el-table-column>
-      <el-table-column prop="area" label="Área" width="130" sortable>
+      <el-table-column prop="area" label="Área" width="130">
         <template #default="{ row }">{{ row.area ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="cityName" label="Ciudad" width="130" sortable />
-      <el-table-column prop="clientName" label="Cliente" sortable />
-      <el-table-column prop="lastKnownCounter" label="Último contador" width="130" sortable>
+      <el-table-column prop="cityName" label="Ciudad" width="130" />
+      <el-table-column prop="clientName" label="Cliente" />
+      <el-table-column prop="lastKnownCounter" label="Último contador" width="130">
         <template #default="{ row }">{{ row.lastKnownCounter ?? '—' }}</template>
       </el-table-column>
       <el-table-column label="Último mantenimiento" width="190">
@@ -347,7 +273,7 @@ useRealtimeUpdates(['Schedule'], () => loadData(true))
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="Estado" width="100" prop="isActive" sortable>
+      <el-table-column label="Estado" width="100" prop="isActive">
         <template #default="{ row }">
           <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? 'Activo' : 'Pausado' }}</el-tag>
         </template>
@@ -359,94 +285,15 @@ useRealtimeUpdates(['Schedule'], () => loadData(true))
       </el-table-column>
     </el-table>
 
-    <el-collapse v-else v-model="openGroups" v-loading="loading">
-      <el-collapse-item v-for="cityGroup in groupedByCity" :key="cityGroup.city" :name="cityGroup.city">
-        <template #title>
-          {{ cityGroup.city }} ({{ cityGroup.scheduleCount }})
-        </template>
-        <el-collapse v-model="openGroups" class="nested-collapse">
-          <el-collapse-item
-            v-for="clientGroup in cityGroup.clientGroups"
-            :key="clientGroup.clientId"
-            :name="`${cityGroup.city}::${clientGroup.clientId}`"
-          >
-            <template #title>
-              {{ clientGroup.clientName }} ({{ clientGroup.scheduleCount }})
-            </template>
-            <el-collapse v-model="openGroups" class="nested-collapse">
-              <el-collapse-item
-                v-for="contractGroup in clientGroup.contractGroups"
-                :key="contractGroup.contractId"
-                :name="`${cityGroup.city}::${clientGroup.clientId}::${contractGroup.contractId}`"
-              >
-                <template #title>{{ contractGroup.contractLabel }} ({{ contractGroup.schedules.length }})</template>
-                <el-table :data="contractGroup.schedules" :row-class-name="rowUrgencyClass">
-                  <el-table-column label="Activo">
-                    <template #default="{ row }">{{ row.assetBrandName }} {{ row.assetModel }} — {{ row.assetSerialNumber }}</template>
-                  </el-table-column>
-                  <el-table-column label="Área" width="130">
-                    <template #default="{ row }">{{ row.area ?? '—' }}</template>
-                  </el-table-column>
-                  <el-table-column label="Último contador" width="130">
-                    <template #default="{ row }">{{ row.lastKnownCounter ?? '—' }}</template>
-                  </el-table-column>
-                  <el-table-column label="Último mantenimiento" width="190">
-                    <template #default="{ row }">
-                      <el-tooltip v-if="row.lastMaintenanceAt" placement="top">
-                        <template #content>
-                          <div>General: {{ counterDetail(row.lastGeneralMaintenanceAt, row.lastGeneralMaintenanceCounter) }}</div>
-                          <div>Unidades: {{ counterDetail(row.lastUnitsMaintenanceAt, row.lastUnitsMaintenanceCounter) }}</div>
-                          <div>Insumos: {{ counterDetail(row.lastConsumablesChangeAt, row.lastConsumablesChangeCounter) }}</div>
-                        </template>
-                        <div class="maintenance-cell">
-                          <span>{{ formatDateLocal(row.lastMaintenanceAt) }}</span>
-                          <el-tag v-for="code in row.lastMaintenanceCodes" :key="code" size="small">{{ code }}</el-tag>
-                        </div>
-                      </el-tooltip>
-                      <span v-else>—</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="Próximo mantenimiento" width="210">
-                    <template #default="{ row }">
-                      <el-tooltip placement="top">
-                        <template #content>
-                          <div>General: {{ counterDetail(row.nextGeneralDueAt, row.nextGeneralDueCounter) }}</div>
-                          <div>Unidades: {{ counterDetail(row.nextUnitsDueAt, row.nextUnitsDueCounter) }}</div>
-                          <div>Insumos: contador {{ row.nextConsumablesDueCounter }}</div>
-                        </template>
-                        <div class="maintenance-cell">
-                          <span>{{ row.nextMaintenanceAt ? formatDateLocal(row.nextMaintenanceAt) : 'Por contador' }} / {{ row.nextMaintenanceCounter }}</span>
-                          <el-tag v-for="code in row.nextMaintenanceCodes" :key="code" size="small" type="warning">{{ code }}</el-tag>
-                        </div>
-                      </el-tooltip>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="Faltante" width="180">
-                    <template #default="{ row }">
-                      <div class="faltante-cell">
-                        <el-tag :style="urgencyTagStyle(row)" size="small">{{ urgencyLabels[urgency(row)] }}</el-tag>
-                        <span v-if="printsRemaining(row) !== null">{{ printsRemaining(row) }} impr.</span>
-                        <span v-if="daysRemaining(row) !== null">{{ daysRemaining(row) }} días</span>
-                      </div>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="Estado" width="100">
-                    <template #default="{ row }">
-                      <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? 'Activo' : 'Pausado' }}</el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column label="" width="100">
-                    <template #default="{ row }">
-                      <el-button link @click="toggleStatus(row)">{{ row.isActive ? 'Pausar' : 'Activar' }}</el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
-              </el-collapse-item>
-            </el-collapse>
-          </el-collapse-item>
-        </el-collapse>
-      </el-collapse-item>
-    </el-collapse>
+    <el-pagination
+      v-if="total > PAGE_SIZE"
+      v-model:current-page="page"
+      class="pager"
+      layout="prev, pager, next"
+      :page-size="PAGE_SIZE"
+      :total="total"
+      background
+    />
   </div>
 </template>
 
@@ -471,17 +318,21 @@ useRealtimeUpdates(['Schedule'], () => loadData(true))
 
 .filters-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
-.view-toggle {
+.results-count {
   margin-left: auto;
+  color: var(--el-text-color-secondary);
+  font-size: 0.85rem;
 }
 
-.nested-collapse {
-  margin-left: 1.5rem;
+.pager {
+  margin-top: 1rem;
+  justify-content: flex-end;
 }
 
 .maintenance-cell {

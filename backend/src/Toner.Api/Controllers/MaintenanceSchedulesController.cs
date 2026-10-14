@@ -28,9 +28,13 @@ public class MaintenanceSchedulesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<PagedResult<MaintenanceScheduleDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<MaintenanceScheduleDto>>> List(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? search, [FromQuery] Guid? cityId, [FromQuery] Guid? clientId, [FromQuery] Guid? contractId,
+        [FromQuery] bool? isActive, CancellationToken cancellationToken)
     {
-        return Ok(await _scheduleService.ListAsync(page, pageSize, cancellationToken));
+        var filter = new MaintenanceScheduleListFilter(search, cityId, clientId, contractId, isActive);
+        return Ok(await _scheduleService.ListAsync(page, pageSize, filter, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]

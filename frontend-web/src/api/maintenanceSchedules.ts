@@ -1,9 +1,24 @@
-import { getList } from './paging'
+import { getList, getPaged } from './paging'
 import { http } from './http'
 import type { MaintenanceOrderDto, MaintenanceScheduleDto } from './types'
 
 export function listMaintenanceSchedules() {
   return getList<MaintenanceScheduleDto>('/maintenance-schedules')
+}
+
+// Listado paginado y filtrado en el servidor (AUDIT.md H-11). Los filtros vacíos no se envían.
+export interface MaintenanceScheduleListParams {
+  search?: string
+  cityId?: string
+  clientId?: string
+  contractId?: string
+  isActive?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export function listMaintenanceSchedulesPaged(params: MaintenanceScheduleListParams) {
+  return getPaged<MaintenanceScheduleDto>('/maintenance-schedules', params as Record<string, unknown>)
 }
 
 export function getMaintenanceSchedule(id: string) {
