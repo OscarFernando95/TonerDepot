@@ -49,6 +49,26 @@ public class AzureBlobEvidenceStorage : IEvidenceStorage
     public async Task DeleteAsync(string key, CancellationToken cancellationToken = default) =>
         await _container.GetBlobClient(key).DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
+    // Blob no filtra por fecha en el servidor: se recorre el listado (paginado por el SDK) y se filtra aquí. Sin el
+    // contenedor (nunca se subió nada) no hay archivos que listar.
+    public async IAsyncEnumerable<string> ListKeysOlderThanAsync(
+        DateTime olderThanUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (!await _container.ExistsAsync(cancellationToken))
+        {
+            yield break;
+        }
+
+        var cutoff = new DateTimeOffset(DateTime.SpecifyKind(olderThanUtc, DateTimeKind.Utc));
+        await foreach (var blob in _container.GetBlobsAsync(cancellationToken: cancellationToken))
+        {
+            if (blob.Properties.LastModified is { } lastModified && lastModified < cutoff)
+            {
+                yield return blob.Name;
+            }
+        }
+    }
+
     // Idempotente y seguro entre hilos. Lo llama el arranque (EvidenceStorageInitializer) y, como red de
     // seguridad, SaveAsync: si Blob estaba caído al arrancar, el primer guardado crea el contenedor.
     // Un fallo NO se recuerda: el siguiente intento vuelve a probar (AUDIT.md H-35).

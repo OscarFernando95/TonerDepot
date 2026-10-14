@@ -44,6 +44,19 @@ public class DataRetentionPostgresTests
         public Task SaveAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken = default) => Task.FromResult<Stream?>(null);
         public Task DeleteAsync(string key, CancellationToken cancellationToken = default) { Deleted.Add(key); return Task.CompletedTask; }
+
+        // Archivos "en Blob" con su última escritura, para el barrido de huérfanos (H-47).
+        public List<(string Key, DateTime LastModifiedUtc)> Files { get; } = new();
+
+        public async IAsyncEnumerable<string> ListKeysOlderThanAsync(
+            DateTime olderThanUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (var (key, at) in Files.Where(f => f.LastModifiedUtc < olderThanUtc))
+            {
+                yield return key;
+            }
+            await Task.CompletedTask;
+        }
     }
 
     private static DataRetentionJob Job(TonerDbContext db, ITenantContextAccessor tenant, DataRetentionOptions options, IEvidenceStorage? storage = null) =>
@@ -235,6 +248,103 @@ public class DataRetentionPostgresTests
                 await Job(appDb, tenant, new DataRetentionOptions { EvidenceMonths = 3 }, again).ApplyAsync(Now);
             }
             Assert.Empty(again.Deleted);
+        }
+        finally
+        {
+            await using var cleanup = OwnerContext();
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"Evidences\" WHERE \"FileUrl\" LIKE {0}", marker + "%");
+        }
+    }
+
+    // AUDIT.md H-47: un archivo sin fila (el proceso murió entre subirlo y el SaveChanges, o se borró la fila a mano)
+    // nunca lo alcanzaba la purga de H-44, que recorre filas. El barrido borra los archivos más viejos que la retención
+    // que no tienen una fila viva (sin ContentPurgedAt). Los archivos solo existen en el storage falso: el test no toca
+    // ningún blob real, y las filas se buscan por su clave exacta.
+    [PostgresFact]
+    public async Task Huerfanos_ViejosSinFilaViva_SeBorran_RecientesYConFilaViva_No()
+    {
+        var marker = "H47-" + Guid.NewGuid().ToString("N")[..8];
+        string Key(string name) => $"{marker}/{name}.jpg";
+        try
+        {
+            await using (var owner = OwnerContext())
+            {
+                var uploader = await owner.Users.Select(u => u.Id).FirstAsync();
+                Toner.Domain.Entities.Evidence Photo(string key, DateTime uploadedAt, DateTime? purgedAt) => new()
+                {
+                    ClientId = RlsFixture.ClientA, Kind = Toner.Domain.Enums.EvidenceKind.Antes, SizeBytes = 10,
+                    ServiceTicketId = Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"),
+                    FileUrl = key, FileName = "f.jpg", ContentType = "image/jpeg",
+                    UploadedByUserId = uploader, UploadedAt = uploadedAt, ContentPurgedAt = purgedAt
+                };
+                owner.Evidences.AddRange(
+                    // Fila viva justo DESPUÉS del corte, con el archivo escrito justo ANTES: no es huérfano.
+                    Photo(Key("viva-en-el-borde"), Now.AddMonths(-3).AddSeconds(1), purgedAt: null),
+                    // Fila ya purgada cuyo archivo, por lo que sea, sigue ahí: sobra.
+                    Photo(Key("purgada-con-archivo"), Now.AddMonths(-5), purgedAt: Now.AddMonths(-2)));
+                await owner.SaveChangesAsync();
+            }
+
+            var storage = new RecordingStorage();
+            storage.Files.AddRange(new[]
+            {
+                (Key("huerfano-viejo"), Now.AddMonths(-4)),
+                (Key("huerfano-reciente"), Now.AddDays(-2)),
+                (Key("viva-en-el-borde"), Now.AddMonths(-3).AddSeconds(-1)),
+                (Key("purgada-con-archivo"), Now.AddMonths(-5))
+            });
+
+            var tenant = new TenantContextAccessor();
+            using var scope = tenant.Push(() => TenantContext.Staff);
+            await using (var appDb = AppContext(tenant))
+            {
+                await Job(appDb, tenant, new DataRetentionOptions { EvidenceMonths = 3 }, storage).ApplyAsync(Now);
+            }
+
+            Assert.Equal(new[] { Key("huerfano-viejo"), Key("purgada-con-archivo") }.OrderBy(k => k), storage.Deleted.OrderBy(k => k));
+        }
+        finally
+        {
+            await using var cleanup = OwnerContext();
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"Evidences\" WHERE \"FileUrl\" LIKE {0}", marker + "%");
+        }
+    }
+
+    // Con RLS, un contexto que no es de staff no ve las filas de otros clientes: el barrido creería huérfanos a archivos
+    // que sí tienen fila y los borraría. Tiene que negarse antes de borrar nada.
+    [PostgresFact]
+    public async Task Huerfanos_SinContextoDeStaff_NoBorraNada()
+    {
+        var marker = "H47-" + Guid.NewGuid().ToString("N")[..8];
+        var key = $"{marker}/de-cliente-a.jpg";
+        try
+        {
+            await using (var owner = OwnerContext())
+            {
+                var uploader = await owner.Users.Select(u => u.Id).FirstAsync();
+                owner.Evidences.Add(new Toner.Domain.Entities.Evidence
+                {
+                    ClientId = RlsFixture.ClientA, Kind = Toner.Domain.Enums.EvidenceKind.Antes, SizeBytes = 10,
+                    ServiceTicketId = Guid.Parse("eeeeeeee-0000-0000-0000-000000000001"),
+                    FileUrl = key, FileName = "f.jpg", ContentType = "image/jpeg",
+                    UploadedByUserId = uploader, UploadedAt = Now.AddMonths(-1)
+                });
+                await owner.SaveChangesAsync();
+            }
+
+            var storage = new RecordingStorage();
+            storage.Files.Add((key, Now.AddMonths(-4)));
+
+            var tenant = new TenantContextAccessor();
+            using var scope = tenant.Push(() => TenantContext.ForClient(RlsFixture.ClientB));
+            await using var appDb = AppContext(tenant);
+
+            var ex = await Record.ExceptionAsync(() =>
+                Job(appDb, tenant, new DataRetentionOptions { EvidenceMonths = 3 }, storage).ApplyAsync(Now));
+
+            // Primero lo grave: sin la guarda, el archivo de ClientA (fila invisible para ClientB) se borraría.
+            Assert.Empty(storage.Deleted);
+            Assert.IsType<InvalidOperationException>(ex);
         }
         finally
         {
