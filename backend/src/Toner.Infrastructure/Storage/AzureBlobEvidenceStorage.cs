@@ -11,12 +11,18 @@ namespace Toner.Infrastructure.Storage;
 public class AzureBlobEvidenceStorage : IEvidenceStorage
 {
     private readonly BlobContainerClient _container;
-    private bool _containerReady;
+    private readonly SemaphoreSlim _containerGate = new(1, 1);
+    private volatile bool _containerReady;
 
     public AzureBlobEvidenceStorage(IOptions<EvidenceStorageSettings> options)
+        : this(EvidenceContainerClientFactory.Create(options.Value))
     {
-        var settings = options.Value;
-        _container = new BlobContainerClient(settings.ConnectionString, settings.ContainerName);
+    }
+
+    // Para pruebas: permite inyectar un cliente de contenedor falso.
+    public AzureBlobEvidenceStorage(BlobContainerClient container)
+    {
+        _container = container;
     }
 
     public async Task SaveAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default)
@@ -43,15 +49,51 @@ public class AzureBlobEvidenceStorage : IEvidenceStorage
     public async Task DeleteAsync(string key, CancellationToken cancellationToken = default) =>
         await _container.GetBlobClient(key).DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
-    private async Task EnsureContainerAsync(CancellationToken cancellationToken)
+    // Blob no filtra por fecha en el servidor: se recorre el listado (paginado por el SDK) y se filtra aquí. Sin el
+    // contenedor (nunca se subió nada) no hay archivos que listar.
+    public async IAsyncEnumerable<string> ListKeysOlderThanAsync(
+        DateTime olderThanUtc, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (!await _container.ExistsAsync(cancellationToken))
+        {
+            yield break;
+        }
+
+        var cutoff = new DateTimeOffset(DateTime.SpecifyKind(olderThanUtc, DateTimeKind.Utc));
+        await foreach (var blob in _container.GetBlobsAsync(cancellationToken: cancellationToken))
+        {
+            if (blob.Properties.LastModified is { } lastModified && lastModified < cutoff)
+            {
+                yield return blob.Name;
+            }
+        }
+    }
+
+    // Idempotente y seguro entre hilos. Lo llama el arranque (EvidenceStorageInitializer) y, como red de
+    // seguridad, SaveAsync: si Blob estaba caído al arrancar, el primer guardado crea el contenedor.
+    // Un fallo NO se recuerda: el siguiente intento vuelve a probar (AUDIT.md H-35).
+    public async Task EnsureContainerAsync(CancellationToken cancellationToken = default)
     {
         if (_containerReady)
         {
             return;
         }
 
-        // Sin PublicAccessType: el contenedor es privado.
-        await _container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        _containerReady = true;
+        await _containerGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_containerReady)
+            {
+                return;
+            }
+
+            // Sin PublicAccessType: el contenedor es privado.
+            await _container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            _containerReady = true;
+        }
+        finally
+        {
+            _containerGate.Release();
+        }
     }
 }

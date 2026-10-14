@@ -1,4 +1,5 @@
 using Npgsql;
+using Toner.Domain.Common;
 
 namespace Toner.Application.Tests.Rls;
 
@@ -19,6 +20,26 @@ public sealed class RlsFixture
     // Cliente debe verlo (ver SECURITY_AUDIT_V2.md hallazgo N1).
     public static readonly Guid AssetWithoutLocation = Guid.Parse("a55e7000-0000-0000-0000-000000000003");
 
+    // Autor del ticket y de la evidencia sembrados. La fixture no puede depender de que ya haya usuarios: en una
+    // base recién migrada (la del CI) no hay ninguno, porque los crea DataSeeder al arrancar la API. Inactivo y con
+    // un hash que no es BCrypt: no puede iniciar sesión en la BD de desarrollo.
+    public static readonly Guid FixtureUserId = Guid.Parse("99999999-0000-0000-0000-000000000001");
+
+    // Los roles son datos de referencia que crea DataSeeder al arrancar la API: una base recién migrada (la del CI)
+    // no tiene ninguno, y varios tests los buscan por nombre. Idempotente y seguro en paralelo (IX_Roles_Name es único).
+    public static async Task EnsureRolesAsync()
+    {
+        await using var connection = new NpgsqlConnection(PostgresFactAttribute.OwnerConnectionString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = @"
+            INSERT INTO ""Roles"" (""Id"",""Name"",""CreatedAt"")
+            SELECT gen_random_uuid(), n, now() FROM unnest(@names) AS n
+            ON CONFLICT (""Name"") DO NOTHING;";
+        command.Parameters.AddWithValue("names", RoleNames.All.ToArray());
+        await command.ExecuteNonQueryAsync();
+    }
+
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _seeded;
 
@@ -31,6 +52,9 @@ public sealed class RlsFixture
             {
                 return;
             }
+
+            // El usuario de la fixture necesita un rol.
+            await EnsureRolesAsync();
 
             await using var connection = new NpgsqlConnection(PostgresFactAttribute.OwnerConnectionString);
             await connection.OpenAsync();
@@ -55,17 +79,20 @@ public sealed class RlsFixture
                        (@contractB,@clientB,now(),'Activo',now())
                 ON CONFLICT (""Id"") DO NOTHING;
 
+                INSERT INTO ""Users"" (""Id"",""Cedula"",""Email"",""PasswordHash"",""FullName"",""RoleId"",""IsActive"",""MustChangePassword"",""SecurityStamp"",""FailedLoginAttempts"",""CreatedAt"")
+                SELECT @userId, 'RLS-FIXTURE', 'rls-fixture@test.local', 'no-es-un-hash', 'Usuario fixture RLS', r.""Id"", false, false, gen_random_uuid(), 0, now()
+                FROM ""Roles"" r WHERE r.""Name"" = 'Coordinador'
+                ON CONFLICT DO NOTHING;
+
                 -- ClientId es NOT NULL desde la fase 3a (columna denormalizada que usa la política
                 -- RLS): hay que sembrarlo explícitamente, igual que lo hace ServiceTicketService.
                 INSERT INTO ""ServiceTickets"" (""Id"",""ClientLocationId"",""ClientId"",""ReportedByUserId"",""Description"",""Status"",""Priority"",""CreatedAt"")
-                SELECT @ticketA, @locationA, @clientA, u.""Id"", 'Ticket del cliente A', 'Abierto', 'Media', now()
-                FROM ""Users"" u LIMIT 1
+                VALUES (@ticketA, @locationA, @clientA, @userId, 'Ticket del cliente A', 'Abierto', 'Media', now())
                 ON CONFLICT (""Id"") DO NOTHING;
 
                 -- Evidencia (foto) del ticket del cliente A: la tabla lleva su propio ClientId y política.
                 INSERT INTO ""Evidences"" (""Id"",""ClientId"",""Kind"",""SizeBytes"",""ServiceTicketId"",""FileUrl"",""FileName"",""ContentType"",""UploadedByUserId"",""UploadedAt"",""CreatedAt"")
-                SELECT @evidenceA, @clientA, 'Antes', 10, @ticketA, 'rls/a.jpg', 'a.jpg', 'image/jpeg', u.""Id"", now(), now()
-                FROM ""Users"" u LIMIT 1
+                VALUES (@evidenceA, @clientA, 'Antes', 10, @ticketA, 'rls/a.jpg', 'a.jpg', 'image/jpeg', @userId, now(), now())
                 ON CONFLICT (""Id"") DO NOTHING;
 
                 -- Marca y modelo mínimos para poder colgar activos de ellos.
@@ -86,6 +113,7 @@ public sealed class RlsFixture
                        (@assetSinSede,@modelId,'SN-RLS-BODEGA','Impresora','EnBodega',NULL,now())
                 ON CONFLICT (""Id"") DO NOTHING;";
 
+            command.Parameters.AddWithValue("userId", FixtureUserId);
             command.Parameters.AddWithValue("clientA", ClientA);
             command.Parameters.AddWithValue("clientB", ClientB);
             command.Parameters.AddWithValue("cityId", CityId);

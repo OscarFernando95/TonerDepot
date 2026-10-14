@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
+import { usePagedList } from '../../composables/usePagedList'
 import * as clientsApi from '../../api/clients'
 import * as clientLocationsApi from '../../api/clientLocations'
 import * as assetsApi from '../../api/assets'
@@ -20,16 +21,15 @@ import {
   type ServiceTicketDto,
   type ServiceTicketPriorityName
 } from '../../api/types'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const router = useRouter()
 const auth = useAuthStore()
 const isClient = auth.hasRole(RoleNames.Cliente)
 
-const tickets = ref<ServiceTicketDto[]>([])
 const clients = ref<ClientDto[]>([])
 const locations = ref<ClientLocationDto[]>([])
 const assets = ref<AssetDto[]>([])
-const loading = ref(false)
 const dialogVisible = ref(false)
 const saving = ref(false)
 const createClientDialogRef = ref<InstanceType<typeof CreateClientDialog> | null>(null)
@@ -49,25 +49,55 @@ function assetOptionLabel(a: AssetDto) {
   return a.area ? `${base} · Área: ${a.area}` : base
 }
 
-const assetsAtLocation = computed(() =>
-  form.clientLocationId ? assets.value.filter((a) => a.currentClientLocationId === form.clientLocationId) : []
-)
+const assetsAtLocation = computed(() => assets.value)
 
 // El selector de Activo solo aparece cuando el cliente elegido tiene contrato (sus equipos están
 // catalogados como Asset con hoja de vida). Para un cliente externo no tiene sentido — nunca tendrá
 // activos propios que elegir; el técnico puede describir el equipo al cerrar el ticket.
 const selectedClientIsContract = ref(true)
 
-async function loadTickets() {
-  loading.value = true
-  try {
-    const { data } = await ticketsApi.listTickets()
-    tickets.value = data
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los tickets.')
-  } finally {
-    loading.value = false
-  }
+// Listado paginado y filtrado EN EL SERVIDOR (AUDIT.md H-11): antes se traía la primera página (200 filas) y se
+// mostraba como si fuera todo.
+const PAGE_SIZE = 25
+const filters = reactive({ status: '', priority: '', clientId: '', search: '' })
+const {
+  items: tickets,
+  total,
+  page,
+  loading,
+  reload: loadTickets
+} = usePagedList<ServiceTicketDto, typeof filters>((params) => ticketsApi.listTicketsPaged(params).then((r) => r.data), {
+  filters,
+  pageSize: PAGE_SIZE,
+  label: 'TicketsListView',
+  onError: (err: any) => ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los tickets.')
+})
+
+// La búsqueda por texto espera a que se deje de escribir: sin esto cada tecla sería una petición.
+const searchText = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(searchText, (value) => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => (filters.search = value.trim()), 350)
+})
+onBeforeUnmount(() => clearTimeout(searchTimer))
+
+const statusOptions = Object.entries(ServiceTicketStatusLabels).map(([value, label]) => ({ value, label }))
+const hasFilters = computed(() => !!(filters.status || filters.priority || filters.clientId || filters.search))
+const emptyText = computed(() => (hasFilters.value ? 'Ningún ticket coincide con los filtros.' : 'No hay tickets registrados.'))
+
+// Los clientes para el filtro (solo staff: un Cliente solo ve lo suyo).
+const clientFilterOptions = ref<ClientDto[]>([])
+if (!isClient) {
+  clientsApi
+    .listClients()
+    .then(({ data }) => (clientFilterOptions.value = data))
+    .catch((err) => console.error('TicketsListView: no se pudieron cargar los clientes del filtro', err))
+}
+
+function clearFilters() {
+  searchText.value = ''
+  Object.assign(filters, { status: '', priority: '', clientId: '', search: '' })
 }
 
 async function openCreateDialog() {
@@ -82,12 +112,7 @@ async function openCreateDialog() {
     const { data } = await clientsApi.listClients()
     clients.value = data
   }
-  // El inventario de activos para Staff es global; para un Cliente con contrato se resuelve más abajo
-  // (assetsApi.listAssets ya se autofiltra a los activos de su propio cliente en el backend).
-  if (!isClient && assets.value.length === 0) {
-    const { data } = await assetsApi.listAssets()
-    assets.value = data
-  }
+  assets.value = []
 
   // Set last so the watcher below fires once now that clients/locations are ready to load.
   form.clientId = isClient ? (auth.user?.clientId ?? '') : ''
@@ -95,14 +120,27 @@ async function openCreateDialog() {
   if (isClient && form.clientId) {
     const { data } = await clientsApi.getClient(form.clientId)
     selectedClientIsContract.value = data.isContractClient
-    if (selectedClientIsContract.value && assets.value.length === 0) {
-      const { data: assetsData } = await assetsApi.listAssets()
-      assets.value = assetsData
-    }
   }
 
   dialogVisible.value = true
 }
+
+// Los activos del selector se piden por SEDE, en el servidor (AUDIT.md H-11): antes se cargaba todo el inventario y se
+// truncaba en silencio a 200. El backend ya limita a un Cliente a los activos de sus propias sedes.
+watch(
+  () => form.clientLocationId,
+  async (locationId) => {
+    form.assetId = ''
+    assets.value = []
+    if (!locationId) return
+    try {
+      assets.value = await assetsApi.listAllAssets({ clientLocationId: locationId })
+    } catch (err) {
+      console.error('TicketsListView: no se pudieron cargar los activos de la sede', err)
+      ElMessage.error('No se pudieron cargar los activos de la sede.')
+    }
+  }
+)
 
 watch(
   () => form.clientId,
@@ -150,37 +188,13 @@ async function handleSave() {
   }
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Resuelto':
-    case 'Cerrado':
-      return 'success'
-    case 'Cancelado':
-      return 'info'
-    case 'Abierto':
-    case 'SinAsignar':
-      return 'warning'
-    default:
-      return 'primary'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('ticket')
 
-function priorityTagType(priority: string) {
-  switch (priority) {
-    case 'Critica':
-      return 'danger'
-    case 'Alta':
-      return 'warning'
-    default:
-      return 'info'
-  }
-}
+const { tagType: priorityTagType } = useStatusTag('ticketPriority')
 
 function goToDetail(ticket: ServiceTicketDto) {
   router.push({ name: 'ticket-detail', params: { id: ticket.id } })
 }
-
-onMounted(loadTickets)
 
 // Se actualiza sola cuando algo cambia un ticket (asignación, check-in/out, cierre) — en cualquier pestaña o dispositivo.
 useRealtimeUpdates(['Ticket'], () => loadTickets())
@@ -193,41 +207,64 @@ useRealtimeUpdates(['Ticket'], () => loadTickets())
       <el-button type="primary" @click="openCreateDialog">Nuevo ticket</el-button>
     </div>
 
+    <div class="filters-bar">
+      <el-input v-model="searchText" clearable placeholder="Buscar por descripción, cliente, sede o serie" style="width: 320px" />
+      <el-select v-model="filters.status" clearable placeholder="Estado" style="width: 160px">
+        <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
+      </el-select>
+      <el-select v-model="filters.priority" clearable placeholder="Prioridad" style="width: 150px">
+        <el-option v-for="p in priorityOptions" :key="p" :label="p" :value="p" />
+      </el-select>
+      <el-select v-if="!isClient" v-model="filters.clientId" clearable filterable placeholder="Cliente" style="width: 220px">
+        <el-option v-for="c in clientFilterOptions" :key="c.id" :label="c.name" :value="c.id" />
+      </el-select>
+      <el-button v-if="hasFilters" link @click="clearFilters">Limpiar filtros</el-button>
+      <span class="results-count">{{ total }} {{ total === 1 ? 'resultado' : 'resultados' }}</span>
+    </div>
+
+    <!-- Sin columnas ordenables: con paginación del servidor un orden por columna solo reordenaría la página visible.
+         El servidor entrega siempre lo más reciente primero. -->
     <el-table
       :data="tickets"
       v-loading="loading"
       stripe
       @row-click="goToDetail"
       class="clickable-rows"
-      empty-text="No hay tickets registrados."
+      :empty-text="emptyText"
     >
-      <el-table-column
-        label="Cliente / Sede"
-        sortable
-        :sort-method="(a: ServiceTicketDto, b: ServiceTicketDto) => a.clientName.localeCompare(b.clientName)"
-      >
+      <el-table-column label="Cliente / Sede">
         <template #default="{ row }">{{ row.clientName }} — {{ row.clientLocationName }}</template>
       </el-table-column>
-      <el-table-column prop="cityName" label="Ciudad" width="140" sortable>
+      <el-table-column prop="cityName" label="Ciudad" width="140">
         <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="description" label="Descripción" show-overflow-tooltip sortable />
-      <el-table-column prop="priority" label="Prioridad" width="110" sortable>
+      <el-table-column prop="description" label="Descripción" show-overflow-tooltip />
+      <el-table-column prop="priority" label="Prioridad" width="110">
         <template #default="{ row }">
           <el-tag :type="priorityTagType(row.priority)" size="small">{{ row.priority }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="status" label="Estado" width="130" sortable>
+      <el-table-column prop="status" label="Estado" width="130">
         <template #default="{ row }">
           <el-tag :type="statusTagType(row.status)" size="small">
             {{ ServiceTicketStatusLabels[row.status] ?? row.status }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="technicianName" label="Técnico" width="150" sortable>
+      <el-table-column prop="technicianName" label="Técnico" width="150">
         <template #default="{ row }">{{ row.technicianName ?? '—' }}</template>
       </el-table-column>
     </el-table>
+
+    <el-pagination
+      v-if="total > PAGE_SIZE"
+      v-model:current-page="page"
+      class="pager"
+      layout="prev, pager, next"
+      :page-size="PAGE_SIZE"
+      :total="total"
+      background
+    />
 
     <el-dialog v-model="dialogVisible" title="Nuevo ticket" width="600px">
       <el-form :model="form" label-position="top">
@@ -297,6 +334,25 @@ useRealtimeUpdates(['Ticket'], () => loadTickets())
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+}
+
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.results-count {
+  margin-left: auto;
+  color: var(--el-text-color-secondary);
+  font-size: 0.85rem;
+}
+
+.pager {
+  margin-top: 1rem;
+  justify-content: flex-end;
 }
 
 .clickable-rows :deep(tbody tr) {

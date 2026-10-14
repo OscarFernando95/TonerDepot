@@ -3,7 +3,9 @@
 # imagen (no por bind-mount) a propósito: un bind-mount desde el host llega con ownership/permisos
 # que varían según el sistema operativo de quien lo levante, y Postgres rechaza arrancar si la clave
 # privada tiene acceso de grupo/otros — horneándolo en build time se evita esa variabilidad.
-FROM postgres:16-alpine
+# Versión exacta (AUDIT.md H-39): con '16-alpine' cada build podía traer otro minor/Alpine y el entorno
+# no era reproducible (mismo problema que H-29). Subir a mano, junto con el CI.
+FROM postgres:16.15-alpine
 
 COPY server.crt /var/lib/postgresql/certs/server.crt
 COPY server.key /var/lib/postgresql/certs/server.key

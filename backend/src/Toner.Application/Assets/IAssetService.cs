@@ -8,7 +8,8 @@ namespace Toner.Application.Assets;
 public interface IAssetService
 {
     Task<AssetDto> CreateAsync(CreateAssetRequest request, CancellationToken cancellationToken = default);
-    Task<PagedResult<AssetDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<AssetDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, AssetListFilter? filter = null, CancellationToken cancellationToken = default);
     Task<AssetDto> GetByIdAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
     Task<AssetDto> UpdateAsync(Guid id, UpdateAssetRequest request, CancellationToken cancellationToken = default);
     Task<AssetDto> ChangeStatusAsync(Guid id, ChangeAssetStatusRequest request, Guid changedByUserId, CancellationToken cancellationToken = default);
@@ -33,9 +34,11 @@ public interface IAssetService
 
     // Para el módulo "Lectura de contadores" (abierto a los 5 roles) — separado de ListAsync a propósito,
     // para no tocar el alcance por rol que ya usan los consumidores existentes de ListAsync.
-    Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, MeterReadingListFilter? filter = null, CancellationToken cancellationToken = default);
 
     // Pestaña de respaldo — activos instalados en las ciudades de cobertura del técnico, vinculados o
     // no a él o a otro técnico. Solo aplica a Técnico (ver AssetService para el porqué).
-    Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingByCoverageAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingByCoverageAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, MeterReadingListFilter? filter = null, CancellationToken cancellationToken = default);
 }

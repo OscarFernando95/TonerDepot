@@ -13,7 +13,13 @@ public class InventoryService : IInventoryService
 {
     private readonly IApplicationDbContext _db;
 
-    public InventoryService(IApplicationDbContext db) => _db = db;
+    private readonly IStockLock _stockLock;
+
+    public InventoryService(IApplicationDbContext db, IStockLock stockLock)
+    {
+        _db = db;
+        _stockLock = stockLock;
+    }
 
     // ── Catálogo ─────────────────────────────────────────────────────────────────────────────────
 
@@ -211,18 +217,29 @@ public class InventoryService : IInventoryService
         await EnsureLocationExistsAsync(request.FromLocationId, cancellationToken);
         await EnsureLocationExistsAsync(request.ToLocationId, cancellationToken);
 
-        var available = await BalanceAsync(request.FromLocationId, request.ItemId, cancellationToken);
-        if (available < request.Quantity)
-        {
-            throw new ConflictException($"Saldo insuficiente en el origen: hay {available} y se quieren traspasar {request.Quantity}.");
-        }
-
-        // Las dos filas del traspaso van en el mismo SaveChanges: o quedan ambas o ninguna.
+        // Fuera de la operación: estable entre reintentos, y es lo que usa verifySucceeded para saber si un
+        // commit en duda ya se aplicó.
         var transferId = Guid.NewGuid();
-        var outgoing = NewMovement(request.ItemId, request.FromLocationId, InventoryMovementType.TraspasoSalida, -request.Quantity, request.Notes, userId, transferId);
-        var incoming = NewMovement(request.ItemId, request.ToLocationId, InventoryMovementType.TraspasoEntrada, request.Quantity, request.Notes, userId, transferId);
-        _db.InventoryMovements.AddRange(outgoing, incoming);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        // Lectura del saldo + chequeo + inserción, en exclusiva sobre (ítem, origen) (AUDIT.md H-17). Las dos
+        // filas del traspaso van en el mismo SaveChanges: o quedan ambas o ninguna.
+        await _stockLock.RunInStockTransactionAsync(
+            async ct =>
+            {
+                await _stockLock.LockAsync(new[] { (request.ItemId, request.FromLocationId) }, ct);
+                var available = await BalanceAsync(request.FromLocationId, request.ItemId, ct);
+                if (available < request.Quantity)
+                {
+                    throw new ConflictException($"Saldo insuficiente en el origen: hay {available} y se quieren traspasar {request.Quantity}.");
+                }
+
+                var outgoing = NewMovement(request.ItemId, request.FromLocationId, InventoryMovementType.TraspasoSalida, -request.Quantity, request.Notes, userId, transferId);
+                var incoming = NewMovement(request.ItemId, request.ToLocationId, InventoryMovementType.TraspasoEntrada, request.Quantity, request.Notes, userId, transferId);
+                _db.InventoryMovements.AddRange(outgoing, incoming);
+                await _db.SaveChangesAsync(ct);
+            },
+            ct => _db.InventoryMovements.AnyAsync(m => m.TransferId == transferId, ct),
+            cancellationToken);
 
         return await MovementProjection(_db.InventoryMovements.Where(m => m.TransferId == transferId))
             .OrderBy(m => m.Delta)
@@ -239,8 +256,31 @@ public class InventoryService : IInventoryService
         await EnsureLocationExistsAsync(request.LocationId, cancellationToken);
 
         var movement = NewMovement(request.ItemId, request.LocationId, InventoryMovementType.Ajuste, request.Delta, request.Notes, userId, null);
-        _db.InventoryMovements.Add(movement);
-        await _db.SaveChangesAsync(cancellationToken);
+        if (request.Delta >= 0)
+        {
+            _db.InventoryMovements.Add(movement);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            // Un ajuste que resta no puede dejar el saldo por debajo de cero (AUDIT.md H-41): misma exclusividad
+            // por (ítem, ubicación) que el traspaso, para que dos restas simultáneas no se salten el chequeo.
+            await _stockLock.RunInStockTransactionAsync(
+                async ct =>
+                {
+                    await _stockLock.LockAsync(new[] { (request.ItemId, request.LocationId) }, ct);
+                    var available = await BalanceAsync(request.LocationId, request.ItemId, ct);
+                    if (available + request.Delta < 0)
+                    {
+                        throw new ConflictException($"Saldo insuficiente: hay {available} y el ajuste resta {-request.Delta}. El inventario no puede quedar en negativo.");
+                    }
+
+                    _db.InventoryMovements.Add(movement);
+                    await _db.SaveChangesAsync(ct);
+                },
+                ct => _db.InventoryMovements.AnyAsync(m => m.Id == movement.Id, ct),
+                cancellationToken);
+        }
 
         return await GetMovementAsync(movement.Id, cancellationToken);
     }

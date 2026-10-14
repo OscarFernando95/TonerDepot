@@ -15,21 +15,25 @@ public class InventoryConsumptionService : IInventoryConsumptionService
 
     private readonly IApplicationDbContext _db;
     private readonly IBaseKitService _kits;
+    private readonly IStockLock _stockLock;
 
-    public InventoryConsumptionService(IApplicationDbContext db, IBaseKitService kits)
+    public InventoryConsumptionService(IApplicationDbContext db, IBaseKitService kits, IStockLock stockLock)
     {
         _db = db;
         _kits = kits;
+        _stockLock = stockLock;
     }
 
     private sealed record Source(Guid LocationId, string Name, bool IsMain);
 
-    public async Task<IReadOnlyList<string>> PrepareVisitConsumptionAsync(
+    // Debe llamarse dentro de IStockLock.RunInStockTransactionAsync (lo hace TechnicianCheckInService.CheckOutAsync):
+    // bloquea el saldo de cada pieza hasta el SaveChanges del cierre.
+    public async Task PrepareVisitConsumptionAsync(
         VisitConsumption visit, IReadOnlyList<UsedPartRequest> parts, CancellationToken cancellationToken = default)
     {
         if (parts.Count == 0)
         {
-            return Array.Empty<string>();
+            return;
         }
 
         // El mismo ítem repetido se suma en una sola salida.
@@ -57,8 +61,24 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         }
 
         var source = await ResolveSourceAsync(visit.AssetId, clientLocationId, cancellationToken);
+
+        // El inventario nunca queda en negativo: no se consume lo que no existe (AUDIT.md H-41). Se bloquea el saldo
+        // de TODAS las piezas antes de leerlo y, si alguna no alcanza, se rechaza el cierre entero nombrando cada
+        // faltante — nada se descuenta a medias.
+        await _stockLock.LockAsync(ids.Select(id => (id, source.LocationId)), cancellationToken);
         var balances = await BalancesAsync(source.LocationId, ids, cancellationToken);
-        var warnings = new List<string>();
+        var shortages = items
+            .Where(i => balances.GetValueOrDefault(i.Id) < merged[i.Id])
+            .OrderBy(i => i.Name)
+            .Select(i => $"{i.Name} (hay {balances.GetValueOrDefault(i.Id)}, necesitas {merged[i.Id]})")
+            .ToList();
+        if (shortages.Count > 0)
+        {
+            throw new ConflictException(
+                $"Stock insuficiente en {source.Name}: {string.Join("; ", shortages)}. " +
+                "Quita esas piezas o pide que repongan el inventario antes de cerrar la visita.");
+        }
+
         var note = source.IsMain && (visit.AssetId is not null || clientLocationId is not null)
             ? "Sin zona para el municipio del equipo: descontado de la bodega principal."
             : null;
@@ -81,15 +101,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
                 Notes = note,
                 CreatedByUserId = visit.UserId
             });
-
-            var after = balances.GetValueOrDefault(item.Id) - quantity;
-            if (after < 0)
-            {
-                warnings.Add($"Stock insuficiente de \"{item.Name}\" en {source.Name}: quedó en {after}. Pide reponerlo.");
-            }
         }
-
-        return warnings;
     }
 
     public async Task<VisitKitDto> GetKitForAssetAsync(Guid? assetId, Guid? clientLocationId = null, CancellationToken cancellationToken = default)
@@ -176,7 +188,6 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         await EnsureCounterFitsAsync(asset.Id, request.CounterValue.Value, (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime(), cancellationToken);
 
         var source = await ResolveSourceAsync(asset.Id, null, cancellationToken);
-        var balance = (await BalancesAsync(source.LocationId, new[] { item.Id }, cancellationToken)).GetValueOrDefault(item.Id) - request.Quantity;
 
         var how = request.DeliveredToUser ? "Entregado al usuario para que lo cambie" : "Cambiado por el técnico en la máquina";
         var notes = string.IsNullOrWhiteSpace(request.Notes) ? how : $"{how}. {request.Notes.Trim()}";
@@ -194,12 +205,29 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             CreatedByUserId = requester.UserId,
             OccurredAt = (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime()
         };
-        _db.InventoryMovements.Add(movement);
-        await _db.SaveChangesAsync(cancellationToken);
 
-        var entry = await TonerProjection(_db.InventoryMovements.Where(m => m.Id == movement.Id)).FirstAsync(cancellationToken);
-        entry.StockWarning = balance < 0 ? $"Stock insuficiente de \"{item.Name}\" en {source.Name}: quedó en {balance}." : null;
-        return entry;
+        // Sin tóner en la zona no se puede registrar uno instalado (AUDIT.md H-41): saldo bloqueado y comprobado
+        // en la misma transacción que el descuento.
+        await _stockLock.RunInStockTransactionAsync(
+            async ct =>
+            {
+                await _stockLock.LockAsync(new[] { (item.Id, source.LocationId) }, ct);
+                var available = (await BalancesAsync(source.LocationId, new[] { item.Id }, ct)).GetValueOrDefault(item.Id);
+                if (available < request.Quantity)
+                {
+                    throw new ConflictException(
+                        $"Stock insuficiente de \"{item.Name}\" en {source.Name}: hay {available} y se quieren registrar {request.Quantity}. " +
+                        "Pide que repongan el inventario antes de registrarlo.");
+                }
+
+                _db.InventoryMovements.Add(movement);
+                await _db.SaveChangesAsync(ct);
+            },
+            ct => _db.InventoryMovements.AnyAsync(m => m.Id == movement.Id, ct),
+            cancellationToken);
+
+        // StockWarning se conserva en el DTO por compatibilidad con los clientes; ya nunca hay negativo que avisar.
+        return await TonerProjection(_db.InventoryMovements.Where(m => m.Id == movement.Id)).FirstAsync(cancellationToken);
     }
 
     public async Task<PagedResult<TonerEntryDto>> ListTonerAsync(

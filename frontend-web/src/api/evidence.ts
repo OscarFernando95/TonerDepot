@@ -9,6 +9,8 @@ export interface EvidenceDto {
   serviceTicketId: string | null
   maintenanceOrderId: string | null
   timeLogId: string | null
+  // Con valor: el archivo se borró por la política de retención (AUDIT.md H-44) y ya no se puede descargar.
+  contentPurgedAt: string | null
 }
 
 export function listEvidence(target: { ticketId?: string; orderId?: string }) {

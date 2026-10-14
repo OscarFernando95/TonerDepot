@@ -576,6 +576,9 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ClientId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ContentPurgedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1074,6 +1077,33 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.ToTable("ModelBaseItems", (string)null);
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.PasswordEmailOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Cedula")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EncryptedPassword")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("PasswordEmailOutbox", (string)null);
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1443,9 +1473,6 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AssetId")
-                        .HasFilter("\"EndTime\" IS NULL");
-
                     b.HasIndex("ClientId");
 
                     b.HasIndex("MaintenanceOrderId");
@@ -1456,7 +1483,12 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TechnicianId");
 
+                    b.HasIndex(new[] { "AssetId" }, "IX_TimeLogs_AssetId_Open")
+                        .IsUnique()
+                        .HasFilter("\"EndTime\" IS NULL");
+
                     b.HasIndex(new[] { "TechnicianId" }, "IX_TimeLogs_TechnicianId_Open")
+                        .IsUnique()
                         .HasFilter("\"EndTime\" IS NULL");
 
                     b.ToTable("TimeLogs", null, t =>

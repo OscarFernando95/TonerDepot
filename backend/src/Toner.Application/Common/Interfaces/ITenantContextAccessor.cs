@@ -1,7 +1,8 @@
 namespace Toner.Application.Common.Interfaces;
 
-// Contexto de tenencia que se propaga a Postgres como variables de sesión (app.is_staff /
-// app.current_client_id) para que las políticas RLS lo usen — ver SECURITY_AUDIT.md hallazgo #5.
+// Contexto de tenencia que se propaga a Postgres para que las políticas RLS lo usen — ver
+// SECURITY_AUDIT.md hallazgo #5. Staff se expresa con el rol de conexión (SET ROLE toner_app_staff) y
+// Cliente con la variable de sesión app.current_client_id; app.is_staff ya no existe.
 //
 // RLS es una SEGUNDA capa: el filtrado por cliente/técnico de la capa de aplicación
 // (RequestingUser + los Where de cada servicio) sigue intacto y sigue siendo la primera línea.

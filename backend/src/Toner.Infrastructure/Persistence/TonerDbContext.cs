@@ -3,6 +3,7 @@ using Npgsql;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
+using Toner.Infrastructure.Persistence.Configurations;
 
 namespace Toner.Infrastructure.Persistence;
 
@@ -54,6 +55,7 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public DbSet<Evidence> Evidences => Set<Evidence>();
 
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
+    public DbSet<PasswordEmailOutbox> PasswordEmailOutbox => Set<PasswordEmailOutbox>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -104,10 +106,28 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     // Cubre las condiciones de carrera del patrón "verificar-y-luego-insertar" que usan los servicios
     // (dos requests concurrentes pasan el chequeo en memoria antes de que cualquiera inserte); otros
     // tipos de DbUpdateException (ej. violación de llave foránea) siguen siendo un 500 genuino.
+    //
+    // Índices cuya violación significa algo concreto para el usuario: mensaje legible en vez del genérico
+    // con el nombre técnico del índice.
+    private static readonly IReadOnlyDictionary<string, string> UniqueViolationMessages = new Dictionary<string, string>
+    {
+        [TimeLogConfiguration.OpenByTechnicianIndexName] = "Ya tienes una visita en curso. Haz check-out antes de iniciar otra.",
+        [TimeLogConfiguration.OpenByAssetIndexName] = "Otro técnico ya está atendiendo esta instalación.",
+        // Dos logins simultáneos del mismo técnico: el índice único parcial deja pasar solo a uno (AUDIT.md H-40).
+        [UserSessionConfiguration.SingleActiveSessionIndexName] =
+            "Ya tienes una sesión activa en otro dispositivo. Ciérrala allí primero, o pide a un administrador que la cierre."
+    };
+
     private static bool TryGetUniqueViolationMessage(DbUpdateException ex, out string message)
     {
         if (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pgEx)
         {
+            if (pgEx.ConstraintName is { } constraint && UniqueViolationMessages.TryGetValue(constraint, out var known))
+            {
+                message = known;
+                return true;
+            }
+
             var field = pgEx.ColumnName ?? pgEx.ConstraintName ?? "un valor único";
             message = $"Ya existe un registro con ese valor en '{field}'.";
             return true;

@@ -11,9 +11,10 @@ public sealed record VisitConsumption(
 public interface IInventoryConsumptionService
 {
     // Agrega (SIN guardar) los movimientos de consumo de las piezas usadas en una visita, descontando del inventario de
-    // la zona del equipo. El caller los persiste en su propio SaveChanges (misma operación de negocio). Devuelve los
-    // avisos de stock negativo: nunca bloquea el cierre de la visita.
-    Task<IReadOnlyList<string>> PrepareVisitConsumptionAsync(
+    // la zona del equipo. El caller los persiste en su propio SaveChanges (misma operación de negocio), dentro de
+    // IStockLock.RunInStockTransactionAsync. Si alguna pieza no tiene saldo suficiente lanza ConflictException y no
+    // agrega nada: el inventario nunca queda en negativo (AUDIT.md H-41).
+    Task PrepareVisitConsumptionAsync(
         VisitConsumption visit, IReadOnlyList<UsedPartRequest> parts, CancellationToken cancellationToken = default);
 
     // Kit base (efectivo) del modelo del equipo, con el saldo de la ubicación de donde se descontaría.

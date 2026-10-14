@@ -99,7 +99,7 @@ public class InventoryConsumptionPostgresTests
         try
         {
             await using var db = OwnerContext();
-            var service = new InventoryConsumptionService(db, new BaseKitService(db));
+            var service = new InventoryConsumptionService(db, new BaseKitService(db), new PostgresStockLock(db));
             var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
             var toner = new InventoryItem { Name = tonerName, Category = InventoryCategory.Toner };
             db.Add(toner);
@@ -112,14 +112,24 @@ public class InventoryConsumptionPostgresTests
             var parts = await service.SearchPartsAsync(RlsFixture.AssetOfClientA, tonerName[..12], null, null);
             Assert.Equal(tonerName, Assert.Single(parts.Items).Name);
 
-            var entry = await service.RegisterTonerAsync(
-                new RegisterTonerRequest { AssetId = RlsFixture.AssetOfClientA, ItemId = toner.Id, Quantity = 2, OccurredAt = DateTime.UtcNow.AddDays(-3), CounterValue = 500 }, staff);
+            var request = new RegisterTonerRequest { AssetId = RlsFixture.AssetOfClientA, ItemId = toner.Id, Quantity = 2, OccurredAt = DateTime.UtcNow.AddDays(-3), CounterValue = 500 };
+
+            // Sin stock en la bodega: se rechaza (AUDIT.md H-41; antes avisaba y dejaba el saldo en negativo).
+            await Assert.ThrowsAsync<Toner.Application.Common.Exceptions.ConflictException>(() => service.RegisterTonerAsync(request, staff));
+
+            db.InventoryMovements.Add(new InventoryMovement
+            {
+                InventoryItemId = toner.Id, InventoryLocationId = kit.LocationId, Type = InventoryMovementType.Entrada, Delta = 2
+            });
+            await db.SaveChangesAsync();
+
+            var entry = await service.RegisterTonerAsync(request, staff);
             Assert.Equal(2, entry.Quantity);
-            Assert.NotNull(entry.StockWarning);   // sin stock: avisa, no bloquea
+            Assert.Null(entry.StockWarning);
 
             var history = await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-10), null, null, null, staff);
-            Assert.Equal(tonerName, Assert.Single(history.Items.Where(h => h.ItemName == tonerName)).ItemName);
-            Assert.Empty((await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-1), null, null, null, staff)).Items.Where(h => h.ItemName == tonerName));
+            Assert.Equal(tonerName, Assert.Single(history.Items, h => h.ItemName == tonerName).ItemName);
+            Assert.DoesNotContain((await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-1), null, null, null, staff)).Items, h => h.ItemName == tonerName);
         }
         finally
         {

@@ -31,4 +31,8 @@ public class Evidence : BaseEntity
     public User UploadedByUser { get; set; } = null!;
 
     public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+
+    // Cuándo se borró el archivo de Blob por la política de retención (AUDIT.md H-44). Nulo = el archivo existe.
+    // La fila se CONSERVA (quién, cuándo, de qué tipo, para qué ticket/orden) como prueba de que la visita tuvo fotos.
+    public DateTime? ContentPurgedAt { get; set; }
 }

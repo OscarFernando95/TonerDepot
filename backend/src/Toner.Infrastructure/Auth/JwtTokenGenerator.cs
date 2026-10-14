@@ -1,7 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
@@ -54,13 +54,18 @@ public class JwtTokenGenerator : IJwtTokenGenerator
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.SigningKey)),
             SecurityAlgorithms.HmacSha256);
 
-        var token = new JwtSecurityToken(
-            issuer: _settings.Issuer,
-            audience: _settings.Audience,
-            claims: claims,
-            expires: expiresAtUtc,
-            signingCredentials: signingCredentials);
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = _settings.Issuer,
+            Audience = _settings.Audience,
+            Subject = new ClaimsIdentity(claims),
+            Expires = expiresAtUtc,
+            SigningCredentials = signingCredentials
+        };
 
-        return (new JwtSecurityTokenHandler().WriteToken(token), expiresAtUtc);
+        // Sin iat/nbf automáticos: el token queda idéntico al que emitía JwtSecurityTokenHandler (AUDIT.md H-31,
+        // ver JwtTokenGeneratorTests). Cambiar los claims es una decisión aparte, no parte del cambio de librería.
+        var handler = new JsonWebTokenHandler { SetDefaultTimesOnTokenCreation = false };
+        return (handler.CreateToken(descriptor), expiresAtUtc);
     }
 }

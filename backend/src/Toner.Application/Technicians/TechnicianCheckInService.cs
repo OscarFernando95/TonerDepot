@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.Results;
 using Toner.Application.Geo;
 using Toner.Application.Inventory;
 using Toner.Application.Evidences;
@@ -31,6 +33,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     private readonly GeoOptions _geo;
     private readonly EvidenceOptions _evidence;
     private readonly IInventoryConsumptionService _consumption;
+    private readonly IStockLock _stockLock;
     private readonly IWorkCalendarService _calendar;
     private readonly TimeProvider _time;
     private readonly ILogger<TechnicianCheckInService> _logger;
@@ -47,11 +50,13 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         IWorkCalendarService calendar,
         TimeProvider time,
         IInventoryConsumptionService consumption,
+        IStockLock stockLock,
         ILogger<TechnicianCheckInService> logger)
     {
         _calendar = calendar;
         _time = time;
         _consumption = consumption;
+        _stockLock = stockLock;
         _geo = geo.Value;
         _evidence = evidence.Value;
         _logger = logger;
@@ -206,7 +211,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         {
             beforePhoto = await RequireEvidenceAsync(
                 request.BeforeEvidenceId, EvidenceKind.Antes, request.ServiceTicketId, request.MaintenanceOrderId,
-                technician.UserId, "la foto de la falla o del estado del equipo (antes)", cancellationToken);
+                technician.UserId, "la foto de la falla o del estado del equipo (antes)", nameof(CheckInRequest.BeforeEvidenceId), cancellationToken);
         }
 
         var (siteLat, siteLon) = await GetSiteCoordinatesAsync(request.ServiceTicketId, request.MaintenanceOrderId, request.AssetId, cancellationToken);
@@ -266,6 +271,24 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
     public async Task<TechnicianSelfStatusDto> CheckOutAsync(Guid technicianId, CheckOutRequest request, CancellationToken cancellationToken = default)
     {
+        // Todo el cierre corre en una transacción de stock (AUDIT.md H-41): las piezas usadas bloquean su saldo desde
+        // que se lee hasta el único SaveChanges, así que dos cierres simultáneos no pueden consumir la misma unidad.
+        // Ante un fallo transitorio el cierre se repite entero (todo se vuelve a leer dentro); si el commit quedó en
+        // duda, "el TimeLog que estaba abierto ya está cerrado" dice si se aplicó.
+        Guid? closingLogId = null;
+        await _stockLock.RunInStockTransactionAsync(
+            ct => CloseVisitAsync(technicianId, request, id => closingLogId = id, ct),
+            async ct => closingLogId is { } id && await _db.TimeLogs.AnyAsync(t => t.Id == id && t.EndTime != null, ct),
+            cancellationToken);
+
+        var status = await GetMyStatusAsync(technicianId, cancellationToken);
+        // Se conserva en el DTO por compatibilidad con los clientes: ya nunca hay stock negativo que avisar.
+        status.StockWarnings = Array.Empty<string>();
+        return status;
+    }
+
+    private async Task CloseVisitAsync(Guid technicianId, CheckOutRequest request, Action<Guid> onClosingLog, CancellationToken cancellationToken)
+    {
         var technician = await _db.Technicians.FirstOrDefaultAsync(t => t.Id == technicianId, cancellationToken)
             ?? throw new NotFoundException(nameof(Technician), technicianId);
 
@@ -279,6 +302,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             .OrderByDescending(tl => tl.StartTime)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new ConflictException("No se encontró un registro de tiempo abierto.");
+        onClosingLog(openLog.Id);
 
         var isInstallationCheckout = openLog.AssetId.HasValue && request.Resolved;
         var isOrderCheckout = openLog.MaintenanceOrderId.HasValue && request.Resolved;
@@ -302,24 +326,24 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         {
             if (string.IsNullOrWhiteSpace(request.Area))
             {
-                throw new ConflictException("El área es obligatoria para completar la instalación.");
+                throw InvalidInput(nameof(CheckOutRequest.Area), "El área es obligatoria para completar la instalación.");
             }
             if (!request.InitialCounterValue.HasValue)
             {
-                throw new ConflictException("Debes ingresar el contador inicial para completar la instalación.");
+                throw InvalidInput(nameof(CheckOutRequest.InitialCounterValue), "Debes ingresar el contador inicial para completar la instalación.");
             }
             if (!request.GeneralMaintenanceDone.HasValue)
             {
-                throw new ConflictException("Debes indicar si el activo tiene mantenimiento general realizado.");
+                throw InvalidInput(nameof(CheckOutRequest.GeneralMaintenanceDone), "Debes indicar si el activo tiene mantenimiento general realizado.");
             }
             if (!request.UnitsMaintenanceDone.HasValue)
             {
-                throw new ConflictException("Debes indicar si el activo tiene mantenimiento de unidades realizado o insumos nuevos.");
+                throw InvalidInput(nameof(CheckOutRequest.UnitsMaintenanceDone), "Debes indicar si el activo tiene mantenimiento de unidades realizado o insumos nuevos.");
             }
         }
         else if (isOrderCheckout && !request.InitialCounterValue.HasValue)
         {
-            throw new ConflictException("Debes ingresar el contador para completar la orden de mantenimiento.");
+            throw InvalidInput(nameof(CheckOutRequest.InitialCounterValue), "Debes ingresar el contador para completar la orden de mantenimiento.");
         }
 
         if (assetForCounterCheck.HasValue && request.InitialCounterValue.HasValue)
@@ -331,7 +355,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
             if (lastReading is not null && request.InitialCounterValue.Value < lastReading.CounterValue)
             {
-                throw new ConflictException(
+                throw InvalidInput(nameof(CheckOutRequest.InitialCounterValue),
                     $"La lectura ({request.InitialCounterValue.Value}) no puede ser menor a la última registrada ({lastReading.CounterValue}).");
             }
 
@@ -349,7 +373,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         {
             afterPhoto = await RequireEvidenceAsync(
                 request.AfterEvidenceId, EvidenceKind.Despues, openLog.ServiceTicketId, openLog.MaintenanceOrderId,
-                technician.UserId, "la foto del resultado (después)", cancellationToken);
+                technician.UserId, "la foto del resultado (después)", nameof(CheckOutRequest.AfterEvidenceId), cancellationToken);
         }
 
         // Foto del contador: si la visita (ticket u orden) registra una lectura, debe venir con su foto. Las
@@ -363,17 +387,16 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         {
             counterPhoto = await RequireEvidenceAsync(
                 request.CounterEvidenceId, EvidenceKind.Contador, openLog.ServiceTicketId, openLog.MaintenanceOrderId,
-                technician.UserId, "la foto del contador", cancellationToken);
+                technician.UserId, "la foto del contador", nameof(CheckOutRequest.CounterEvidenceId), cancellationToken);
         }
 
         // Piezas usadas: solo en tickets y órdenes. Se descuentan del inventario de la zona del equipo dentro del mismo
-        // SaveChanges del cierre; si falta stock la visita igual se cierra y vuelve un aviso (no bloquea el campo).
-        IReadOnlyList<string> stockWarnings = Array.Empty<string>();
+        // SaveChanges del cierre; si alguna no tiene saldo, el cierre se rechaza entero (AUDIT.md H-41).
         if (request.Parts.Count > 0)
         {
             if (!isVisitCheckout)
             {
-                throw new ConflictException("Las piezas usadas solo se registran al cerrar un ticket o una orden de mantenimiento.");
+                throw InvalidInput(nameof(CheckOutRequest.Parts), "Las piezas usadas solo se registran al cerrar un ticket o una orden de mantenimiento.");
             }
 
             Guid? partsClientId, partsAssetId;
@@ -390,7 +413,7 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                 partsAssetId = order.AssetId;
             }
 
-            stockWarnings = await _consumption.PrepareVisitConsumptionAsync(
+            await _consumption.PrepareVisitConsumptionAsync(
                 new VisitConsumption(partsClientId, partsAssetId, openLog.MaintenanceOrderId, openLog.ServiceTicketId, openLog.Id, request.InitialCounterValue, technician.UserId),
                 request.Parts.ToList(),
                 cancellationToken);
@@ -540,10 +563,6 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         // DUPLICADA, que corrompe tanto los umbrales de mantenimiento como el promedio de impresiones
         // por mes del contrato (CODE_QUALITY_AUDIT.md hallazgo #8).
         await _db.SaveChangesAsync(cancellationToken);
-
-        var status = await GetMyStatusAsync(technicianId, cancellationToken);
-        status.StockWarnings = stockWarnings;
-        return status;
     }
 
     // El ClientId denormalizado de las tablas de fase 3b se captura al escribir. En este servicio el
@@ -582,22 +601,22 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     // atada a otro check-in/out (una foto no se reutiliza).
     private async Task<Evidence> RequireEvidenceAsync(
         Guid? evidenceId, EvidenceKind kind, Guid? serviceTicketId, Guid? maintenanceOrderId, Guid uploaderUserId,
-        string description, CancellationToken cancellationToken)
+        string description, string property, CancellationToken cancellationToken)
     {
         if (!evidenceId.HasValue)
         {
-            throw new ConflictException($"Debes tomar {description} antes de continuar.");
+            throw InvalidInput(property, $"Debes tomar {description} antes de continuar.");
         }
 
         var evidence = await _db.Evidences.FirstOrDefaultAsync(e => e.Id == evidenceId.Value, cancellationToken)
-            ?? throw new ConflictException($"No se encontró {description}. Vuelve a tomarla.");
+            ?? throw InvalidInput(property, $"No se encontró {description}. Vuelve a tomarla.");
 
         if (evidence.UploadedByUserId != uploaderUserId
             || evidence.Kind != kind
             || evidence.ServiceTicketId != serviceTicketId
             || evidence.MaintenanceOrderId != maintenanceOrderId)
         {
-            throw new ConflictException($"La foto enviada no corresponde a {description} de esta visita.");
+            throw InvalidInput(property, $"La foto enviada no corresponde a {description} de esta visita.");
         }
 
         if (evidence.TimeLogId.HasValue)
@@ -638,8 +657,13 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             var rango = contract.EndDate.HasValue
                 ? $"entre el {contract.StartDate:dd/MM/yyyy} y el {contract.EndDate.Value:dd/MM/yyyy}"
                 : $"a partir del {contract.StartDate:dd/MM/yyyy}";
-            throw new ConflictException($"La fecha de la lectura debe estar {rango}, según la vigencia del contrato de este cliente.");
+            throw InvalidInput(nameof(CheckOutRequest.InitialCounterDate), $"La fecha de la lectura debe estar {rango}, según la vigencia del contrato de este cliente.");
         }
     }
 
+    // Entrada del técnico inválida o incompleta (falta un dato, una foto, un contador menor al anterior...): es
+    // un 400 con el campo señalado, no un 409. Los 409 quedan para conflictos de ESTADO — visita ya en curso,
+    // ticket en otro estado, otro técnico atendiendo, foto ya usada (AUDIT.md H-37).
+    private static ValidationException InvalidInput(string property, string message) =>
+        new(new[] { new ValidationFailure(property, message) });
 }

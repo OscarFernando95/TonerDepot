@@ -303,8 +303,10 @@ public class RowLevelSecurityTests
 
         await using (var readLogs = connection.CreateCommand())
         {
-            // ExceptionLogs guarda stack traces y correos: la app escribe pero no debe poder leer.
-            readLogs.CommandText = @"SELECT count(*) FROM ""ExceptionLogs""";
+            // ExceptionLogs guarda stack traces y correos: la app escribe pero no debe poder leer su
+            // contenido. Desde H-27 tiene SELECT SOLO sobre "CreatedAt" (para purgar por antigüedad),
+            // así que count(*) ya es legal; lo que sigue prohibido es leer StackTrace/Message/UserEmail.
+            readLogs.CommandText = @"SELECT ""StackTrace"" FROM ""ExceptionLogs"" LIMIT 1";
             var ex = await Assert.ThrowsAsync<PostgresException>(() => readLogs.ExecuteScalarAsync());
             Assert.Equal("42501", ex.SqlState);
         }

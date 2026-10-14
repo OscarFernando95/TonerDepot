@@ -10,7 +10,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Managed Identity para Blob Storage en Azure (AUDIT.md H-18). -->
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
+    <!-- Fijada por encima de la que arrastra MailKit -> MimeKit (8.0.1): GHSA-846f-f764-76mx (High) y
+         GHSA-2fmv-rv2c-59x7 (Moderate), ambas DoS, corregidas en 8.0.2 (AUDIT.md H-42). Quitar cuando MailKit
+         dependa ya de una versión corregida. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="FirebaseAdmin" Version="3.7.0" />
     <PackageReference Include="Hangfire.Core" Version="1.8.24" />
@@ -19,28 +25,35 @@
          administrativo). Se había quitado por no usarse (CODE_QUALITY_AUDIT.md hallazgo #37); ahora sí
          se usa, ver Email/SmtpEmailSender.cs. -->
     <PackageReference Include="MailKit" Version="4.17.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
     <!-- Necesario para TonerDbContextFactory (factory de tiempo de diseño de EF Core), que lee
          MigrationsConnection desde appsettings para correr las migraciones con el rol owner. -->
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.13" />
     <!-- IHostEnvironment (DataSeeder) llegaba transitivamente vía Azure.Storage.Blobs/FirebaseAdmin;
          al quitar esos paquetes sin uso (CODE_QUALITY_AUDIT.md hallazgo #37) quedó como referencia
          directa faltante. Se hace explícita en vez de reintroducir el paquete que la traía de rebote. -->
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
     <!-- IHealthCheck/HealthCheckResult para PostgresHealthCheck (hallazgo #39) — este proyecto usa
          Microsoft.NET.Sdk, no Sdk.Web, así que no hereda el framework compartido de ASP.NET Core. -->
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="8.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- Explícita para alinear con el resto de EF Core (AUDIT.md H-07): Npgsql.EF solo exige >= 10.0.4, y la 10.0.13
+         que llegaba vía EF.Design no se propaga (PrivateAssets=all), así que quien referencia este proyecto acababa
+         con una Relational más vieja que la compilada aquí (CS1705). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.13" />
+    <!-- Emisión del JWT con JsonWebTokenHandler (AUDIT.md H-31): System.IdentityModel.Tokens.Jwt está en modo
+         Legacy. Misma versión que la que arrastra JwtBearer en Toner.Api: mezclar versiones de IdentityModel
+         rompe la validación de firma. -->
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.2" />
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

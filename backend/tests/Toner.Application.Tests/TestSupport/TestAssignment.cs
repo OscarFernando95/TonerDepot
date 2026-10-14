@@ -43,7 +43,8 @@ public static class TestCheckIn
     // requirePhotos = false por defecto: los tests históricos del check-in no cubren la política de fotos;
     // los de la política (EvidenceAndLocationTests) la activan explícitamente.
     public static TechnicianCheckInService Create(
-        Infrastructure.Persistence.TonerDbContext db, bool requirePhotos = false, double radiusMeters = 250, TimeProvider? time = null)
+        Infrastructure.Persistence.TonerDbContext db, bool requirePhotos = false, double radiusMeters = 250, TimeProvider? time = null,
+        Toner.Application.Common.Interfaces.IStockLock? stockLock = null)
     {
         var scheduleEngine = new MaintenanceScheduleEngine(db);
         var assignmentEngine = TestAssignment.Create(db);
@@ -58,7 +59,8 @@ public static class TestCheckIn
             Options.Create(new EvidenceOptions { RequirePhotos = requirePhotos }),
             TestCalendar.For(db),
             time ?? FixedTimeProvider.WorkingHours,
-            new Toner.Application.Inventory.InventoryConsumptionService(db, new Toner.Application.Inventory.BaseKitService(db)),
+            new Toner.Application.Inventory.InventoryConsumptionService(db, new Toner.Application.Inventory.BaseKitService(db), stockLock ?? new PassThroughStockLock()),
+            stockLock ?? new PassThroughStockLock(),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<TechnicianCheckInService>.Instance);
     }
 }

@@ -60,11 +60,12 @@ async function loadAll(silent = false) {
     const [contractRes, contractAssetsRes, assetsRes] = await Promise.all([
       contractsApi.getContract(contractId),
       contractAssetsApi.listContractAssets(contractId),
-      assetsApi.listAssets()
+      // Solo los que están en bodega (los únicos vinculables), filtrado en el servidor (AUDIT.md H-11).
+      assetsApi.listAllAssets({ status: 'EnBodega' })
     ])
     contract.value = contractRes.data
     contractAssets.value = contractAssetsRes.data
-    assets.value = assetsRes.data
+    assets.value = assetsRes
     if (!silent) syncForm()
 
     // Acotado al cliente del contrato: el backend exige que la sede pertenezca a ese cliente.
@@ -134,10 +135,10 @@ async function saveAddAsset() {
     })
     ElMessage.success('Activo vinculado al contrato — queda "Pendiente de instalar" en la sede elegida.')
     addAssetDialogVisible.value = false
-    const [{ data: caData }, { data: contractData }, { data: assetsData }] = await Promise.all([
+    const [{ data: caData }, { data: contractData }, assetsData] = await Promise.all([
       contractAssetsApi.listContractAssets(contractId),
       contractsApi.getContract(contractId),
-      assetsApi.listAssets()
+      assetsApi.listAllAssets({ status: 'EnBodega' })
     ])
     contractAssets.value = caData
     contract.value = contractData

@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
+import { usePagedList } from '../../composables/usePagedList'
+import * as citiesApi from '../../api/cities'
+import * as clientsApi from '../../api/clients'
 import { ElMessage } from 'element-plus'
 import * as meterReadingsApi from '../../api/meterReadings'
-import type { MeterReadingAssetDto } from '../../api/types'
+import type { CityDto, ClientDto, MeterReadingAssetDto } from '../../api/types'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
 import { useAuthStore } from '../../stores/auth'
 import { RoleNames } from '../../api/types'
@@ -21,121 +24,69 @@ const isTechnician = computed(() => auth.hasRole(RoleNames.Tecnico))
 const tab = ref<'linked' | 'coverage'>('coverage')
 const activeTab = computed(() => (isTechnician.value ? tab.value : 'linked'))
 
-const assets = ref<MeterReadingAssetDto[]>([])
-const coverageAssets = ref<MeterReadingAssetDto[]>([])
-const activeAssets = computed(() => (activeTab.value === 'coverage' ? coverageAssets.value : assets.value))
 const tonerDate = new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' })
 function lastTonerLabel(a: MeterReadingAssetDto) {
   if (!a.lastTonerAt) return 'Sin tóner registrado'
   const counter = a.lastTonerCounter != null ? ` · contador ${a.lastTonerCounter}` : ''
   return `${tonerDate.format(new Date(a.lastTonerAt))}${counter} · ${a.tonerUnitsLast90Days} en 90 días`
 }
-const loading = ref(false)
 
-const viewMode = ref<'grouped' | 'flat'>('grouped')
-const filters = reactive({ cityName: '', clientId: '' })
+// Listado paginado y filtrado EN EL SERVIDOR (AUDIT.md H-11): antes se traían hasta 200 filas, se filtraban y
+// agrupaban en el cliente y, pasado ese tope, la lista quedaba incompleta sin avisar. `scope` elige la pestaña.
+const PAGE_SIZE = 25
+const filters = reactive({ scope: 'linked' as 'linked' | 'coverage', search: '', cityId: '', clientId: '' })
+watch(activeTab, (value) => (filters.scope = value), { immediate: true })
 
-type FilterKey = keyof typeof filters
-
-function matches(a: MeterReadingAssetDto, exclude: FilterKey) {
-  const cityOk = exclude === 'cityName' || !filters.cityName || a.cityName === filters.cityName
-  const clientOk = exclude === 'clientId' || !filters.clientId || a.clientId === filters.clientId
-  return cityOk && clientOk
-}
-
-const cityOptions = computed(() =>
-  [...new Set(activeAssets.value.filter((a) => matches(a, 'cityName') && a.cityName).map((a) => a.cityName as string))].sort()
+const {
+  items: assets,
+  total,
+  page,
+  loading,
+  reload: loadAll
+} = usePagedList<MeterReadingAssetDto, typeof filters>(
+  ({ scope, ...params }) =>
+    (scope === 'coverage'
+      ? meterReadingsApi.listMeterReadingAssetsByCoverage(params)
+      : meterReadingsApi.listMeterReadingAssets(params)
+    ).then((r) => r.data),
+  {
+    filters,
+    pageSize: PAGE_SIZE,
+    label: 'MeterReadingsView',
+    onError: (err: any) => ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los activos.')
+  }
 )
-const clientOptions = computed(() => {
-  const seen = new Map<string, string>()
-  for (const a of activeAssets.value.filter((x) => matches(x, 'clientId') && x.clientId)) {
-    seen.set(a.clientId as string, a.clientName as string)
-  }
-  return [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+
+// La búsqueda por texto espera a que se deje de escribir: sin esto cada tecla sería una petición.
+const searchText = ref('')
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(searchText, (value) => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => (filters.search = value.trim()), 350)
 })
+onBeforeUnmount(() => clearTimeout(searchTimer))
 
-const filteredAssets = computed(() => activeAssets.value.filter((a) => matches(a, 'cityName') && matches(a, 'clientId')))
-
-const NO_CITY = 'Sin ciudad'
-const NO_CLIENT = 'Sin cliente'
-
-interface ClientGroup {
-  clientKey: string
-  clientLabel: string
-  assets: MeterReadingAssetDto[]
-}
-interface CityGroup {
-  city: string
-  clientGroups: ClientGroup[]
+const hasFilters = computed(() => !!(filters.search || filters.cityId || filters.clientId))
+function clearFilters() {
+  searchText.value = ''
+  Object.assign(filters, { search: '', cityId: '', clientId: '' })
 }
 
-const groupedByCity = computed<CityGroup[]>(() => {
-  const byCity = new Map<string, Map<string, MeterReadingAssetDto[]>>()
-  const clientLabels = new Map<string, string>()
-
-  for (const asset of filteredAssets.value) {
-    const city = asset.cityName ?? NO_CITY
-    const clientKey = asset.clientId ?? NO_CLIENT
-    clientLabels.set(clientKey, asset.clientName ?? NO_CLIENT)
-
-    if (!byCity.has(city)) byCity.set(city, new Map())
-    const byClient = byCity.get(city)!
-    if (!byClient.has(clientKey)) byClient.set(clientKey, [])
-    byClient.get(clientKey)!.push(asset)
-  }
-
-  return [...byCity.entries()]
-    .map(([city, byClient]) => ({
-      city,
-      clientGroups: [...byClient.entries()]
-        .map(([clientKey, list]) => ({ clientKey, clientLabel: clientLabels.get(clientKey) ?? NO_CLIENT, assets: list }))
-        .sort((a, b) => a.clientLabel.localeCompare(b.clientLabel))
-    }))
-    .sort((a, b) => a.city.localeCompare(b.city))
-})
-
-const openGroups = ref<string[]>([])
-const groupsInitialized = ref(false)
+// Ciudades y clientes para filtrar: solo Staff (los endpoints son de staff). El Técnico filtra por texto, que ya
+// busca también por ciudad, cliente y sede.
+const cityOptions = ref<CityDto[]>([])
+const clientOptions = ref<ClientDto[]>([])
+if (!isTechnician.value) {
+  citiesApi.listCities().then(({ data }) => (cityOptions.value = data))
+    .catch((err) => console.error('MeterReadingsView: no se pudieron cargar las ciudades', err))
+  clientsApi.listClients().then(({ data }) => (clientOptions.value = data))
+    .catch((err) => console.error('MeterReadingsView: no se pudieron cargar los clientes', err))
+}
 
 const dialogVisible = ref(false)
 const saving = ref(false)
 const registeringAsset = ref<MeterReadingAssetDto | null>(null)
 const form = reactive({ counterValue: undefined as number | undefined, readingDate: '' })
-
-async function loadData(silent = false) {
-  if (!silent) loading.value = true
-  try {
-    const { data } = await meterReadingsApi.listMeterReadingAssets()
-    assets.value = data
-    if (!groupsInitialized.value) {
-      openGroups.value = []
-      groupsInitialized.value = true
-    }
-  } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los activos.')
-  } finally {
-    loading.value = false
-  }
-}
-
-const loadingCoverage = ref(false)
-
-async function loadCoverage(silent = false) {
-  if (!silent) loadingCoverage.value = true
-  try {
-    const { data } = await meterReadingsApi.listMeterReadingAssetsByCoverage()
-    coverageAssets.value = data
-  } catch (err: any) {
-    console.error('MeterReadingsView.loadCoverage failed', err)
-    ElMessage.error(err.response?.data?.title ?? 'No se pudieron cargar los equipos de tu cobertura.')
-  } finally {
-    loadingCoverage.value = false
-  }
-}
-
-async function loadAll(silent = false) {
-  await Promise.all([loadData(silent), isTechnician.value ? loadCoverage(silent) : Promise.resolve()])
-}
 
 const tonerDialogRef = ref<InstanceType<typeof TonerDialog> | null>(null)
 
@@ -173,11 +124,10 @@ async function handleSave() {
   }
 }
 
-onMounted(loadAll)
 // "Technician"/"Zone": al asignarle una zona a este técnico (o agregarle un municipio a una zona que
 // ya tenía) se auto-vinculan sus activos ya instalados ahí — sin escuchar estos dos tópicos, "Por
 // cobertura" se quedaba mostrando el municipio nuevo pero vacío hasta recargar la página a mano.
-useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Technician', 'Zone'], () => loadAll(true))
+useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Technician', 'Zone'], () => loadAll())
 </script>
 
 <template>
@@ -197,54 +147,45 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
     </el-radio-group>
 
     <el-empty
-      v-if="isTechnician && activeTab === 'coverage' && !loadingCoverage && coverageAssets.length === 0"
-      description="No hay equipos instalados en las ciudades de tu cobertura."
-    />
-    <el-empty
-      v-else-if="isTechnician && activeTab === 'linked' && !loading && assets.length === 0"
-      description="No tienes otras máquinas vinculadas."
+      v-if="isTechnician && !loading && total === 0 && !hasFilters"
+      :description="activeTab === 'coverage' ? 'No hay equipos instalados en las ciudades de tu cobertura.' : 'No tienes otras máquinas vinculadas.'"
     >
-      <p class="hint">
+      <p v-if="activeTab === 'linked'" class="hint">
         Aquí aparecen solo los equipos que un administrador te vincula a mano cuando quedan fuera de tu zona de cobertura
         (ej. para que revises algo puntual). Las máquinas de tu zona están en la pestaña "Por cobertura".
       </p>
     </el-empty>
 
     <div class="filters-bar">
-      <el-select v-model="filters.cityName" clearable filterable placeholder="Filtrar por ciudad" style="width: 220px">
-        <el-option v-for="c in cityOptions" :key="c" :label="c" :value="c" />
+      <el-input v-model="searchText" clearable placeholder="Buscar por serie, modelo, cliente, sede o ciudad" style="width: 320px" />
+      <el-select v-if="!isTechnician" v-model="filters.cityId" clearable filterable placeholder="Ciudad" style="width: 220px">
+        <el-option v-for="c in cityOptions" :key="c.id" :label="c.name" :value="c.id" />
       </el-select>
-      <el-select v-model="filters.clientId" clearable filterable placeholder="Filtrar por cliente" style="width: 240px">
+      <el-select v-if="!isTechnician" v-model="filters.clientId" clearable filterable placeholder="Cliente" style="width: 240px">
         <el-option v-for="c in clientOptions" :key="c.id" :label="c.name" :value="c.id" />
       </el-select>
-      <el-radio-group v-model="viewMode" class="view-toggle">
-        <el-radio-button value="grouped">Agrupar por ciudad</el-radio-button>
-        <el-radio-button value="flat">Ver como lista</el-radio-button>
-      </el-radio-group>
+      <el-button v-if="hasFilters" link @click="clearFilters">Limpiar filtros</el-button>
+      <span class="results-count">{{ total }} {{ total === 1 ? 'resultado' : 'resultados' }}</span>
     </div>
 
-    <el-table
-      v-if="viewMode === 'flat'"
-      :data="filteredAssets"
-      v-loading="activeTab === 'coverage' ? loadingCoverage : loading"
-      stripe
-    >
-      <el-table-column prop="assetBrandName" label="Marca" width="120" sortable />
-      <el-table-column prop="model" label="Modelo" sortable />
-      <el-table-column prop="serialNumber" label="Serie" width="140" sortable />
-      <el-table-column prop="clientName" label="Cliente" sortable>
+    <!-- Sin columnas ordenables: con paginación del servidor un orden por columna solo reordenaría la página visible. -->
+    <el-table :data="assets" v-loading="loading" stripe :empty-text="hasFilters ? 'Ninguna máquina coincide con los filtros.' : 'No hay máquinas.'">
+      <el-table-column prop="assetBrandName" label="Marca" width="120" />
+      <el-table-column prop="model" label="Modelo" />
+      <el-table-column prop="serialNumber" label="Serie" width="140" />
+      <el-table-column prop="clientName" label="Cliente">
         <template #default="{ row }">{{ row.clientName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="clientLocationName" label="Sede" sortable>
+      <el-table-column prop="clientLocationName" label="Sede">
         <template #default="{ row }">{{ row.clientLocationName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="area" label="Área" width="140" sortable>
+      <el-table-column prop="area" label="Área" width="140">
         <template #default="{ row }">{{ row.area ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="cityName" label="Ciudad" width="140" sortable>
+      <el-table-column prop="cityName" label="Ciudad" width="140">
         <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="lastMeterReading" label="Último contador" width="140" sortable>
+      <el-table-column prop="lastMeterReading" label="Último contador" width="140">
         <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
       </el-table-column>
       <el-table-column label="Último tóner" min-width="220">
@@ -258,45 +199,15 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       </el-table-column>
     </el-table>
 
-    <el-collapse v-else v-model="openGroups" v-loading="activeTab === 'coverage' ? loadingCoverage : loading">
-      <el-collapse-item v-for="cityGroup in groupedByCity" :key="cityGroup.city" :name="cityGroup.city">
-        <template #title>
-          {{ cityGroup.city }} ({{ cityGroup.clientGroups.reduce((n, g) => n + g.assets.length, 0) }})
-        </template>
-        <el-collapse v-model="openGroups" class="nested-collapse">
-          <el-collapse-item
-            v-for="clientGroup in cityGroup.clientGroups"
-            :key="clientGroup.clientKey"
-            :name="`${cityGroup.city}::${clientGroup.clientKey}`"
-          >
-            <template #title>{{ clientGroup.clientLabel }} ({{ clientGroup.assets.length }})</template>
-            <el-table :data="clientGroup.assets">
-              <el-table-column label="Activo">
-                <template #default="{ row }">{{ row.assetBrandName }} {{ row.model }} — {{ row.serialNumber }}</template>
-              </el-table-column>
-              <el-table-column label="Sede">
-                <template #default="{ row }">{{ row.clientLocationName ?? '—' }}</template>
-              </el-table-column>
-              <el-table-column label="Área" width="140">
-                <template #default="{ row }">{{ row.area ?? '—' }}</template>
-              </el-table-column>
-              <el-table-column label="Último contador" width="140">
-                <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
-              </el-table-column>
-              <el-table-column label="Último tóner" min-width="200">
-                <template #default="{ row }">{{ lastTonerLabel(row) }}</template>
-              </el-table-column>
-              <el-table-column label="" width="250">
-                <template #default="{ row }">
-                  <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
-                  <el-button size="small" @click="openToner(row)">Tóner</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-collapse-item>
-        </el-collapse>
-      </el-collapse-item>
-    </el-collapse>
+    <el-pagination
+      v-if="total > PAGE_SIZE"
+      v-model:current-page="page"
+      class="pager"
+      layout="prev, pager, next"
+      :page-size="PAGE_SIZE"
+      :total="total"
+      background
+    />
 
     <el-dialog v-model="dialogVisible" title="Registrar contador" width="420px">
       <p v-if="registeringAsset" class="dialog-subtitle">
@@ -325,7 +236,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       </template>
     </el-dialog>
   </div>
-  <TonerDialog ref="tonerDialogRef" @saved="loadAll(true)" />
+  <TonerDialog ref="tonerDialogRef" @saved="loadAll()" />
 </template>
 
 <style scoped>
@@ -341,17 +252,21 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
 
 .filters-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
-.view-toggle {
+.results-count {
   margin-left: auto;
+  color: var(--el-text-color-secondary);
+  font-size: 0.85rem;
 }
 
-.nested-collapse {
-  margin-left: 1.5rem;
+.pager {
+  margin-top: 1rem;
+  justify-content: flex-end;
 }
 
 .dialog-subtitle {

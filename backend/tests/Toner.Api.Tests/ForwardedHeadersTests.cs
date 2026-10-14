@@ -123,4 +123,83 @@ public class ForwardedHeadersTests
     }
 
     private sealed record IpResponse(string? Ip);
+
+    // ── AUDIT.md H-13: Azure App Service (ReverseProxy:TrustAllProxies) ─────────────────────────────────────
+
+    private static async Task<string?> SeenIpAsync(Dictionary<string, string?> config, string directIp, string xForwardedFor)
+    {
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(config).Build();
+        using var host = await new HostBuilder()
+            .ConfigureWebHost(webBuilder =>
+            {
+                webBuilder.UseTestServer();
+                webBuilder.ConfigureServices(services =>
+                {
+                    services.AddRouting();
+                    // La MISMA configuración que Program.cs.
+                    services.Configure<ForwardedHeadersOptions>(o => Toner.Api.RateLimiting.ForwardedHeadersSetup.Configure(o, configuration));
+                });
+                webBuilder.Configure(app =>
+                {
+                    // El front de App Service conecta desde una IP interna que no es loopback ni fija.
+                    app.Use(async (context, next) =>
+                    {
+                        context.Connection.RemoteIpAddress = IPAddress.Parse(directIp);
+                        await next();
+                    });
+                    app.UseForwardedHeaders();
+                    app.UseRouting();
+                    app.UseEndpoints(e => e.MapGet("/ip", (HttpContext ctx) => Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() })));
+                });
+            })
+            .StartAsync();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
+        request.Headers.Add("X-Forwarded-For", xForwardedFor);
+        var response = await host.GetTestServer().CreateClient().SendAsync(request);
+        return (await response.Content.ReadFromJsonAsync<IpResponse>())?.Ip;
+    }
+
+    [Fact]
+    public async Task AppService_TrustAllProxies_UsaLaIpQueAnadeElFront_NoLaQueInventaElCliente()
+    {
+        // El cliente manda su propio X-Forwarded-For falso; el front de App Service añade la IP real AL FINAL.
+        var ip = await SeenIpAsync(
+            new() { ["ReverseProxy:TrustAllProxies"] = "true" },
+            directIp: "10.0.0.5",
+            xForwardedFor: "203.0.113.99, 198.51.100.20");
+
+        Assert.Equal("198.51.100.20", ip);
+    }
+
+    [Fact]
+    public async Task SinTrustAllProxies_ElFrontNoConfiable_NoPuedeCambiarLaIp()
+    {
+        var ip = await SeenIpAsync(new(), directIp: "10.0.0.5", xForwardedFor: "198.51.100.20");
+
+        Assert.Equal("10.0.0.5", ip);
+    }
+
+    [Fact]
+    public async Task ConFrontDoorDelante_ForwardLimit2_TomaElSaltoCorrecto()
+    {
+        // Cliente -> Front Door (añade la IP real) -> front de App Service (añade la IP de Front Door) -> app.
+        var ip = await SeenIpAsync(
+            new() { ["ReverseProxy:TrustAllProxies"] = "true", ["ReverseProxy:ForwardLimit"] = "2" },
+            directIp: "10.0.0.5",
+            xForwardedFor: "203.0.113.99, 198.51.100.20, 147.243.1.1");
+
+        Assert.Equal("198.51.100.20", ip);
+    }
+
+    // ── AUDIT.md H-07: en .NET 10 KnownNetworks pasa a KnownIPNetworks (System.Net.IPNetwork) ──────────────
+
+    [Fact]
+    public async Task KnownNetworks_EnCidr_ConfiaEnElProxyDeEsaRed_YNoEnOtra()
+    {
+        var config = new Dictionary<string, string?> { ["ReverseProxy:KnownNetworks:0"] = "10.20.0.0/16" };
+
+        Assert.Equal("198.51.100.20", await SeenIpAsync(config, directIp: "10.20.3.4", xForwardedFor: "198.51.100.20"));
+        Assert.Equal("10.21.3.4", await SeenIpAsync(config, directIp: "10.21.3.4", xForwardedFor: "198.51.100.20"));
+    }
 }

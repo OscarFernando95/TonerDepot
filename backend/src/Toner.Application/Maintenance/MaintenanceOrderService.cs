@@ -80,16 +80,44 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         return await ToDtoAsync(order.Id, cancellationToken);
     }
 
-    public async Task<PagedResult<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceOrderDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, MaintenanceOrderListFilter? filter = null, CancellationToken cancellationToken = default)
     {
-        var query = Projected(_db);
+        // Sobre la ENTIDAD, antes de proyectar: el DTO expone Status como texto y EF no traduce comparaciones sobre eso.
+        var query = _db.MaintenanceOrders.AsQueryable();
 
         if (requestingUser.IsTechnician)
         {
             query = query.Where(o => o.TechnicianId == requestingUser.TechnicianId);
         }
 
-        return await query.OrderByDescending(o => o.CreatedAt).ToOffsetPageAsync(page, pageSize, cancellationToken);
+        // Filtros del servidor (AUDIT.md H-11): DESPUÉS del alcance del rol, así que son un AND.
+        if (filter is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(filter.Status))
+            {
+                var status = EnumParsing.ParseOrThrow<MaintenanceOrderStatus>(filter.Status, nameof(filter.Status));
+                query = query.Where(o => o.Status == status);
+            }
+
+            if (filter.ClientId is { } clientId)
+            {
+                query = query.Where(o => o.ClientId == clientId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim().ToLower();
+                query = query.Where(o =>
+                    o.Asset.SerialNumber.ToLower().Contains(term)
+                    || o.Asset.AssetModel.Name.ToLower().Contains(term)
+                    || o.Asset.AssetModel.AssetBrand.Name.ToLower().Contains(term));
+            }
+        }
+
+        // Desempate por Id: sin él, paginar por offset con CreatedAt repetido repite o salta filas.
+        return await ProjectedFrom(query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id))
+            .ToOffsetPageAsync(page, pageSize, cancellationToken);
     }
 
     public async Task<PagedResult<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, string? cursor, int? pageSize, CancellationToken cancellationToken = default)

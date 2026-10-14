@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Toner.Api.RateLimiting;
 
 namespace Toner.Api.Tests;
 
@@ -14,11 +16,9 @@ namespace Toner.Api.Tests;
 // No usa WebApplicationFactory<Program> contra el host real de Toner.Api porque ese host, al
 // arrancar, necesita una conexión viva a Postgres (DataSeeder.SeedAsync() y el
 // RecurringJob.AddOrUpdate de Hangfire se ejecutan antes de app.Run()) — no disponible en este
-// entorno de test. En su lugar se monta un host aislado con la MISMA configuración de la política
-// "auth" que Program.cs (PermitLimit = 5, Window = 1 minuto, QueueLimit = 0, RejectionStatusCode =
-// 429, header Retry-After en el rechazo), para probar el mecanismo del limiter en sí. Si alguien
-// cambia esos valores en Program.cs sin actualizar este archivo, el test deja de reflejar la config
-// real — está documentado a propósito para que sea fácil detectar el desvío en una revisión de código.
+// entorno de test. En su lugar se monta un host aislado que llama a la MISMA configuración que Program.cs
+// (RateLimitingSetup.AddTonerRateLimiting / UseTonerRateLimiting, AUDIT.md H-13): ya no hay una copia a mano
+// que pueda desviarse. Sin cédula en el cuerpo, el límite del login cae a solo IP, que es lo que prueba aquí.
 public class AuthRateLimitingTests
 {
     private static TestServer CreateTestServer()
@@ -30,34 +30,8 @@ public class AuthRateLimitingTests
                 webBuilder.ConfigureServices(services =>
                 {
                     services.AddRouting();
-                    services.AddRateLimiter(options =>
-                    {
-                        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-                        options.OnRejected = async (context, cancellationToken) =>
-                        {
-                            if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-                            {
-                                context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
-                            }
-
-                            await context.HttpContext.Response.WriteAsJsonAsync(
-                                new { title = "Demasiadas solicitudes. Intenta de nuevo más tarde.", status = StatusCodes.Status429TooManyRequests },
-                                options: null,
-                                contentType: "application/problem+json",
-                                cancellationToken: cancellationToken);
-                        };
-
-                        // Mismos valores que la política "auth" en Program.cs.
-                        options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-                            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                            _ => new FixedWindowRateLimiterOptions
-                            {
-                                PermitLimit = 5,
-                                Window = TimeSpan.FromMinutes(1),
-                                QueueLimit = 0
-                            }));
-                    });
+                    // La MISMA configuración que Program.cs (RateLimitingSetup), con sus valores por defecto.
+                    services.AddTonerRateLimiting(new ConfigurationBuilder().Build());
                 });
                 webBuilder.Configure(app =>
                 {
@@ -73,11 +47,11 @@ public class AuthRateLimitingTests
                     });
 
                     app.UseRouting();
-                    app.UseRateLimiter();
+                    app.UseTonerRateLimiting();
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapPost("/api/auth/login", () => Results.Ok(new { succeeded = false }))
-                            .RequireRateLimiting("auth");
+                            .RequireRateLimiting(RateLimitingSetup.LoginPolicy);
                     });
                 });
             });

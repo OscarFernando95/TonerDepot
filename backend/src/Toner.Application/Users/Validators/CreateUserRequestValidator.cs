@@ -31,8 +31,8 @@ public class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
 
         RuleFor(x => x.RoleName)
             .NotEmpty()
-            .Must(role => RoleNames.All.Contains(role))
-            .WithMessage($"RoleName debe ser uno de: {string.Join(", ", RoleNames.All)}.");
+            .Must(role => RoleNames.AssignableOnCreate.Contains(role))
+            .WithMessage($"RoleName debe ser uno de: {string.Join(", ", RoleNames.AssignableOnCreate)}.");
 
         RuleFor(x => x.ClientId)
             .NotNull()

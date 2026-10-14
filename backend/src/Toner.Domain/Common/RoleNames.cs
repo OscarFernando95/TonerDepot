@@ -14,6 +14,11 @@ public static class RoleNames
         Administrador, Coordinador, Tecnico, Cliente, Ventas
     };
 
+    // Roles con los que se puede dar de alta un usuario. Ventas existe como rol sembrado pero ningún
+    // endpoint lo admite (un usuario Ventas entra y no puede hacer nada), así que no se ofrece al crear
+    // hasta que exista el módulo (AUDIT.md H-34). Sigue en All para que el seeder lo conserve.
+    public static readonly IReadOnlyList<string> AssignableOnCreate = All.Where(r => r != Ventas).ToArray();
+
     // Para [Authorize(Roles = RoleNames.StaffRoles)]: roles de back-office que administran clientes/activos/operación.
     public const string StaffRoles = Administrador + "," + Coordinador;
 

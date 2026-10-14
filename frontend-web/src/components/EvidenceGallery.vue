@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import * as evidenceApi from '../api/evidence'
 import { useRealtimeUpdates } from '../composables/useRealtime'
 
@@ -10,7 +10,8 @@ interface Photo {
   id: string
   kind: 'Antes' | 'Despues' | 'Contador'
   uploadedAt: string
-  url: string
+  // null = archivo borrado por la política de retención (AUDIT.md H-44): se muestra un recuadro en su lugar.
+  url: string | null
 }
 
 const KIND_TAG = {
@@ -30,6 +31,10 @@ async function load() {
     const { data } = await evidenceApi.listEvidence({ ticketId: props.ticketId, orderId: props.orderId })
     photos.value = await Promise.all(
       data.map(async (e) => {
+        // Una foto purgada no se pide: daría 404 y, con Promise.all, tumbaría la galería entera.
+        if (e.contentPurgedAt) {
+          return { id: e.id, kind: e.kind, uploadedAt: e.uploadedAt, url: null }
+        }
         const blob = (await evidenceApi.getEvidenceContent(e.id)).data
         return { id: e.id, kind: e.kind, uploadedAt: e.uploadedAt, url: URL.createObjectURL(blob) }
       })
@@ -47,7 +52,10 @@ onMounted(load)
 // Una foto nueva del técnico (Evidence) aparece sola, sin recargar la página. No filtramos por ticket/orden
 // porque el aviso no lleva ese dato (solo id de la evidencia); recargar la galería visible es barato.
 useRealtimeUpdates(['Evidence'], () => load())
-onBeforeUnmount(() => photos.value.forEach((p) => URL.revokeObjectURL(p.url)))
+// Solo las fotos con archivo entran al visor ampliado.
+const previewUrls = computed(() => photos.value.flatMap((p) => (p.url ? [p.url] : [])))
+
+onBeforeUnmount(() => photos.value.forEach((p) => p.url && URL.revokeObjectURL(p.url)))
 </script>
 
 <template>
@@ -56,7 +64,8 @@ onBeforeUnmount(() => photos.value.forEach((p) => URL.revokeObjectURL(p.url)))
     <p v-else-if="!loading && photos.length === 0" class="muted">Todavía no hay fotos de evidencia.</p>
     <div class="grid">
       <figure v-for="p in photos" :key="p.id" class="photo">
-        <el-image :src="p.url" :preview-src-list="photos.map((x) => x.url)" fit="cover" class="thumb" preview-teleported />
+        <el-image v-if="p.url" :src="p.url" :preview-src-list="previewUrls" fit="cover" class="thumb" preview-teleported />
+        <div v-else class="thumb purged">Foto eliminada por la política de retención</div>
         <figcaption>
           <el-tag size="small" :type="KIND_TAG[p.kind].type">{{ KIND_TAG[p.kind].label }}</el-tag>
           <span class="when">{{ new Date(p.uploadedAt).toLocaleString() }}</span>
@@ -82,6 +91,18 @@ onBeforeUnmount(() => photos.value.forEach((p) => URL.revokeObjectURL(p.url)))
   height: 135px;
   border-radius: 8px;
   border: 1px solid var(--el-border-color);
+}
+
+.purged {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
 }
 
 figcaption {

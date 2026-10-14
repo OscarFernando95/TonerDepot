@@ -16,4 +16,8 @@ public interface IEvidenceStorage
     Task SaveAsync(string key, Stream content, string contentType, CancellationToken cancellationToken = default);
     Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken = default);
     Task DeleteAsync(string key, CancellationToken cancellationToken = default);
+
+    // Claves de los archivos escritos por última vez antes de `olderThanUtc`. Lo usa el barrido de archivos huérfanos
+    // del job de retención (AUDIT.md H-47).
+    IAsyncEnumerable<string> ListKeysOlderThanAsync(DateTime olderThanUtc, CancellationToken cancellationToken = default);
 }

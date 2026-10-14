@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using Toner.Application.Common.Paging;
 using FluentValidation;
@@ -37,14 +38,14 @@ public class ContractsController : ControllerBase
     [Authorize(Roles = RoleNames.StaffAndClientRoles)]
     public async Task<ActionResult<PagedResult<ContractDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _contractService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
+        return Ok(await _contractService.ListAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.StaffAndClientRoles)]
     public async Task<ActionResult<ContractDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        return Ok(await _contractService.GetByIdAsync(CurrentUser, id, cancellationToken));
+        return Ok(await _contractService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));
     }
 
     [HttpPost]
@@ -73,19 +74,5 @@ public class ContractsController : ControllerBase
         await _statusValidator.ValidateAndThrowAsync(request, cancellationToken);
 
         return Ok(await _contractService.SetStatusAsync(id, request.Status, cancellationToken));
-    }
-
-    private RequestingUser CurrentUser
-    {
-        get
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role)!;
-            var clientIdClaim = User.FindFirstValue("client_id");
-            var clientId = clientIdClaim is not null ? Guid.Parse(clientIdClaim) : (Guid?)null;
-            var technicianIdClaim = User.FindFirstValue("technician_id");
-            var technicianId = technicianIdClaim is not null ? Guid.Parse(technicianIdClaim) : (Guid?)null;
-            return new RequestingUser(userId, role, clientId, technicianId);
-        }
     }
 }

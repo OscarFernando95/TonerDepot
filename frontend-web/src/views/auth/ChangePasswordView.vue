@@ -36,7 +36,10 @@ async function handleSubmit() {
     ElMessage.success('Contraseña actualizada. Ingresa con tu nueva contraseña.')
     router.push({ name: 'login' })
   } catch (err: any) {
-    ElMessage.error(err.response?.data?.title ?? 'No se pudo cambiar la contraseña.')
+    console.error('No se pudo cambiar la contraseña', err)
+    // El 400 de validación trae el motivo concreto (p. ej. "La contraseña actual es incorrecta.").
+    const fieldErrors: string[] | undefined = err.response?.data?.errors?.CurrentPassword
+    ElMessage.error(fieldErrors?.[0] ?? err.response?.data?.title ?? 'No se pudo cambiar la contraseña.')
   } finally {
     saving.value = false
   }

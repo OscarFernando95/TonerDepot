@@ -27,5 +27,10 @@ public class CheckInRequestValidator : AbstractValidator<CheckInRequest>
             .MustAsync(async (id, ct) => await db.Assets.AnyAsync(a => a.Id == id, ct))
             .WithMessage("El AssetId especificado no existe.")
             .When(x => x.AssetId.HasValue);
+
+        // Mismos rangos que CheckOutRequestValidator (AUDIT.md H-37).
+        RuleFor(x => x.Latitude).InclusiveBetween(-90d, 90d).When(x => x.Latitude.HasValue);
+        RuleFor(x => x.Longitude).InclusiveBetween(-180d, 180d).When(x => x.Longitude.HasValue);
+        RuleFor(x => x.AccuracyMeters).GreaterThanOrEqualTo(0d).When(x => x.AccuracyMeters.HasValue);
     }
 }

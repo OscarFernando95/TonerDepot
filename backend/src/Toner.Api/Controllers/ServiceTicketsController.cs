@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using Toner.Application.Common.Paging;
 using FluentValidation;
@@ -37,16 +38,20 @@ public class ServiceTicketsController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
-    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<ServiceTicketDto>>> List(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? status, [FromQuery] string? priority, [FromQuery] Guid? clientId, [FromQuery] string? search,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _ticketService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
+        var filter = new ServiceTicketListFilter(status, priority, clientId, search);
+        return Ok(await _ticketService.ListAsync(User.ToRequestingUser(), page, pageSize, filter, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
     public async Task<ActionResult<ServiceTicketDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        return Ok(await _ticketService.GetByIdAsync(CurrentUser, id, cancellationToken));
+        return Ok(await _ticketService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));
     }
 
     [HttpPost]
@@ -55,7 +60,7 @@ public class ServiceTicketsController : ControllerBase
     {
         await _createValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var ticket = await _ticketService.CreateAsync(CurrentUser, request, cancellationToken);
+        var ticket = await _ticketService.CreateAsync(User.ToRequestingUser(), request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, ticket);
     }
 
@@ -65,7 +70,7 @@ public class ServiceTicketsController : ControllerBase
     {
         await _assignValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(await _ticketService.AssignAsync(id, request, CurrentUser.UserId, cancellationToken));
+        return Ok(await _ticketService.AssignAsync(id, request, User.ToRequestingUser().UserId, cancellationToken));
     }
 
     [HttpPatch("{id:guid}/status")]
@@ -82,19 +87,5 @@ public class ServiceTicketsController : ControllerBase
     public async Task<ActionResult<PagedResult<AssignmentHistoryDto>>> GetAssignmentHistory(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
         return Ok(await _ticketService.GetAssignmentHistoryAsync(id, cursor, pageSize, cancellationToken));
-    }
-
-    private RequestingUser CurrentUser
-    {
-        get
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role)!;
-            var clientIdClaim = User.FindFirstValue("client_id");
-            var clientId = clientIdClaim is not null ? Guid.Parse(clientIdClaim) : (Guid?)null;
-            var technicianIdClaim = User.FindFirstValue("technician_id");
-            var technicianId = technicianIdClaim is not null ? Guid.Parse(technicianIdClaim) : (Guid?)null;
-            return new RequestingUser(userId, role, clientId, technicianId);
-        }
     }
 }

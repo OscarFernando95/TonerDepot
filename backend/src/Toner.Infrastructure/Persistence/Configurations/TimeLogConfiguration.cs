@@ -6,6 +6,10 @@ namespace Toner.Infrastructure.Persistence.Configurations;
 
 public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
 {
+    // Nombres expuestos para que TonerDbContext traduzca su violación (23505) a un mensaje legible.
+    public const string OpenByTechnicianIndexName = "IX_TimeLogs_TechnicianId_Open";
+    public const string OpenByAssetIndexName = "IX_TimeLogs_AssetId_Open";
+
     public void Configure(EntityTypeBuilder<TimeLog> builder)
     {
         builder.ConfigureBaseEntity();
@@ -39,8 +43,13 @@ public class TimeLogConfiguration : IEntityTypeConfiguration<TimeLog>
         // de crear un índice aparte.
         builder.HasIndex(l => l.StartTime);
         builder.HasIndex(l => l.TechnicianId);
-        builder.HasIndex(l => l.TechnicianId, "IX_TimeLogs_TechnicianId_Open").HasFilter("\"EndTime\" IS NULL");
-        builder.HasIndex(l => l.AssetId).HasFilter("\"EndTime\" IS NULL");
+        //
+        // UNIQUE (AUDIT.md H-05): "una visita abierta por técnico" y "un técnico por instalación" eran
+        // check-then-act en TechnicianCheckInService (Technician.Status / AnyAsync); un doble toque o un
+        // reintento de red desde el móvil dejaba dos TimeLog abiertos. El chequeo en memoria sigue dando
+        // el mensaje en el caso normal; el índice es la garantía en la carrera.
+        builder.HasIndex(l => l.TechnicianId, OpenByTechnicianIndexName).IsUnique().HasFilter("\"EndTime\" IS NULL");
+        builder.HasIndex(l => l.AssetId, OpenByAssetIndexName).IsUnique().HasFilter("\"EndTime\" IS NULL");
 
         builder.HasOne(l => l.ServiceTicket)
             .WithMany(t => t.TimeLogs)

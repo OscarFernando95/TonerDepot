@@ -8,6 +8,6 @@ public sealed class FakeBackgroundJobScheduler : IBackgroundJobScheduler
 {
     public List<(string Cedula, string GeneratedPassword)> EnqueuedEmails { get; } = new();
 
-    public void EnqueueGeneratedPasswordEmail(string cedula, string generatedPassword) =>
+    public void StageGeneratedPasswordEmail(string cedula, string generatedPassword) =>
         EnqueuedEmails.Add((cedula, generatedPassword));
 }

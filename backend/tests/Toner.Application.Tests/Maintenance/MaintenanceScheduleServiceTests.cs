@@ -1,3 +1,5 @@
+using Toner.Domain.Entities;
+using Toner.Application.Maintenance.Dtos;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Maintenance;
 using Toner.Application.Tests.TestSupport;
@@ -190,5 +192,45 @@ public class MaintenanceScheduleServiceTests
         var created = await service.BackfillMissingAsync();
 
         Assert.Equal(0, created);
+    }
+
+    // AUDIT.md H-11 (Paso 3): filtros del servidor antes de paginar.
+    [Fact]
+    public async Task ListAsync_FiltraPorTextoCiudadClienteYEstado_EnElServidor()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        Guid cityBogota, clientA;
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            var bogota = TestEntities.City("Bogotá");
+            var cali = TestEntities.City("Cali", "Valle del Cauca");
+            var a = TestEntities.Client("Papelería Andina");
+            var b = TestEntities.Client("Notaría Central");
+            var locA = TestEntities.ClientLocation(a, bogota, "Sede Norte");
+            var locB = TestEntities.ClientLocation(b, cali, "Sede Centro");
+            var brand = TestEntities.AssetBrand("Ricoh");
+            var model = TestEntities.AssetModel(brand);
+            var contractA = TestEntities.Contract(a);
+            var contractB = TestEntities.Contract(b);
+            var assetA = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, locA.Id); assetA.ClientId = a.Id; assetA.SerialNumber = "SN-AAA";
+            var assetB = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, locB.Id); assetB.ClientId = b.Id; assetB.SerialNumber = "SN-BBB";
+            var schedA = TestEntities.MaintenanceSchedule(assetA, contractA);
+            var schedB = TestEntities.MaintenanceSchedule(assetB, contractB);
+            schedB.IsActive = false;
+            db.AddRange(bogota, cali, a, b, locA, locB, brand, model, contractA, contractB, assetA, assetB, schedA, schedB);
+            await db.SaveChangesAsync();
+            cityBogota = bogota.Id;
+            clientA = a.Id;
+        }
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var service = new MaintenanceScheduleService(actDb, new MaintenanceScheduleEngine(actDb));
+
+        Assert.Equal(new[] { "SN-AAA" }, (await service.ListAsync(null, null, new MaintenanceScheduleListFilter(CityId: cityBogota))).Items.Select(i => i.AssetSerialNumber));
+        Assert.Equal(new[] { "SN-AAA" }, (await service.ListAsync(null, null, new MaintenanceScheduleListFilter(ClientId: clientA))).Items.Select(i => i.AssetSerialNumber));
+        Assert.Equal(new[] { "SN-BBB" }, (await service.ListAsync(null, null, new MaintenanceScheduleListFilter(Search: "NOTARÍA"))).Items.Select(i => i.AssetSerialNumber));
+        var paused = await service.ListAsync(null, null, new MaintenanceScheduleListFilter(IsActive: false));
+        Assert.Equal(new[] { "SN-BBB" }, paused.Items.Select(i => i.AssetSerialNumber));
+        Assert.Equal(1, paused.TotalCount);
     }
 }

@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using Toner.Application.Common.Paging;
 using FluentValidation;
@@ -38,16 +39,21 @@ public class AssetsController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = RoleNames.StaffAndClientRoles)]
-    public async Task<ActionResult<PagedResult<AssetDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<AssetDto>>> List(
+        [FromQuery] int? page, [FromQuery] int? pageSize,
+        [FromQuery] string? search, [FromQuery] Guid? cityId, [FromQuery] Guid? clientId,
+        [FromQuery] Guid? clientLocationId, [FromQuery] string? status,
+        CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.ListAsync(CurrentUser, page, pageSize, cancellationToken));
+        var filter = new AssetListFilter(search, cityId, clientId, clientLocationId, status);
+        return Ok(await _assetService.ListAsync(User.ToRequestingUser(), page, pageSize, filter, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.StaffAndClientRoles)]
     public async Task<ActionResult<AssetDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
-        return Ok(await _assetService.GetByIdAsync(CurrentUser, id, cancellationToken));
+        return Ok(await _assetService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));
     }
 
     [HttpPost]
@@ -75,7 +81,7 @@ public class AssetsController : ControllerBase
     {
         await _changeStatusValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(await _assetService.ChangeStatusAsync(id, request, CurrentUser.UserId, cancellationToken));
+        return Ok(await _assetService.ChangeStatusAsync(id, request, User.ToRequestingUser().UserId, cancellationToken));
     }
 
     [HttpGet("{id:guid}/status-history")]
@@ -91,7 +97,7 @@ public class AssetsController : ControllerBase
     {
         await _meterReadingValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        var reading = await _assetService.AddMeterReadingAsync(id, request, CurrentUser, cancellationToken);
+        var reading = await _assetService.AddMeterReadingAsync(id, request, User.ToRequestingUser(), cancellationToken);
         return CreatedAtAction(nameof(GetMeterReadings), new { id }, reading);
     }
 
@@ -100,19 +106,5 @@ public class AssetsController : ControllerBase
     public async Task<ActionResult<PagedResult<MeterReadingDto>>> GetMeterReadings(Guid id, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
         return Ok(await _assetService.GetMeterReadingsAsync(id, cursor, pageSize, cancellationToken));
-    }
-
-    private RequestingUser CurrentUser
-    {
-        get
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role)!;
-            var clientIdClaim = User.FindFirstValue("client_id");
-            var clientId = clientIdClaim is not null ? Guid.Parse(clientIdClaim) : (Guid?)null;
-            var technicianIdClaim = User.FindFirstValue("technician_id");
-            var technicianId = technicianIdClaim is not null ? Guid.Parse(technicianIdClaim) : (Guid?)null;
-            return new RequestingUser(userId, role, clientId, technicianId);
-        }
     }
 }

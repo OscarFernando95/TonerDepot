@@ -8,7 +8,8 @@ namespace Toner.Application.Maintenance;
 
 public interface IMaintenanceOrderService
 {
-    Task<PagedResult<MaintenanceOrderDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<MaintenanceOrderDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, MaintenanceOrderListFilter? filter = null, CancellationToken cancellationToken = default);
     Task<PagedResult<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, string? cursor, int? pageSize, CancellationToken cancellationToken = default);
 
     // Órdenes activas (no completadas/canceladas) de otros técnicos, en ciudades que el técnico cubre.

@@ -20,10 +20,51 @@ public class MaintenanceScheduleService : IMaintenanceScheduleService
         _engine = engine;
     }
 
-    public async Task<PagedResult<MaintenanceScheduleDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<MaintenanceScheduleDto>> ListAsync(
+        int? page, int? pageSize, MaintenanceScheduleListFilter? filter = null, CancellationToken cancellationToken = default)
     {
-        var result = await Projected(_db)
-            .OrderBy(s => s.CityName).ThenBy(s => s.ClientName)
+        // Sobre la ENTIDAD, antes de proyectar y de paginar (AUDIT.md H-11, Paso 3).
+        var query = _db.MaintenanceSchedules.AsQueryable();
+
+        if (filter is not null)
+        {
+            if (filter.CityId is { } cityId)
+            {
+                query = query.Where(s => s.Asset.CurrentClientLocation != null && s.Asset.CurrentClientLocation.CityId == cityId);
+            }
+
+            if (filter.ClientId is { } clientId)
+            {
+                query = query.Where(s => s.Contract.ClientId == clientId);
+            }
+
+            if (filter.ContractId is { } contractId)
+            {
+                query = query.Where(s => s.ContractId == contractId);
+            }
+
+            if (filter.IsActive is { } isActive)
+            {
+                query = query.Where(s => s.IsActive == isActive);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim().ToLower();
+                query = query.Where(s =>
+                    s.Asset.SerialNumber.ToLower().Contains(term)
+                    || s.Asset.AssetModel.Name.ToLower().Contains(term)
+                    || s.Asset.AssetModel.AssetBrand.Name.ToLower().Contains(term)
+                    || s.Contract.Client.Name.ToLower().Contains(term)
+                    || (s.Asset.CurrentClientLocation != null
+                        && (s.Asset.CurrentClientLocation.Name.ToLower().Contains(term)
+                            || s.Asset.CurrentClientLocation.City.Name.ToLower().Contains(term))));
+            }
+        }
+
+        // Desempate por Id: sin él, paginar por offset con ciudad/cliente repetidos repite o salta filas.
+        var result = await ProjectedFrom(query)
+            .OrderBy(s => s.CityName).ThenBy(s => s.ClientName).ThenBy(s => s.AssetSerialNumber).ThenBy(s => s.Id)
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
         await AttachLastKnownCountersAsync(result.Items, cancellationToken);
         await AttachMaintenanceSummariesAsync(result.Items, cancellationToken);

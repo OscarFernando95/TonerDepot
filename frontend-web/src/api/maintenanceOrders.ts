@@ -1,4 +1,4 @@
-import { getList } from './paging'
+import { getList, getPaged } from './paging'
 import { http } from './http'
 import type {
   AssignmentHistoryDto,
@@ -9,6 +9,19 @@ import type {
 
 export function listMaintenanceOrders() {
   return getList<MaintenanceOrderDto>('/maintenance-orders')
+}
+
+// Listado paginado y filtrado en el servidor (AUDIT.md H-11). Los filtros vacíos no se envían.
+export interface MaintenanceOrderListParams {
+  status?: string
+  clientId?: string
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
+export function listMaintenanceOrdersPaged(params: MaintenanceOrderListParams) {
+  return getPaged<MaintenanceOrderDto>('/maintenance-orders', params as Record<string, unknown>)
 }
 
 // Mantenimiento a demanda de un activo instalado, fuera de los umbrales del cronograma.

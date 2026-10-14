@@ -76,7 +76,8 @@ public class AssetService : IAssetService
         return await ToDtoAsync(asset.Id, cancellationToken);
     }
 
-    public async Task<PagedResult<AssetDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<AssetDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, AssetListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var query = _db.Assets.AsQueryable();
 
@@ -87,10 +88,51 @@ public class AssetService : IAssetService
             query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId);
         }
 
+        // Filtros del servidor (AUDIT.md H-11), sobre la entidad y ANTES de paginar. Van DESPUÉS del alcance del rol,
+        // así que son un AND: pasar el clientId de otro nunca amplía lo que ve un Cliente.
+        if (filter is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(filter.Status))
+            {
+                var status = EnumParsing.ParseOrThrow<AssetLifecycleStatus>(filter.Status, nameof(filter.Status));
+                query = query.Where(a => a.LifecycleStatus == status);
+            }
+
+            if (filter.ClientLocationId is { } locationId)
+            {
+                query = query.Where(a => a.CurrentClientLocationId == locationId);
+            }
+
+            if (filter.CityId is { } cityId)
+            {
+                query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.CityId == cityId);
+            }
+
+            if (filter.ClientId is { } clientIdFilter)
+            {
+                query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.ClientId == clientIdFilter);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim().ToLower();
+                query = query.Where(a =>
+                    a.SerialNumber.ToLower().Contains(term)
+                    || a.AssetModel.Name.ToLower().Contains(term)
+                    || a.AssetModel.AssetBrand.Name.ToLower().Contains(term)
+                    || (a.Area != null && a.Area.ToLower().Contains(term))
+                    || (a.CurrentClientLocation != null
+                        && (a.CurrentClientLocation.Name.ToLower().Contains(term)
+                            || a.CurrentClientLocation.Client.Name.ToLower().Contains(term)
+                            || a.CurrentClientLocation.City.Name.ToLower().Contains(term))));
+            }
+        }
+
         // La paginación va ANTES de adjuntar las últimas lecturas: así el trabajo extra se hace solo
-        // sobre la página, no sobre el listado completo.
+        // sobre la página, no sobre el listado completo. Desempate por Id: sin él, paginar por offset con marca y
+        // modelo repetidos repite o salta filas.
         var result = await ProjectedFrom(query)
-            .OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model)
+            .OrderBy(a => a.AssetBrandName).ThenBy(a => a.Model).ThenBy(a => a.SerialNumber).ThenBy(a => a.Id)
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
         await AttachLastMeterReadingsAsync(result.Items, cancellationToken);
@@ -496,7 +538,7 @@ public class AssetService : IAssetService
     }
 
     public async Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingAsync(
-        RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+        RequestingUser requestingUser, int? page, int? pageSize, MeterReadingListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var query = _db.Assets.Where(a => a.LifecycleStatus == AssetLifecycleStatus.Instalado);
 
@@ -517,7 +559,7 @@ public class AssetService : IAssetService
                     && a.CurrentClientLocation.City.Zone.TechnicianZones.Any(tz => tz.TechnicianId == technicianId)));
         }
 
-        return await ProjectMeterReadingAssetsAsync(query, page, pageSize, cancellationToken);
+        return await ProjectMeterReadingAssetsAsync(query, page, pageSize, filter, cancellationToken);
     }
 
     // Respaldo cuando el técnico titular de un activo no está disponible (vacaciones, incapacidad,
@@ -528,7 +570,7 @@ public class AssetService : IAssetService
     // pestaña de respaldo separada en la app, nunca se fusionan las dos. Solo tiene sentido para
     // Técnico — Admin/Coordinador ya ven todo en ListForMeterReadingAsync.
     public async Task<PagedResult<MeterReadingAssetDto>> ListForMeterReadingByCoverageAsync(
-        RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default)
+        RequestingUser requestingUser, int? page, int? pageSize, MeterReadingListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var technicianId = requestingUser.TechnicianId
             ?? throw new ForbiddenException("Tu usuario no tiene un técnico asociado.");
@@ -539,15 +581,43 @@ public class AssetService : IAssetService
             a.CurrentClientLocation.City.Zone != null &&
             a.CurrentClientLocation.City.Zone.TechnicianZones.Any(tz => tz.TechnicianId == technicianId));
 
-        return await ProjectMeterReadingAssetsAsync(query, page, pageSize, cancellationToken);
+        return await ProjectMeterReadingAssetsAsync(query, page, pageSize, filter, cancellationToken);
     }
 
     // Compartido por ListForMeterReadingAsync y ListForMeterReadingByCoverageAsync — solo cambia el
     // filtro previo (por vínculo explícito vs. por cobertura de ciudad), la proyección y el adjunto de
     // última lectura son idénticos.
     private async Task<PagedResult<MeterReadingAssetDto>> ProjectMeterReadingAssetsAsync(
-        IQueryable<Asset> query, int? page, int? pageSize, CancellationToken cancellationToken)
+        IQueryable<Asset> query, int? page, int? pageSize, MeterReadingListFilter? filter, CancellationToken cancellationToken)
     {
+        // Filtros del servidor (AUDIT.md H-11), sobre la entidad y ANTES de paginar. Van después del alcance del rol
+        // (el `query` que llega ya lo trae), así que son un AND: pasar otro clientId/ciudad nunca amplía lo visible.
+        if (filter is not null)
+        {
+            if (filter.CityId is { } cityId)
+            {
+                query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.CityId == cityId);
+            }
+
+            if (filter.ClientId is { } clientId)
+            {
+                query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.ClientId == clientId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim().ToLower();
+                query = query.Where(a =>
+                    a.SerialNumber.ToLower().Contains(term)
+                    || a.AssetModel.Name.ToLower().Contains(term)
+                    || a.AssetModel.AssetBrand.Name.ToLower().Contains(term)
+                    || (a.CurrentClientLocation != null
+                        && (a.CurrentClientLocation.Name.ToLower().Contains(term)
+                            || a.CurrentClientLocation.Client.Name.ToLower().Contains(term)
+                            || a.CurrentClientLocation.City.Name.ToLower().Contains(term))));
+            }
+        }
+
         var result = await query
             .Select(a => new MeterReadingAssetDto
             {
@@ -561,7 +631,8 @@ public class AssetService : IAssetService
                 Area = a.Area,
                 CityName = a.CurrentClientLocation != null ? a.CurrentClientLocation.City.Name : null
             })
-            .OrderBy(a => a.ClientName)
+            // Desempate por AssetId: sin él, paginar por offset con ClientName repetido repite o salta filas.
+            .OrderBy(a => a.ClientName).ThenBy(a => a.SerialNumber).ThenBy(a => a.AssetId)
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
 
         if (result.Items.Count > 0)

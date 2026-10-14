@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Toner.Application.Auth;
@@ -118,7 +119,7 @@ public class AuthServiceSecurityLoggingTests
         var logger = new CapturingLogger<AuthService>();
         var service = BuildService(actDb, logger);
 
-        await Assert.ThrowsAsync<InvalidCredentialsException>(() => service.ChangePasswordAsync(
+        await Assert.ThrowsAsync<ValidationException>(() => service.ChangePasswordAsync(
             user.Id,
             new ChangePasswordRequest { CurrentPassword = "no-es-la-actual", NewPassword = "NuevaContraseñaSegura1!" },
             ipAddress: "203.0.113.20"));

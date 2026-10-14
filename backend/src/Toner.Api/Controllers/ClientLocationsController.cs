@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -37,7 +38,8 @@ public class ClientLocationsController : ControllerBase
     {
         if (User.IsInRole(RoleNames.Cliente))
         {
-            var myClientId = Guid.Parse(User.FindFirstValue("client_id")!);
+            // RequireClientId lanza ForbiddenException (403) si el claim falta; antes Guid.Parse(null!) -> 500.
+            var myClientId = User.ToRequestingUser().RequireClientId();
             if (myClientId != clientId)
             {
                 throw new ForbiddenException("No puedes ver sedes de un cliente distinto al tuyo.");

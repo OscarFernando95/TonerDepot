@@ -29,7 +29,7 @@ services:
       retries: 10
 
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:latest
+    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
     container_name: toner-azurite
     restart: unless-stopped
     command: "azurite --blobHost 0.0.0.0 --blobPort 10000 --location /data --loose"
@@ -39,7 +39,7 @@ services:
       - toner_azurite_data:/data
 
   smtp4dev:
-    image: rnwood/smtp4dev:v3
+    image: rnwood/smtp4dev:3.15.0
     container_name: toner-smtp4dev
     restart: unless-stopped
     ports:

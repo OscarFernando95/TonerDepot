@@ -20,7 +20,8 @@ const saving = ref(false)
 // en edición, ver UpdateUserRequest en el backend).
 const editingUserId = ref<string | null>(null)
 
-const roleOptions = Object.values(RoleNames)
+// Ventas existe como rol pero aún no tiene ninguna pantalla ni endpoint: no se ofrece al crear (AUDIT.md H-34).
+const roleOptions = Object.values(RoleNames).filter((r) => r !== RoleNames.Ventas)
 
 const form = reactive({
   cedula: '',

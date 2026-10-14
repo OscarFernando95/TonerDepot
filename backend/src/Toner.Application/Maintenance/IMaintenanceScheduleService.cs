@@ -5,7 +5,8 @@ namespace Toner.Application.Maintenance;
 
 public interface IMaintenanceScheduleService
 {
-    Task<PagedResult<MaintenanceScheduleDto>> ListAsync(int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<MaintenanceScheduleDto>> ListAsync(
+        int? page, int? pageSize, MaintenanceScheduleListFilter? filter = null, CancellationToken cancellationToken = default);
     Task<MaintenanceScheduleDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<MaintenanceScheduleDto> SetActiveStatusAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
 

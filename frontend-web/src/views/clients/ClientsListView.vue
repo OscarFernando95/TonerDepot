@@ -115,7 +115,7 @@ useRealtimeUpdates(['Client'], () => loadClients(true))
       </el-table-column>
     </el-table>
 
-    <CreateClientDialog ref="createClientDialogRef" @created="loadClients" />
+    <CreateClientDialog ref="createClientDialogRef" @created="() => loadClients()" />
   </div>
 </template>
 

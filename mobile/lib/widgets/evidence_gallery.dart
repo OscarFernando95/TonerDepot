@@ -22,7 +22,8 @@ class EvidenceGallery extends StatefulWidget {
 class _EvidenceGalleryState extends State<EvidenceGallery> {
   bool _loading = true;
   String? _error;
-  final List<(EvidenceItem, Uint8List)> _photos = [];
+  // Bytes nulos = archivo borrado por la política de retención (AUDIT.md H-44): se muestra un recuadro.
+  final List<(EvidenceItem, Uint8List?)> _photos = [];
   late final VoidCallback _unsubscribe;
 
   @override
@@ -50,7 +51,10 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
         orderId: widget.orderId,
       );
       final photos = await Future.wait(
-        items.map((e) async => (e, await api.content(e.id))),
+        // Una foto purgada no se pide: daría 404 y, con Future.wait, tumbaría la galería entera.
+        items.map(
+          (e) async => (e, e.isPurged ? null : await api.content(e.id)),
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -104,18 +108,34 @@ class _EvidenceGalleryState extends State<EvidenceGallery> {
       children: [
         for (final (item, bytes) in _photos)
           GestureDetector(
-            onTap: () => _open(bytes),
+            onTap: bytes == null ? null : () => _open(bytes),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    bytes,
-                    width: 140,
-                    height: 105,
-                    fit: BoxFit.cover,
-                  ),
+                  child: bytes == null
+                      ? Container(
+                          width: 140,
+                          height: 105,
+                          color: AppColors.inkSecondary.withValues(alpha: 0.12),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.all(8),
+                          child: const Text(
+                            'Foto eliminada por la política de retención',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.inkSecondary,
+                            ),
+                          ),
+                        )
+                      : Image.memory(
+                          bytes,
+                          width: 140,
+                          height: 105,
+                          fit: BoxFit.cover,
+                        ),
                 ),
                 const SizedBox(height: 4),
                 Text(

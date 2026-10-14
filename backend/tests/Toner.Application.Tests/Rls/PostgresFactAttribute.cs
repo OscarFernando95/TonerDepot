@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Npgsql;
 
 namespace Toner.Application.Tests.Rls;
@@ -60,9 +61,11 @@ public sealed class PostgresFactAttribute : FactAttribute
         }
     });
 
-    public override string? Skip
+    // xunit.v3 (AUDIT.md H-46): Skip ya no es virtual. El motivo se fija al construir el atributo, que xunit hace al
+    // descubrir el test; la comprobación de la base sigue corriendo una sola vez por proceso (Lazy).
+    public PostgresFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
-        get => SkipReason.Value;
-        set { /* el motivo lo determina la disponibilidad de la base, no el autor del test */ }
+        Skip = SkipReason.Value;
     }
 }

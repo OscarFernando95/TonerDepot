@@ -8,6 +8,7 @@ import * as techniciansApi from '../../api/technicians'
 import { MaintenanceOrderStatusLabels, type AssignmentHistoryDto, type MaintenanceOrderDto } from '../../api/types'
 import EvidenceGallery from '../../components/EvidenceGallery.vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const route = useRoute()
 const router = useRouter()
@@ -106,18 +107,7 @@ async function cancel() {
   ElMessage.success('Orden cancelada.')
 }
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Completada':
-      return 'success'
-    case 'Cancelada':
-      return 'info'
-    case 'Pendiente':
-      return 'warning'
-    default:
-      return 'primary'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('maintenanceOrder')
 
 onMounted(loadAll)
 

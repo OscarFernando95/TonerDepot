@@ -9,7 +9,8 @@ namespace Toner.Application.Tickets;
 public interface IServiceTicketService
 {
     Task<ServiceTicketDto> CreateAsync(RequestingUser requestingUser, CreateServiceTicketRequest request, CancellationToken cancellationToken = default);
-    Task<PagedResult<ServiceTicketDto>> ListAsync(RequestingUser requestingUser, int? page, int? pageSize, CancellationToken cancellationToken = default);
+    Task<PagedResult<ServiceTicketDto>> ListAsync(
+        RequestingUser requestingUser, int? page, int? pageSize, ServiceTicketListFilter? filter = null, CancellationToken cancellationToken = default);
 
     // Tickets activos (no resueltos/cerrados/cancelados) de otros técnicos, en ciudades que el técnico
     // cubre. Puramente informativo salvo por los que aún no arrancó nadie (ver ClaimAsync).

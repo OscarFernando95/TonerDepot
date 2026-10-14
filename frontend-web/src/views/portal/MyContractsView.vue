@@ -5,22 +5,12 @@ import { ElMessage } from 'element-plus'
 import * as contractsApi from '../../api/contracts'
 import type { ContractDto } from '../../api/types'
 import { formatDateUTC } from '../../utils/date'
+import { useStatusTag } from '../../composables/useStatusTag'
 
 const contracts = ref<ContractDto[]>([])
 const loading = ref(false)
 
-function statusTagType(status: string) {
-  switch (status) {
-    case 'Activo':
-      return 'success'
-    case 'Vencido':
-      return 'warning'
-    case 'Cancelado':
-      return 'info'
-    default:
-      return 'primary'
-  }
-}
+const { tagType: statusTagType } = useStatusTag('contract')
 
 async function loadContracts(silent = false) {
   if (!silent) loading.value = true

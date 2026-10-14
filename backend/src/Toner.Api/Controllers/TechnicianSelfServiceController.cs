@@ -17,6 +17,8 @@ using Toner.Application.Tickets;
 using Toner.Application.Tickets.Dtos;
 using Toner.Domain.Common;
 
+using Toner.Api.Middleware;
+
 namespace Toner.Api.Controllers;
 
 // Autoservicio del propio técnico: check-in/check-out. Deliberadamente en un controller aparte de
@@ -29,6 +31,7 @@ public class TechnicianSelfServiceController : ControllerBase
 {
     private readonly ITechnicianCheckInService _checkInService;
     private readonly IValidator<CheckInRequest> _checkInValidator;
+    private readonly IValidator<CheckOutRequest> _checkOutValidator;
     private readonly IAssetService _assetService;
     private readonly IMaintenanceOrderService _maintenanceOrderService;
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
@@ -39,6 +42,7 @@ public class TechnicianSelfServiceController : ControllerBase
     public TechnicianSelfServiceController(
         ITechnicianCheckInService checkInService,
         IValidator<CheckInRequest> checkInValidator,
+        IValidator<CheckOutRequest> checkOutValidator,
         IAssetService assetService,
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
@@ -50,6 +54,7 @@ public class TechnicianSelfServiceController : ControllerBase
         _evidenceService = evidenceService;
         _checkInService = checkInService;
         _checkInValidator = checkInValidator;
+        _checkOutValidator = checkOutValidator;
         _assetService = assetService;
         _maintenanceOrderService = maintenanceOrderService;
         _maintenanceScheduleService = maintenanceScheduleService;
@@ -124,6 +129,7 @@ public class TechnicianSelfServiceController : ControllerBase
     // Foto de evidencia (antes / después / contador). Se sube ANTES del check-in/out y su id viaja en esa petición.
     // multipart/form-data: file + kind (Antes|Despues|Contador) + exactamente uno de ticketId / orderId.
     [HttpPost("evidence")]
+    [NoRequestScopedDbConnection] // no retener una conexión del pool mientras sube la foto (AUDIT.md H-14)
     [RequestSizeLimit(12 * 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = 12 * 1024 * 1024)]
     public async Task<ActionResult<EvidenceDto>> UploadEvidence(
@@ -149,6 +155,8 @@ public class TechnicianSelfServiceController : ControllerBase
     [HttpPost("check-out")]
     public async Task<ActionResult<TechnicianSelfStatusDto>> CheckOut([FromBody] CheckOutRequest request, CancellationToken cancellationToken)
     {
+        await _checkOutValidator.ValidateAndThrowAsync(request, cancellationToken);
+
         return Ok(await _checkInService.CheckOutAsync(CurrentTechnicianId, request, cancellationToken));
     }
 

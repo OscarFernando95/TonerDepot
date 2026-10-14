@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Toner.Application.Auth;
 using Toner.Application.Common.Paging;
 using Microsoft.Extensions.Logging;
-using Toner.Application.Auth;
 using Toner.Application.Auth.Dtos;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -82,11 +81,11 @@ public class UserService : IUserService
             });
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
+        // ANTES del único SaveChanges: el correo pendiente se guarda en la misma transacción que el usuario,
+        // así que o existen los dos o ninguno (AUDIT.md H-19).
+        _jobScheduler.StageGeneratedPasswordEmail(cedula, generatedPassword);
 
-        // Después del único SaveChanges: si algo previo falla, no queremos haber encolado un correo
-        // para un usuario que no llegó a existir.
-        _jobScheduler.EnqueueGeneratedPasswordEmail(cedula, generatedPassword);
+        await _db.SaveChangesAsync(cancellationToken);
 
         var dto = await ToDtoAsync(user.Id, cancellationToken);
         return ToWithGeneratedPassword(dto, generatedPassword);
@@ -150,9 +149,9 @@ public class UserService : IUserService
         // Invalida cualquier JWT ya emitido para este usuario (ver SecurityStampValidator).
         user.SecurityStamp = Guid.NewGuid();
         await _sessions.RevokeAllForUserAsync(userId, "ContraseñaReseteada", cancellationToken);
+        // Misma transacción que el reseteo (ver CreateAsync, AUDIT.md H-19).
+        _jobScheduler.StageGeneratedPasswordEmail(user.Cedula, generatedPassword);
         await _db.SaveChangesAsync(cancellationToken);
-
-        _jobScheduler.EnqueueGeneratedPasswordEmail(user.Cedula, generatedPassword);
 
         // Nunca la contraseña acá, ni en claro ni cifrada (SECURITY_AUDIT.md hallazgo #8) — solo el
         // hecho de que se reseteó y quién lo pidió.

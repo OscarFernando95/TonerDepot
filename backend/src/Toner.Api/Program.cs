@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Toner.Api.Auth;
 using Toner.Api.Middleware;
 using Toner.Api.Serialization;
@@ -40,6 +40,9 @@ using Toner.Application.Tickets;
 using Toner.Application.Users;
 using Toner.Infrastructure.Auth;
 using Toner.Infrastructure.Email;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Toner.Api.Health;
+using Toner.Api.RateLimiting;
 using Toner.Infrastructure.Health;
 using Toner.Infrastructure.Jobs;
 using Toner.Infrastructure.Logging;
@@ -70,15 +73,11 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Description = "Ingresa el token JWT (sin el prefijo 'Bearer ')."
     });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    // Swashbuckle 10 / Microsoft.OpenApi 2: el requisito referencia el esquema por nombre dentro del documento.
+    // El id tiene que coincidir con el de AddSecurityDefinition o Swagger UI no manda el token.
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
     });
 });
 
@@ -90,34 +89,8 @@ builder.Services.AddHsts(options =>
     options.IncludeSubDomains = true;
 });
 
-// Prerequisito real para que el rate limiting por IP (hallazgo #2) siga funcionando por-cliente-real
-// el día que haya un reverse proxy delante — sin esto, RemoteIpAddress vería la IP del proxy para
-// todos. KnownProxies/KnownNetworks se leen de "ReverseProxy" en configuración, vacíos por defecto:
-// sin configurarlos, ASP.NET Core mantiene su default (solo confía en el header si la conexión
-// INMEDIATA viene de loopback), así que hoy, sin proxy, el header simplemente se ignora — no hay
-// forma de spoofear la IP aceptando X-Forwarded-For de cualquier origen sin restricción.
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.ForwardLimit = 1; // Un solo salto: no confiar en una cadena de proxies arbitraria.
-
-    foreach (var proxy in builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? Array.Empty<string>())
-    {
-        if (IPAddress.TryParse(proxy, out var address))
-        {
-            options.KnownProxies.Add(address);
-        }
-    }
-
-    foreach (var network in builder.Configuration.GetSection("ReverseProxy:KnownNetworks").Get<string[]>() ?? Array.Empty<string>())
-    {
-        var parts = network.Split('/');
-        if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var prefix) && int.TryParse(parts[1], out var prefixLength))
-        {
-            options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength));
-        }
-    }
-});
+// IP real del cliente detrás del proxy (App Service incluido): ver ForwardedHeadersSetup y README.
+builder.Services.Configure<ForwardedHeadersOptions>(options => ForwardedHeadersSetup.Configure(options, builder.Configuration));
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
@@ -147,6 +120,8 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<RealtimeConnectionTracker>();
 builder.Services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
 builder.Services.AddSingleton<RealtimeChangeInterceptor>();
+// Aviso inmediato al despachador del outbox de correos de contraseña (AUDIT.md H-19).
+builder.Services.AddSingleton<PasswordEmailOutboxKickInterceptor>();
 
 // Notificaciones push (FCM). Sin Firebase:CredentialsPath quedan apagadas (el transporte lo avisa en el log al arrancar).
 builder.Services.Configure<FirebaseSettings>(builder.Configuration.GetSection(FirebaseSettings.SectionName));
@@ -155,6 +130,11 @@ builder.Services.AddSingleton<IPushNotifier, PushNotifier>();
 builder.Services.AddSingleton(sp => new PushChangeInterceptor(
     () => sp.GetRequiredService<IPushNotifier>(),
     sp.GetRequiredService<ILogger<PushChangeInterceptor>>()));
+
+// Nunca a través del PgBouncer de Azure (6432, modo transacción): compartiría el contexto RLS de sesión entre
+// usuarios. La app no arranca si lo intenta (AUDIT.md H-43).
+PostgresConnectionGuard.EnsureNoTransactionPooler(builder.Configuration.GetConnectionString("DefaultConnection"), "DefaultConnection");
+PostgresConnectionGuard.EnsureNoTransactionPooler(builder.Configuration.GetConnectionString("MigrationsConnection"), "MigrationsConnection");
 
 // DefaultConnection usa el rol toner_app (sin privilegios de DDL y sujeto a RLS). Las migraciones
 // usan MigrationsConnection (owner) vía TonerDbContextFactory, no esta configuración.
@@ -165,20 +145,26 @@ builder.Services.AddDbContextFactory<TonerDbContext>((sp, options) =>
             npgsql => npgsql
                 .MigrationsAssembly("Toner.Infrastructure")
                 // Tolera un blip de red o un reinicio breve de Postgres, no una caída prolongada
-                // (hallazgo #13) — sin transacciones explícitas en todo el código (verificado), así
-                // que no hay conflicto con el requisito de EF Core de envolverlas en un execution
-                // strategy.
+                // (hallazgo #13). La única transacción explícita del código (PostgresStockLock, AUDIT.md
+                // H-17) ya va envuelta en el execution strategy, como exige EF Core con este retry.
                 .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
         .AddInterceptors(sp.GetRequiredService<TenantContextInterceptor>(), sp.GetRequiredService<RealtimeChangeInterceptor>(),
-            sp.GetRequiredService<PushChangeInterceptor>()));
+            sp.GetRequiredService<PushChangeInterceptor>(), sp.GetRequiredService<PasswordEmailOutboxKickInterceptor>()));
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<TonerDbContext>>().CreateDbContext());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<TonerDbContext>());
 builder.Services.AddScoped<IExceptionLogger, TonerExceptionLogger>();
 builder.Services.AddScoped<DataSeeder>();
 
+// Singletons: CachedHealthCheck recuerda el último resultado unos segundos (AUDIT.md H-15).
+builder.Services.AddSingleton<BlobStorageHealthCheck>();
+builder.Services.AddSingleton<SmtpHealthCheck>();
 builder.Services.AddHealthChecks()
-    .AddCheck<PostgresHealthCheck>("postgres");
+    .AddCheck<PostgresHealthCheck>("postgres", tags: new[] { HealthEndpoints.ReadyTag })
+    .AddCheck<BlobStorageHealthCheck>("blob", tags: new[] { HealthEndpoints.ReadyTag })
+    // Degraded y no Unhealthy: el correo de contraseña temporal se reintenta por Hangfire, así que un
+    // SMTP caído no debe poner la app en 503.
+    .AddCheck<SmtpHealthCheck>("smtp", failureStatus: HealthStatus.Degraded, tags: new[] { HealthEndpoints.ReadyTag });
 
 // Caché in-memory para catálogos y el resumen del dashboard (CODE_QUALITY_AUDIT.md hallazgo #10).
 // Sin SizeLimit a propósito: lo que se cachea está acotado por construcción — una entrada para
@@ -195,6 +181,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICityService, CityService>();
 builder.Services.AddScoped<IZoneService, ZoneService>();
 builder.Services.AddScoped<IDeviceTokenService, DeviceTokenService>();
+builder.Services.AddScoped<IStockLock, PostgresStockLock>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IBaseKitService, BaseKitService>();
 builder.Services.AddScoped<IInventoryConsumptionService, InventoryConsumptionService>();
@@ -224,17 +211,26 @@ builder.Services.Configure<EvidenceOptions>(builder.Configuration.GetSection("Ev
 var evidenceStorageSettings = builder.Configuration.GetSection("EvidenceStorage").Get<EvidenceStorageSettings>() ?? new EvidenceStorageSettings();
 EvidenceStorageSettingsValidator.EnsureValid(evidenceStorageSettings);
 builder.Services.Configure<EvidenceStorageSettings>(builder.Configuration.GetSection("EvidenceStorage"));
-builder.Services.AddSingleton<IEvidenceStorage, AzureBlobEvidenceStorage>();
+builder.Services.AddSingleton<AzureBlobEvidenceStorage>();
+builder.Services.AddSingleton<IEvidenceStorage>(sp => sp.GetRequiredService<AzureBlobEvidenceStorage>());
+builder.Services.AddHostedService<EvidenceStorageInitializer>();
 builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
 builder.Services.AddScoped<PendingAssignmentService>();
 builder.Services.AddScoped<PendingAssignmentJob>();
+
+// Plazo de retención de datos operativos (AUDIT.md H-27). Falla al arrancar si es menor al mínimo.
+var dataRetentionOptions = builder.Configuration.GetSection("Retention").Get<DataRetentionOptions>() ?? new DataRetentionOptions();
+dataRetentionOptions.EnsureValid();
+builder.Services.Configure<DataRetentionOptions>(builder.Configuration.GetSection("Retention"));
+builder.Services.AddScoped<DataRetentionJob>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // Contraseña generada al crear/resetear un usuario (hallazgo #3 de SECURITY_AUDIT.md).
 builder.Services.AddSingleton<IJobPayloadEncryptor, AesGcmJobPayloadEncryptor>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
-builder.Services.AddScoped<IBackgroundJobScheduler, HangfireBackgroundJobScheduler>();
+builder.Services.AddScoped<IBackgroundJobScheduler, OutboxPasswordEmailStager>();
+builder.Services.AddScoped<PasswordEmailOutboxDispatcher>();
 builder.Services.AddScoped<SendGeneratedPasswordEmailJob>();
 
 builder.Services.AddValidatorsFromAssembly(typeof(IAuthService).Assembly);
@@ -254,7 +250,7 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("Jwt"))
 
 var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>()
     ?? throw new InvalidOperationException("Falta la sección de configuración 'Smtp'.");
-SmtpSettingsValidator.EnsureValid(smtpSettings);
+SmtpSettingsValidator.EnsureValid(smtpSettings, builder.Environment.IsDevelopment());
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 
 var passwordDeliverySettings = builder.Configuration.GetSection("PasswordDelivery").Get<PasswordDeliverySettings>()
@@ -315,59 +311,9 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+// Por usuario (sub) con IP de respaldo, y login por IP + cédula (AUDIT.md H-13): ver RateLimitingSetup.
+builder.Services.AddTonerRateLimiting(builder.Configuration);
 
-    options.OnRejected = async (context, cancellationToken) =>
-    {
-        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-        {
-            context.HttpContext.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
-        }
-
-        await context.HttpContext.Response.WriteAsJsonAsync(
-            new
-            {
-                title = "Demasiadas solicitudes. Intenta de nuevo más tarde.",
-                status = StatusCodes.Status429TooManyRequests
-            },
-            options: null,
-            contentType: "application/problem+json",
-            cancellationToken: cancellationToken);
-    };
-
-    // Partición por IP de conexión. UseForwardedHeaders ya está configurado y corre ANTES que este
-    // middleware en el pipeline, así que RemoteIpAddress refleja la IP real del cliente incluso
-    // detrás de un reverse proxy — siempre que ese proxy esté declarado en ReverseProxy:KnownProxies
-    // (o :KnownNetworks). Si no se declara, ASP.NET Core ignora el X-Forwarded-For y esto degrada a
-    // un límite compartido por todos los clientes detrás del proxy, en vez de uno por IP real.
-    static string PartitionKey(HttpContext context) =>
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-
-    // Política estricta para login y cambio de contraseña: 5 intentos por minuto por IP, sin cola
-    // (el exceso se rechaza de inmediato con 429 en vez de esperar turno).
-    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-        PartitionKey(context),
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(1),
-            QueueLimit = 0
-        }));
-
-    // Límite global (aplica a toda la API, incluidos los endpoints anónimos) de 100 requests por
-    // minuto por IP, como tope general contra floods que no sean específicamente de auth.
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            PartitionKey(context),
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 0
-            }));
-});
 
 var app = builder.Build();
 
@@ -416,8 +362,6 @@ app.UseHttpsRedirection();
 
 app.UseCors("Frontend");
 
-app.UseRateLimiter();
-
 // Antes de UseAuthentication a propósito: la validación del token (SecurityStampValidator) consulta
 // la tabla Users y abre una conexión, así que ya tiene que haber un TenantContext establecido o el
 // interceptor lanzaría. El contexto se evalúa de forma perezosa contra HttpContext.User, así que esa
@@ -425,6 +369,11 @@ app.UseRateLimiter();
 app.UseMiddleware<TenantContextMiddleware>();
 
 app.UseAuthentication();
+
+// DESPUÉS de autenticar (el límite global se reparte por el sub de un token YA validado) y antes de autorizar
+// (una request rechazada no llega a OpenDbConnectionMiddleware ni abre conexión). AUDIT.md H-13.
+app.UseTonerRateLimiting();
+
 app.UseAuthorization();
 
 // Después de UseAuthentication a propósito — ver OpenDbConnectionMiddleware para el razonamiento
@@ -436,18 +385,38 @@ app.UseMiddleware<MustChangePasswordMiddleware>();
 app.MapControllers();
 app.MapHub<UpdatesHub>("/hubs/updates");
 
-// AllowAnonymous explícito: el FallbackPolicy de arriba exige autenticación por defecto en TODO
-// endpoint, y un orquestador (Docker/K8s) que verifica liveness/readiness no puede autenticarse.
-app.MapHealthChecks("/health").AllowAnonymous();
+app.MapTonerHealthChecks();
 
 RecurringJob.AddOrUpdate<PendingAssignmentJob>(
     "retry-pending-assignments",
     job => job.RunAsync(CancellationToken.None),
     "*/10 * * * *");
 
+// Outbox del correo de contraseña (AUDIT.md H-19): el recurrente es la garantía de entrega; en el caso normal
+// PasswordEmailOutboxKickInterceptor lo dispara al momento.
+RecurringJob.AddOrUpdate<PasswordEmailOutboxDispatcher>(
+    "dispatch-password-emails",
+    job => job.RunAsync(CancellationToken.None),
+    "* * * * *");
+
+// Purga diaria de sesiones terminadas, a las 03:00 hora de Bogotá (fuera del horario laboral).
+RecurringJob.AddOrUpdate<DataRetentionJob>(
+    "data-retention",
+    job => job.RunAsync(CancellationToken.None),
+    "0 3 * * *",
+    new RecurringJobOptions
+    {
+        TimeZone = RecurringJobTimeZone.Resolve(builder.Configuration["WorkCalendar:TimeZoneId"])
+    });
+
+// Cron.Daily en la zona del calendario laboral (00:00 hora de Bogotá), no en UTC (AUDIT.md H-26).
 RecurringJob.AddOrUpdate<MaintenanceScheduleEvaluationJob>(
     "evaluate-maintenance-schedules",
     job => job.RunAsync(CancellationToken.None),
-    Cron.Daily);
+    Cron.Daily,
+    new RecurringJobOptions
+    {
+        TimeZone = RecurringJobTimeZone.Resolve(builder.Configuration["WorkCalendar:TimeZoneId"])
+    });
 
 app.Run();

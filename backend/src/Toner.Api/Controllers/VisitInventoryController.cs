@@ -1,3 +1,4 @@
+using Toner.Api.Auth;
 using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -50,7 +51,7 @@ public class VisitInventoryController : ControllerBase
     {
         await _tonerValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(await _consumption.RegisterTonerAsync(request, CurrentUser, cancellationToken));
+        return Ok(await _consumption.RegisterTonerAsync(request, User.ToRequestingUser(), cancellationToken));
     }
 
     [HttpGet("toner/assets/{assetId:guid}")]
@@ -58,18 +59,6 @@ public class VisitInventoryController : ControllerBase
     public async Task<ActionResult<PagedResult<TonerEntryDto>>> ListToner(
         Guid assetId, [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? cursor, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        return Ok(await _consumption.ListTonerAsync(assetId, from, to, cursor, pageSize, CurrentUser, cancellationToken));
-    }
-
-    private RequestingUser CurrentUser
-    {
-        get
-        {
-            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role)!;
-            var technicianIdClaim = User.FindFirstValue("technician_id");
-            var technicianId = technicianIdClaim is not null ? Guid.Parse(technicianIdClaim) : (Guid?)null;
-            return new RequestingUser(userId, role, null, technicianId);
-        }
+        return Ok(await _consumption.ListTonerAsync(assetId, from, to, cursor, pageSize, User.ToRequestingUser(), cancellationToken));
     }
 }

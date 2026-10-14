@@ -6,26 +6,26 @@ MVP para gestión de alquiler de impresoras (Ricoh), mantenimiento preventivo, s
 
 ```
 Toner/
-├── backend/            # API .NET 8 en capas
+├── backend/            # API .NET 10 en capas
 │   ├── Toner.sln
-│   ├── global.json      # fija el SDK en 8.0.x
+│   ├── global.json      # fija el SDK en 10.0.x
 │   └── src/
 │       ├── Toner.Domain/          # Entidades, enums, sin dependencias externas
 │       ├── Toner.Application/     # Casos de uso, DTOs, validación (FluentValidation)
 │       ├── Toner.Infrastructure/  # EF Core, migraciones, Hangfire, Blob Storage, email, FCM
 │       └── Toner.Api/             # Controllers, JWT, composition root
 ├── frontend-web/       # Vue 3 + TypeScript + Vite, Element Plus, Pinia, Vue Router
-├── mobile/              # Flutter (pendiente)
+├── mobile/              # App móvil Flutter del técnico (ver mobile/README.md)
 └── docker-compose.yml   # Postgres + Azurite + smtp4dev
 ```
 
 ## Requisitos
 
-- **.NET SDK 8.0.x** (el repo fija la versión exacta en `backend/global.json`).
+- **.NET SDK 10.0.x** (el repo fija la versión exacta en `backend/global.json`).
 - **Docker** y **Docker Compose**, para levantar Postgres, Azurite (Blob Storage local) y smtp4dev (captura de correos en desarrollo).
-- Herramienta `dotnet-ef` para migraciones: `dotnet tool install --global dotnet-ef`.
+- Herramienta `dotnet-ef` para migraciones: va fijada en `backend/dotnet-tools.json` (misma versión que EF Core). Instálala con `cd backend && dotnet tool restore`; dentro de `backend/`, `dotnet ef` usa esa versión aunque tengas otra global.
 
-> Si tu máquina tiene más de una instalación de .NET (por ejemplo, la fórmula `dotnet` de Homebrew junto con el cask `dotnet-sdk`), verifica con `dotnet --list-sdks` que el 8.0.x sea visible desde el `dotnet` que se resuelve en tu `PATH`. El `global.json` del backend fuerza el SDK 8.x para este proyecto siempre que esa versión sea accesible.
+> Si tu máquina tiene más de una instalación de .NET (por ejemplo, la fórmula `dotnet` de Homebrew junto con el cask `dotnet-sdk`), verifica con `dotnet --list-sdks` que el 10.0.x sea visible desde el `dotnet` que se resuelve en tu `PATH`. El `global.json` del backend fuerza el SDK 10.x para este proyecto siempre que esa versión sea accesible.
 
 ## Levantar el entorno local
 
@@ -199,7 +199,30 @@ Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, qu
 
 - **HSTS**: activo (`app.UseHsts()`) fuera de `Development` — en dev se omite a propósito, porque el navegador cachearía la política HSTS contra `localhost` y complicaría volver a probar por HTTP plano.
 - **`ForwardedHeaders`**: prerequisito para que el rate limiting por IP siga funcionando por-cliente-real el día que haya un reverse proxy delante (sin esto, todas las requests parecerían venir de la IP del proxy). Los proxies/redes confiables se configuran en `ReverseProxy:KnownProxies` (IPs) y `ReverseProxy:KnownNetworks` (CIDR, ej. `"10.0.0.0/8"`) — vacíos por defecto. **Sin configurarlos, ASP.NET Core solo confía en el header si la conexión llega desde loopback**, así que hoy (sin proxy real) cualquier `X-Forwarded-For` se ignora — no hay forma de spoofear la IP de origen. El día que se agregue un reverse proxy real, su IP (o la red del balanceador) va en esa configuración.
+- **Azure App Service**: el front de App Service es un reverse proxy sin IPs fijas y el único camino hasta la app. En App Service hay que poner **`ReverseProxy__TrustAllProxies=true`** (confía en el salto inmediato; con `ForwardLimit=1` solo se toma la IP que añade el front, al final del `X-Forwarded-For`, así que un header inventado por el cliente no sirve). **Nunca** activarlo donde el puerto de la app quede expuesto directamente. Si se pone Front Door o Application Gateway delante, `ReverseProxy__ForwardLimit=2`. Comprobación tras desplegar: el log "Login fallido … desde IP {IpAddress}" debe mostrar la IP pública del cliente, no una `10.x`/`169.254.x`.
+- **Rate limiting** (`RateLimitingSetup`, AUDIT.md H-13): global 100/min **por usuario** autenticado (por IP si es anónimo), login 5/min por **IP + cédula** (compañeros detrás del mismo NAT no se bloquean entre sí) y cambio de contraseña 5/min por usuario. Valores en `RateLimiting:*`.
 - **`AllowedHosts`**: se fija por entorno vía la variable de entorno `AllowedHosts` (sobreescribe el `"*"` de `appsettings.json` por precedencia estándar de configuración) — nada hardcodeado en código. En producción, si queda en `"*"`, la app lo advierte en el log al arrancar (`LogWarning`), para que no pase inadvertido.
+
+## Despliegue en Azure: Postgres Flexible Server — conectar SIEMPRE al 5432
+
+La app fija el contexto de RLS **por sesión** (`SET ROLE` / `set_config` en `TenantContextInterceptor`, al abrir cada conexión física). El **PgBouncer integrado** de Azure Flexible Server escucha en el **6432 en modo transacción** y reparte las conexiones de servidor entre clientes distintos: verificado localmente (AUDIT.md H-43) que un cliente nuevo heredaba el rol `toner_app_staff` y el `client_id` de otro — es decir, un usuario podría ver los datos de todos los clientes.
+
+- `ConnectionStrings__DefaultConnection` (app + Hangfire) y `ConnectionStrings__MigrationsConnection` van al **puerto 5432**, con `Ssl Mode=Require`.
+- **La app no arranca si alguna apunta al 6432** (`PostgresConnectionGuard`), y `dotnet ef` tampoco.
+- El pooling lo hace Npgsql dentro de cada instancia. Si algún día hace falta un pooler externo, debe ser en modo **sesión** y requiere revisar este diseño.
+
+## Despliegue en Azure: Blob Storage con Managed Identity
+
+En desarrollo las evidencias van a Azurite con `EvidenceStorage:ConnectionString`. **En Azure no se usa connection string** (equivale a la clave de la cuenta, con acceso total): se usa `EvidenceStorage:ServiceUri` + Managed Identity (AUDIT.md H-18). La app falla al arrancar si no hay ninguna de las dos o si están ambas.
+
+1. App Service → **Identity** → *System assigned* = On.
+2. Cuenta de Storage → **IAM** → rol **Storage Blob Data Contributor** para esa identidad (idealmente acotado al contenedor `evidence`). Incluye crear el contenedor al arrancar.
+3. App Service → configuración: `EvidenceStorage__ServiceUri=https://<cuenta>.blob.core.windows.net` y **sin** `EvidenceStorage__ConnectionString`. Si la identidad es *user-assigned*: `EvidenceStorage__ManagedIdentityClientId=<client-id>`.
+4. Comprobar `/health/ready` → `blob: Healthy`. Si falta el rol: `Unhealthy` (la app arranca igual; las subidas fallan).
+5. Cuando funcione: en la cuenta de Storage, **Allow storage account key access = Disabled** — la clave deja de servir aunque se filtre.
+6. **Soft delete de blobs** (p. ej. 30 días), como red de seguridad ante un borrado accidental.
+
+**Retención de las fotos (AUDIT.md H-44):** la aplica la **app**, no una *lifecycle policy* de Azure (que borraría archivos sin marcar los registros). El job `data-retention` borra de Blob el archivo de las fotos con más de `Retention:EvidenceMonths` meses (**3** por defecto) y **conserva el registro** (`ContentPurgedAt`): queda la prueba de quién tomó la foto, cuándo y para qué ticket u orden. La web y la app muestran "Foto eliminada por la política de retención" en su lugar. Con soft delete activo, el archivo es recuperable durante esa ventana adicional.
 
 ## Servicios locales (docker-compose)
 
@@ -209,9 +232,29 @@ Revertir exige el orden inverso: el `Down` de la migración restaura el `OR`, qu
 | azurite    | 10000   | Emulador de Azure Blob Storage (evidencias)         |
 | smtp4dev   | 5080 (UI), 2525 (SMTP) | Captura de correos salientes en desarrollo (notificaciones al coordinador). El puerto 5000 se evita porque en macOS lo usa AirPlay Receiver. |
 
+**SMTP y TLS (`Smtp:SecureSocketOptions`).** Por defecto `StartTls`: si el servidor no ofrece STARTTLS, el envío **falla** en vez de seguir en texto plano (protege el `AUTH` del relay y la contraseña temporal del correo). smtp4dev no ofrece TLS, así que el `appsettings.Development.json.example` usa `None`, que **solo se admite en Development**. Fuera de Development solo se aceptan `StartTls` (puerto **587**, el que se usará en Azure) o `SslOnConnect` (puerto 465); la app no arranca con otra combinación. `Smtp:Username` y `Smtp:Password` van juntos o ninguno.
+
+## Salud (health checks)
+
+| Ruta | Qué comprueba | Respuesta |
+|---|---|---|
+| `/health/live` | Solo que el proceso responde; **sin dependencias**. | `200` siempre que la app esté arriba. |
+| `/health/ready` | Postgres, Azure Blob y SMTP. | `503` si Postgres o Blob fallan; SMTP caído da `200` con estado `Degraded` (los correos se reintentan por Hangfire). |
+| `/health` | Alias de `/health/ready` (compatibilidad). | Igual que `ready`. |
+
+- **Azure App Service → Health check:** apúntalo a `/health/live`. Un `503` ahí saca la instancia de rotación, y que Blob o SMTP estén caídos no debe tumbar todas las instancias a la vez. Usa `/health/ready` para monitoreo/alertas o el calentamiento de un slot antes del swap.
+- Son anónimos y su resultado se cachea 10 s por dependencia. La respuesta lista nombre, estado y duración de cada check; nunca excepciones ni cadenas de conexión.
+
 ## Jobs programados
 
 Los cronogramas de mantenimiento preventivo y demás tareas periódicas corren sobre **Hangfire**, con almacenamiento en el mismo Postgres (sin dependencia adicional de Redis). El dashboard de Hangfire se expone solo para el rol Administrador (pendiente de cablear).
+
+| Job | Horario | Qué hace |
+|---|---|---|
+| `retry-pending-assignments` | cada 10 min | Reintenta asignar tickets/órdenes que quedaron sin técnico por horario, festivo o fuera de oficina. |
+| `evaluate-maintenance-schedules` | diario, 00:00 hora de `WorkCalendar:TimeZoneId` (Bogotá) | Evalúa los cronogramas de mantenimiento por tiempo. |
+| `dispatch-password-emails` | cada minuto (y al instante tras crear/resetear un usuario) | Pasa a Hangfire los correos de contraseña temporal pendientes del outbox (`PasswordEmailOutbox`), que se escribe en la misma transacción que el usuario: el usuario y su correo existen los dos o ninguno. Entrega *at-least-once*. |
+| `data-retention` | diario, 03:00 hora de Bogotá | Borra el **archivo** de las fotos de evidencia con más de `Retention:EvidenceMonths` (3) meses, conservando el registro. Purga `UserSessions` terminadas y `ExceptionLogs` con más de `Retention:UserSessionsDays` / `Retention:ExceptionLogsDays` (90 por defecto, mínimo 7). Una sesión viva nunca se borra. Sobre `ExceptionLogs` la app solo tiene `SELECT` de la columna `CreatedAt` (migración `GrantExceptionLogsCreatedAtSelect`): puede purgar por fecha, no leer stacks ni correos. |
 
 ## Autenticación
 
@@ -496,6 +539,6 @@ Módulos completados:
 11. **Frontend web** — proyecto Vue conectado a todos los módulos anteriores, con control de acceso por rol replicado en la UI (incluye el selector de estado de activos limitado a transiciones válidas, la vista "Mi trabajo" del técnico, y "Mis activos"/"Mis contratos" del cliente).
 12. **Dashboard de indicadores** — MTTR, cumplimiento de SLA (global y por prioridad), % de mantenimientos a tiempo, backlog de tickets abiertos/sin asignar por ciudad, y utilización de técnicos; endpoint compuesto Staff-only con selector de período en la UI.
 
-**Fuera del MVP por ahora, según lo acordado**: la app móvil del técnico (Flutter, módulo 9 original de la lista) queda pendiente — todo lo que necesita (check-in/check-out, mis tickets/órdenes) ya está expuesto por la API y probado desde la versión web de "Mi trabajo".
+**App móvil del técnico**: vive en `mobile/` (Flutter) y consume la misma API que la vista web de "Mi trabajo" (check-in/check-out, mis tickets/órdenes). Su estado y cómo correrla están en `mobile/README.md`.
 
 Ver historial de conversación / commits para el detalle de decisiones de arquitectura.

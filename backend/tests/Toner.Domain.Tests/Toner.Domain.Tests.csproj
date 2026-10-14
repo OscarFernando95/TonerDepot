@@ -1,7 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- xunit.v3 (AUDIT.md H-46): cada proyecto de tests es un ejecutable. -->
+    <OutputType>Exe</OutputType>
+    <!-- xUnit1051 (nuevo en v3) pide pasar TestContext.Current.CancellationToken a cada llamada async. Su code fix
+         además junta en una línea las llamadas partidas en varias (33 archivos). Adoptarlo es una mejora aparte
+         (cancelar tests colgados), no parte de la migración: en v2 tampoco se pasaba. AUDIT.md H-46. -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -10,10 +16,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
-    <PackageReference Include="xunit" Version="2.5.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="coverlet.collector" Version="10.1.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <!-- mtp-off: xunit.v3 4.x sin Microsoft.Testing.Platform, que el SDK 10 ya no ejecuta con el dotnet test
+         clásico. Se sigue en VSTest: mismo comando, misma sintaxis de filtro y el explorador del IDE. -->
+    <PackageReference Include="xunit.v3.mtp-off" Version="4.0.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 
   <ItemGroup>
