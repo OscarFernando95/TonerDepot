@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Toner.Application.Assignment;
+using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Maintenance;
 
@@ -63,6 +64,24 @@ public class MaintenanceScheduleEvaluationJob
     }
 
     private async Task<int> EvaluateSchedulesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await EvaluateOnceAsync(cancellationToken);
+        }
+        catch (ConflictException ex)
+        {
+            // MANT-1: un técnico inició un mantenimiento (o el staff pidió uno) sobre un equipo del lote DESPUÉS de que
+            // el motor leyó "no tiene orden abierta"; el índice único de órdenes abiertas lo rechazó y, como todo va en
+            // un único SaveChanges, cayó el lote entero. Se descarta lo pendiente y se evalúa de nuevo: ahora el motor
+            // ve esa orden y se salta ese equipo. Un segundo choque ya no es esto y sube para que Hangfire reintente.
+            _logger.LogWarning(ex, "Evaluación de cronogramas: choque con una orden abierta a mitad del lote; se repite una vez.");
+            _db.ChangeTracker.Clear();
+            return await EvaluateOnceAsync(cancellationToken);
+        }
+    }
+
+    private async Task<int> EvaluateOnceAsync(CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
 

@@ -1,4 +1,6 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 using Toner.Application.Common;
 using Toner.Application.Common.Interfaces;
@@ -171,6 +173,127 @@ public class SelfStartedMaintenancePostgresTests
                         AssetId = seed.AssetId, IncludesUnits = true
                     }));
             }
+
+            await using var check = OwnerContext();
+            Assert.Equal(1, await check.MaintenanceOrders.CountAsync(o => o.AssetId == seed.AssetId));
+            Assert.Equal(0, await check.AssignmentHistories.CountAsync(h => h.TechnicianId == seed.TechnicianId));
+        }
+        finally
+        {
+            await CleanupAsync(seed);
+        }
+    }
+
+    // MANT-1: dos peticiones pasan el chequeo "¿hay una orden abierta?" antes de que cualquiera inserte. Pausa la del
+    // técnico justo DESPUÉS de leer las órdenes (ya vio "ninguna") y deja que otra abra la suya completa: sin el índice
+    // único parcial quedarían dos órdenes abiertas para el mismo cronograma.
+    private sealed class PauseAfterOrdersRead : DbCommandInterceptor
+    {
+        private readonly Func<Task> _runOther;
+        private bool _fired;
+
+        public PauseAfterOrdersRead(Func<Task> runOther) => _runOther = runOther;
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (!_fired && command.CommandText.Contains("FROM \"MaintenanceOrders\""))
+            {
+                _fired = true;
+                await _runOther();
+            }
+
+            return result;
+        }
+    }
+
+    private static MaintenanceOrder OpenOrder(Seed s) => new()
+    {
+        MaintenanceScheduleId = s.ScheduleId, AssetId = s.AssetId, ClientId = s.ClientId,
+        Status = MaintenanceOrderStatus.Pendiente, ScheduledDate = DateTime.UtcNow, IncludesUnits = true
+    };
+
+    [PostgresFact]
+    public async Task ElIndiceUnico_RechazaUnaSegundaOrdenAbierta_YPermiteOtraTrasCompletarLaPrimera()
+    {
+        await _fixture.EnsureSeededAsync();
+        var marker = "PG-SELF-" + Guid.NewGuid().ToString("N")[..8];
+        Seed? seed = null;
+        try
+        {
+            seed = await SeedAsync(marker);
+            var tenant = new TenantContextAccessor();
+            using var scope = tenant.Push(() => TenantContext.Staff);
+
+            Guid firstId;
+            await using (var db = AppContext(tenant))
+            {
+                var first = OpenOrder(seed);
+                db.Add(first);
+                await db.SaveChangesAsync();
+                firstId = first.Id;
+            }
+
+            await using (var db = AppContext(tenant))
+            {
+                db.Add(OpenOrder(seed));
+                var ex = await Assert.ThrowsAsync<Toner.Application.Common.Exceptions.ConflictException>(() => db.SaveChangesAsync());
+                Assert.Contains("orden de mantenimiento abierta", ex.Message);
+            }
+
+            // Cerrada la primera, el cronograma vuelve a admitir una abierta.
+            await using (var db = AppContext(tenant))
+            {
+                (await db.MaintenanceOrders.SingleAsync(o => o.Id == firstId)).Status = MaintenanceOrderStatus.Completada;
+                await db.SaveChangesAsync();
+            }
+
+            await using (var db = AppContext(tenant))
+            {
+                db.Add(OpenOrder(seed));
+                await db.SaveChangesAsync();
+            }
+
+            await using var check = OwnerContext();
+            Assert.Equal(2, await check.MaintenanceOrders.CountAsync(o => o.AssetId == seed.AssetId));
+        }
+        finally
+        {
+            await CleanupAsync(seed);
+        }
+    }
+
+    [PostgresFact]
+    public async Task CarreraEntreElTecnicoYOtraOrdenAbierta_ElTecnicoRecibeUn409_YNoQuedanDosAbiertas()
+    {
+        await _fixture.EnsureSeededAsync();
+        var marker = "PG-SELF-" + Guid.NewGuid().ToString("N")[..8];
+        Seed? seed = null;
+        try
+        {
+            seed = await SeedAsync(marker);
+            var tenant = new TenantContextAccessor();
+            using var scope = tenant.Push(() => TenantContext.Staff);
+
+            // La otra petición (p. ej. el job del cronograma) guarda su orden abierta mientras el técnico está "pausado".
+            async Task RunOther()
+            {
+                await using var other = OwnerContext();
+                other.Add(OpenOrder(seed));
+                await other.SaveChangesAsync();
+            }
+
+            var options = new DbContextOptionsBuilder<TonerDbContext>()
+                .UseNpgsql(PostgresFactAttribute.ConnectionString)
+                .AddInterceptors(new TenantContextInterceptor(tenant), new PauseAfterOrdersRead(RunOther))
+                .Options;
+            await using var technicianDb = new TonerDbContext(options);
+
+            var ex = await Assert.ThrowsAsync<Toner.Application.Common.Exceptions.ConflictException>(() =>
+                TestCheckIn.Create(technicianDb).StartMaintenanceAsync(
+                    seed.TechnicianId, new CreateManualMaintenanceOrderRequest { AssetId = seed.AssetId, IncludesUnits = true }));
+
+            Assert.Contains("orden de mantenimiento abierta", ex.Message);
 
             await using var check = OwnerContext();
             Assert.Equal(1, await check.MaintenanceOrders.CountAsync(o => o.AssetId == seed.AssetId));
