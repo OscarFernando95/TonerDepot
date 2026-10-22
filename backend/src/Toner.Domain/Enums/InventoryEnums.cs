@@ -6,7 +6,9 @@ public enum InventoryCategory
     ConsumibleBase = 0,
     // Piezas opcionales (empaques, extras) que se pueden cambiar en un mantenimiento, ticket o cambio de consumibles.
     Repuesto = 1,
-    Toner = 2
+    Toner = 2,
+    // Se maneja por gramos (la bolsa trae 500 g o 1000 g y cada modelo usa una parte), no por unidades.
+    Revelador = 3
 }
 
 public enum InventoryLocationKind

@@ -4,6 +4,8 @@ import '../models/inventory.dart';
 import '../services/api_client.dart';
 import '../services/inventory_api.dart';
 import '../theme/app_theme.dart';
+import '../utils/grams_display.dart';
+import 'grams_mode_switch.dart';
 import 'part_picker_sheet.dart';
 import 'quantity_stepper.dart';
 
@@ -138,6 +140,14 @@ class _PartsSectionState extends State<PartsSection> {
                     ),
                   ),
                 ),
+                if (kit.items.any((i) => i.isRevealer))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: GramsModeSwitch(),
+                    ),
+                  ),
                 if (kit.items.isEmpty)
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
@@ -196,14 +206,18 @@ class _PartsSectionState extends State<PartsSection> {
     );
   }
 
-  Widget _stockLabel(int stock, {required bool short}) => Text(
-    'Stock: $stock',
-    style: AppTextStyles.tabularNumber.copyWith(
-      fontSize: 12,
-      fontWeight: short ? FontWeight.w700 : FontWeight.w400,
-      color: short ? AppColors.signalRed : AppColors.inkSecondary,
-    ),
-  );
+  Widget _stockLabel(int stock, {required bool short, int? gramsPerBag}) =>
+      ValueListenableBuilder<GramsMode>(
+        valueListenable: gramsMode,
+        builder: (context, mode, child) => Text(
+          'Stock: ${formatQuantity(stock, gramsPerBag)}',
+          style: AppTextStyles.tabularNumber.copyWith(
+            fontSize: 12,
+            fontWeight: short ? FontWeight.w700 : FontWeight.w400,
+            color: short ? AppColors.signalRed : AppColors.inkSecondary,
+          ),
+        ),
+      );
 
   Widget _kitRow(PartsSelection selection, VisitKitItem item) {
     final checked = selection.isChecked(item.itemId);
@@ -223,7 +237,7 @@ class _PartsSectionState extends State<PartsSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.itemName),
-                _stockLabel(item.stock, short: short),
+                _stockLabel(item.stock, short: short, gramsPerBag: item.gramsPerBag),
                 if (short)
                   const Text(
                     'Stock insuficiente (igual se registra)',
@@ -233,7 +247,22 @@ class _PartsSectionState extends State<PartsSection> {
             ),
           ),
         ),
-        if (checked)
+        if (checked && item.isRevealer)
+          // El gramaje del revelador lo fija el kit del modelo: el técnico no lo ajusta.
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Text(
+              formatGrams(
+                selection.quantityOf(item.itemId),
+                item.gramsPerBag,
+                mode: GramsMode.grams,
+              ),
+              style: AppTextStyles.tabularNumber.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        else if (checked)
           QuantityStepper(
             value: selection.quantityOf(item.itemId),
             onChanged: (q) => selection.setQuantity(item.itemId, q),

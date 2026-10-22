@@ -395,9 +395,14 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         Guid? ticketAssetId = openTicket?.AssetId;
 
         // Se valida todo antes de mutar nada, para no dejar el check-out cerrado con datos a medias.
+        // Una visita de orden que NO la resuelve también puede traer contador: debe quedar como lectura de la máquina.
+        Guid? openOrderAssetId = openLog.MaintenanceOrderId.HasValue && !isOrderCheckout
+            ? await _db.MaintenanceOrders.Where(o => o.Id == openLog.MaintenanceOrderId!.Value).Select(o => (Guid?)o.AssetId).FirstOrDefaultAsync(cancellationToken)
+            : null;
+
         Guid? assetForCounterCheck = isInstallationCheckout ? openLog.AssetId
             : isOrderCheckout ? await _db.MaintenanceOrders.Where(o => o.Id == openLog.MaintenanceOrderId!.Value).Select(o => (Guid?)o.AssetId).FirstAsync(cancellationToken)
-            : ticketAssetId;
+            : ticketAssetId ?? openOrderAssetId;
 
         if (isInstallationCheckout)
         {
@@ -538,7 +543,8 @@ public class TechnicianCheckInService : ITechnicianCheckInService
                     NewStatus = nameof(AssetLifecycleStatus.Instalado),
                     Area = request.Area,
                     Notes = $"Instalación confirmada por técnico. General: {(request.GeneralMaintenanceDone!.Value ? "realizado" : "pendiente")}. " +
-                        $"Unidades: {(request.UnitsMaintenanceDone!.Value ? "realizado" : "insumos nuevos")}."
+                        $"Unidades: {(request.UnitsMaintenanceDone!.Value ? "realizado" : "insumos nuevos")}." +
+                        (string.IsNullOrWhiteSpace(request.Notes) ? string.Empty : $" Notas del técnico: {request.Notes.Trim()}")
                 },
                 technician.UserId,
                 cancellationToken);
@@ -578,20 +584,21 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             }
         }
         MaintenanceOrder? orderFromTicketReading = null;
-        if (!isInstallationCheckout && ticketAssetId.HasValue && request.InitialCounterValue.HasValue)
+        var visitReadingAssetId = ticketAssetId ?? openOrderAssetId;
+        if (!isInstallationCheckout && visitReadingAssetId.HasValue && request.InitialCounterValue.HasValue)
         {
             var counterDate = request.InitialCounterDate ?? DateTime.UtcNow;
             _db.MeterReadings.Add(new MeterReading
             {
-                AssetId = ticketAssetId.Value,
-                ClientId = await GetAssetClientIdAsync(ticketAssetId.Value, cancellationToken),
+                AssetId = visitReadingAssetId.Value,
+                ClientId = await GetAssetClientIdAsync(visitReadingAssetId.Value, cancellationToken),
                 ReadingDate = counterDate,
                 CounterValue = request.InitialCounterValue!.Value,
                 RegisteredByUserId = technician.UserId
             });
 
             orderFromTicketReading = await _scheduleEngine.EvaluateAsync(
-                ticketAssetId.Value, request.InitialCounterValue.Value, counterDate, cancellationToken);
+                visitReadingAssetId.Value, request.InitialCounterValue.Value, counterDate, cancellationToken);
         }
 
         // Totalmente opcional y solo aplica a tickets sin Asset (cliente sin contrato) — no se exige

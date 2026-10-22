@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Toner.Application.Assets;
+using Toner.Application.Maintenance;
+using Toner.Application.Tests.TestSupport;
 using Toner.Application.Common;
 using Toner.Application.Inventory;
 using Toner.Application.Inventory.Dtos;
@@ -48,6 +51,8 @@ public class InventoryConsumptionPostgresTests
         await owner.OpenAsync();
         await ExecAsync(owner, @"DELETE FROM ""InventoryMovements"" WHERE ""InventoryItemId"" IN (SELECT ""Id"" FROM ""InventoryItems"" WHERE ""Name"" = @n)", ("n", itemName));
         await ExecAsync(owner, @"DELETE FROM ""InventoryItems"" WHERE ""Name"" = @n", ("n", itemName));
+        await ExecAsync(owner, @"DELETE FROM ""MeterReadings"" WHERE ""AssetId"" = @a AND ""CounterValue"" = 500 AND ""RegisteredByUserId"" = @u",
+            ("a", RlsFixture.AssetOfClientA), ("u", RlsFixture.FixtureUserId));
     }
 
     [PostgresFact]
@@ -99,8 +104,8 @@ public class InventoryConsumptionPostgresTests
         try
         {
             await using var db = OwnerContext();
-            var service = new InventoryConsumptionService(db, new BaseKitService(db), new PostgresStockLock(db));
-            var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
+            var service = new InventoryConsumptionService(db, new BaseKitService(db), new PostgresStockLock(db), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
+            var staff = new RequestingUser(RlsFixture.FixtureUserId, RoleNames.Administrador, null, null);
             var toner = new InventoryItem { Name = tonerName, Category = InventoryCategory.Toner };
             db.Add(toner);
             await db.SaveChangesAsync();
@@ -126,6 +131,10 @@ public class InventoryConsumptionPostgresTests
             var entry = await service.RegisterTonerAsync(request, staff);
             Assert.Equal(2, entry.Quantity);
             Assert.Null(entry.StockWarning);
+
+            // El contador del tóner también queda como lectura de la máquina (alimenta "último contador").
+            var reading = await db.MeterReadings.SingleAsync(m => m.AssetId == RlsFixture.AssetOfClientA && m.CounterValue == 500 && m.RegisteredByUserId == RlsFixture.FixtureUserId);
+            Assert.Equal(request.OccurredAt!.Value.ToUniversalTime(), reading.ReadingDate);
 
             var history = await service.ListTonerAsync(RlsFixture.AssetOfClientA, DateTime.UtcNow.AddDays(-10), null, null, null, staff);
             Assert.Equal(tonerName, Assert.Single(history.Items, h => h.ItemName == tonerName).ItemName);

@@ -3,12 +3,18 @@
 // formularios/paginación que usa la pantalla. Sin precios: `unitCost` existe en el backend pero se ignora a
 // propósito (decisión de producto: no se capturan ni muestran costos por ahora).
 
+import '../utils/grams_display.dart';
+
 /// Categorías de ítem (valor del backend, etiqueta en español). Mismo orden que la web.
 const inventoryCategories = <String, String>{
   'ConsumibleBase': 'Consumible base',
   'Repuesto': 'Repuesto',
   'Toner': 'Tóner',
+  'Revelador': 'Revelador (gramos)',
 };
+
+/// El revelador se maneja en gramos: unidad fija y tamaño de bolsa obligatorio.
+bool isRevealerCategory(String category) => category == 'Revelador';
 
 String inventoryCategoryLabel(String category) =>
     inventoryCategories[category] ?? category;
@@ -30,6 +36,7 @@ class InventoryItem {
     required this.name,
     required this.category,
     this.unit,
+    this.gramsPerBag,
     required this.minimumStock,
     required this.isActive,
   });
@@ -38,6 +45,9 @@ class InventoryItem {
   final String name;
   final String category;
   final String? unit;
+
+  /// Solo Revelador: gramos que trae cada bolsa (su saldo, mínimo y kit están en gramos).
+  final int? gramsPerBag;
   final int minimumStock;
   final bool isActive;
 
@@ -46,6 +56,7 @@ class InventoryItem {
     name: json['name'] as String? ?? '',
     category: json['category'] as String? ?? '',
     unit: json['unit'] as String?,
+    gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
     minimumStock: (json['minimumStock'] as num?)?.toInt() ?? 0,
     isActive: json['isActive'] as bool? ?? true,
   );
@@ -95,6 +106,7 @@ class StockRow {
     required this.locationId,
     required this.locationName,
     required this.quantity,
+    this.gramsPerBag,
     required this.minimumStock,
     required this.isLow,
   });
@@ -105,6 +117,9 @@ class StockRow {
   final String locationId;
   final String locationName;
   final int quantity;
+
+  /// Solo Revelador: el saldo está en gramos; esto permite mostrarlo en kg y bolsas.
+  final int? gramsPerBag;
   final int minimumStock;
 
   /// Saldo menor o igual al mínimo del ítem (con mínimo > 0), o negativo.
@@ -122,6 +137,7 @@ class StockRow {
     locationId: json['locationId'] as String,
     locationName: json['locationName'] as String? ?? '',
     quantity: (json['quantity'] as num?)?.toInt() ?? 0,
+    gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
     minimumStock: (json['minimumStock'] as num?)?.toInt() ?? 0,
     isLow: json['isLow'] as bool? ?? false,
   );
@@ -136,6 +152,7 @@ class InventoryMovement {
     required this.locationName,
     required this.type,
     required this.delta,
+    this.gramsPerBag,
     this.notes,
     this.createdByUserName,
     required this.occurredAt,
@@ -150,6 +167,7 @@ class InventoryMovement {
   /// Entrada | TraspasoSalida | TraspasoEntrada | Consumo | Ajuste
   final String type;
   final int delta;
+  final int? gramsPerBag;
   final String? notes;
   final String? createdByUserName;
   final DateTime occurredAt;
@@ -157,7 +175,7 @@ class InventoryMovement {
   String get typeLabel => movementTypeLabel(type);
 
   /// "+5" / "-3" (el menos usa el signo ASCII; el cero va sin signo).
-  String get signedQuantity => formatSignedQuantity(delta);
+  String get signedQuantity => formatSignedQuantity(delta, gramsPerBag);
 
   factory InventoryMovement.fromJson(Map<String, dynamic> json) =>
       InventoryMovement(
@@ -168,6 +186,7 @@ class InventoryMovement {
         locationName: json['locationName'] as String? ?? '',
         type: json['type'] as String? ?? '',
         delta: (json['delta'] as num?)?.toInt() ?? 0,
+        gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
         notes: json['notes'] as String?,
         createdByUserName: json['createdByUserName'] as String?,
         occurredAt:
@@ -176,7 +195,11 @@ class InventoryMovement {
       );
 }
 
-String formatSignedQuantity(int delta) => delta > 0 ? '+$delta' : '$delta';
+/// Con [gramsPerBag] (revelador) la cantidad se muestra en gramos o kg y bolsas según la preferencia del usuario.
+String formatSignedQuantity(int delta, [int? gramsPerBag]) {
+  final text = gramsPerBag == null ? '$delta' : formatGrams(delta, gramsPerBag);
+  return delta > 0 ? '+$text' : text;
+}
 
 // ── Formularios ─────────────────────────────────────────────────────────────────────────────────
 
@@ -194,6 +217,7 @@ class ItemDraft {
     this.name = '',
     this.category = 'ConsumibleBase',
     this.unit = '',
+    this.gramsPerBag,
     this.minimumStock = 0,
     this.isActive = true,
   });
@@ -202,6 +226,7 @@ class ItemDraft {
     name: item.name,
     category: item.category,
     unit: item.unit ?? '',
+    gramsPerBag: item.gramsPerBag,
     minimumStock: item.minimumStock,
     isActive: item.isActive,
   );
@@ -209,6 +234,7 @@ class ItemDraft {
   final String name;
   final String category;
   final String unit;
+  final int? gramsPerBag;
   final int minimumStock;
   final bool isActive;
 
@@ -226,6 +252,9 @@ class ItemDraft {
       return 'La unidad no puede pasar de $inventoryUnitMax caracteres.';
     }
     if (minimumStock < 0) return 'El stock mínimo no puede ser negativo.';
+    if (isRevealerCategory(category) && (gramsPerBag == null || gramsPerBag! < 1)) {
+      return 'Indica los gramos que trae cada bolsa de revelador.';
+    }
     return null;
   }
 
@@ -233,7 +262,8 @@ class ItemDraft {
   Map<String, dynamic> toJson({required bool editing}) => {
     'name': name.trim(),
     'category': category,
-    'unit': unit.trim().isEmpty ? null : unit.trim(),
+    'unit': isRevealerCategory(category) ? 'g' : (unit.trim().isEmpty ? null : unit.trim()),
+    'gramsPerBag': isRevealerCategory(category) ? gramsPerBag : null,
     'minimumStock': minimumStock,
     if (editing) 'isActive': isActive,
   };

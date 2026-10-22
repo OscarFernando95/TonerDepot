@@ -12,10 +12,12 @@ import '../../state/auth_state.dart';
 import '../../state/inventory_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/date_only.dart';
+import '../../utils/grams_display.dart';
 import '../../widgets/clay_choice_chip.dart';
 import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/department_city_picker.dart';
+import '../../widgets/grams_mode_switch.dart';
 import '../../widgets/list_filter_dropdown.dart';
 
 /// Inventario (espejo de InventoryView.vue): existencias, movimientos, catálogo y ubicaciones. Staff; la sede
@@ -57,6 +59,10 @@ class _InventoryBodyState extends State<_InventoryBody>
   Widget build(BuildContext context) {
     return Column(
       children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Align(alignment: Alignment.centerRight, child: GramsModeSwitch()),
+        ),
         TabBar(
           controller: _tabs,
           isScrollable: true,
@@ -306,7 +312,12 @@ class _StockCard extends StatelessWidget {
   final StockRow row;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<GramsMode>(
+    valueListenable: gramsMode,
+    builder: (context, mode, child) => _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     final color = row.isLow ? AppColors.signalRed : AppColors.signalBlue;
     return ClayCard(
       padding: const EdgeInsets.all(14),
@@ -335,7 +346,7 @@ class _StockCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Mínimo: ${row.minimumStock}',
+                  'Mínimo: ${formatQuantity(row.minimumStock, row.gramsPerBag)}',
                   style: const TextStyle(
                     color: AppColors.inkSecondary,
                     fontSize: 12,
@@ -349,7 +360,7 @@ class _StockCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               _Pill(
-                '${row.quantity}',
+                formatQuantity(row.quantity, row.gramsPerBag),
                 row.isLow ? AppColors.signalRed : AppColors.signalBlue,
               ),
               if (row.isLow)
@@ -420,7 +431,12 @@ class _MovementCard extends StatelessWidget {
   final InventoryMovement movement;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<GramsMode>(
+    valueListenable: gramsMode,
+    builder: (context, mode, child) => _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     final negative = movement.delta < 0;
     final color = negative ? AppColors.signalRed : AppColors.signalBlue;
     final who = movement.createdByUserName;
@@ -619,7 +635,12 @@ class _ItemCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<GramsMode>(
+    valueListenable: gramsMode,
+    builder: (context, mode, child) => _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     final unit = item.unit;
     return ClayCard(
       onTap: onTap,
@@ -646,7 +667,8 @@ class _ItemCard extends StatelessWidget {
                 Text(
                   '${inventoryCategoryLabel(item.category)}'
                   '${unit != null && unit.isNotEmpty ? ' · $unit' : ''}'
-                  ' · Mínimo: ${item.minimumStock}',
+                  '${item.gramsPerBag != null ? ' · Bolsa: ${item.gramsPerBag} g' : ''}'
+                  ' · Mínimo: ${formatQuantity(item.minimumStock, item.gramsPerBag)}',
                   style: const TextStyle(
                     color: AppColors.inkSecondary,
                     fontSize: 12,
@@ -1016,6 +1038,7 @@ class _OperationSheetState extends State<_OperationSheet> {
   late final TextEditingController _quantity;
   late final TextEditingController _notes = TextEditingController();
   String? _itemName;
+  int? _gramsPerBag;
   String? _error;
   bool _submitting = false;
 
@@ -1037,6 +1060,26 @@ class _OperationSheetState extends State<_OperationSheet> {
     super.dispose();
   }
 
+  // Revelador: la compra se captura en bolsas (el servidor las convierte a gramos); traspasos y ajustes van en gramos.
+  String _quantityLabel(bool isAdjust) {
+    final revealer = _gramsPerBag != null;
+    if (isAdjust) {
+      return revealer
+          ? 'Ajuste en gramos (+ suma, − resta) *'
+          : 'Ajuste (+ suma, − resta) *';
+    }
+    if (!revealer) return 'Cantidad *';
+    return _draft.kind == InventoryOperation.entry
+        ? 'Bolsas compradas *'
+        : 'Cantidad (gramos) *';
+  }
+
+  String? _entryHint() {
+    final grams = _gramsPerBag;
+    if (grams == null || _draft.kind != InventoryOperation.entry) return null;
+    return '${_draft.quantity} bolsa(s) × $grams g = ${formatGrams(_draft.quantity * grams, grams, mode: GramsMode.grams)}';
+  }
+
   void _update(OperationDraft draft) => setState(() {
     _draft = draft;
     _error = null;
@@ -1049,6 +1092,7 @@ class _OperationSheetState extends State<_OperationSheet> {
     );
     if (picked == null) return;
     _itemName = picked.name;
+    _gramsPerBag = picked.gramsPerBag;
     _update(_draft.copyWith(itemId: picked.id));
   }
 
@@ -1163,7 +1207,8 @@ class _OperationSheetState extends State<_OperationSheet> {
             );
           },
           decoration: InputDecoration(
-            labelText: isAdjust ? 'Ajuste (+ suma, − resta) *' : 'Cantidad *',
+            labelText: _quantityLabel(isAdjust),
+            helperText: _entryHint(),
           ),
         ),
         const SizedBox(height: 12),
@@ -1316,6 +1361,7 @@ class _ItemSheetState extends State<_ItemSheet> {
   late ItemDraft _draft;
   late final TextEditingController _name;
   late final TextEditingController _unit;
+  late final TextEditingController _grams;
   late final TextEditingController _minimum;
   String? _error;
   bool _submitting = false;
@@ -1329,6 +1375,7 @@ class _ItemSheetState extends State<_ItemSheet> {
     _draft = item == null ? const ItemDraft() : ItemDraft.fromItem(item);
     _name = TextEditingController(text: _draft.name);
     _unit = TextEditingController(text: _draft.unit);
+    _grams = TextEditingController(text: _draft.gramsPerBag?.toString() ?? '');
     _minimum = TextEditingController(text: '${_draft.minimumStock}');
   }
 
@@ -1336,6 +1383,7 @@ class _ItemSheetState extends State<_ItemSheet> {
   void dispose() {
     _name.dispose();
     _unit.dispose();
+    _grams.dispose();
     _minimum.dispose();
     super.dispose();
   }
@@ -1349,12 +1397,15 @@ class _ItemSheetState extends State<_ItemSheet> {
     String? name,
     String? category,
     String? unit,
+    int? gramsPerBag,
+    bool clearGrams = false,
     int? minimumStock,
     bool? isActive,
   }) => ItemDraft(
     name: name ?? _draft.name,
     category: category ?? _draft.category,
     unit: unit ?? _draft.unit,
+    gramsPerBag: clearGrams ? null : (gramsPerBag ?? _draft.gramsPerBag),
     minimumStock: minimumStock ?? _draft.minimumStock,
     isActive: isActive ?? _draft.isActive,
   );
@@ -1409,7 +1460,21 @@ class _ItemSheetState extends State<_ItemSheet> {
               ClayChoiceChip(
                 label: Text(e.value),
                 selected: _draft.category == e.key,
-                onSelected: (_) => _update((_) => _with(category: e.key)),
+                onSelected: (_) => _update((_) {
+                  // Al elegir Revelador la unidad queda fija en gramos; al salir de ahí se limpia el tamaño de bolsa.
+                  final toRevealer = isRevealerCategory(e.key);
+                  if (toRevealer) {
+                    _unit.text = 'g';
+                  } else if (isRevealerCategory(_draft.category)) {
+                    _unit.clear();
+                    _grams.clear();
+                  }
+                  return _with(
+                    category: e.key,
+                    unit: toRevealer ? 'g' : (isRevealerCategory(_draft.category) ? '' : null),
+                    clearGrams: !toRevealer,
+                  );
+                }),
               ),
           ],
         ),
@@ -1420,6 +1485,7 @@ class _ItemSheetState extends State<_ItemSheet> {
             Expanded(
               child: TextField(
                 controller: _unit,
+                enabled: !isRevealerCategory(_draft.category),
                 maxLength: inventoryUnitMax,
                 onChanged: (v) => _update((_) => _with(unit: v)),
                 decoration: const InputDecoration(
@@ -1444,6 +1510,25 @@ class _ItemSheetState extends State<_ItemSheet> {
             ),
           ],
         ),
+        if (isRevealerCategory(_draft.category)) ...[
+          const SizedBox(height: 4),
+          TextField(
+            controller: _grams,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (v) => _update((_) {
+              final n = int.tryParse(v);
+              return _with(gramsPerBag: n, clearGrams: n == null);
+            }),
+            decoration: const InputDecoration(
+              labelText: 'Gramos por bolsa *',
+              hintText: '500',
+              helperText:
+                  'Las compras entran en bolsas y se convierten a gramos con este tamaño. El stock mínimo va en gramos.',
+              helperMaxLines: 3,
+            ),
+          ),
+        ],
         if (_editing)
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

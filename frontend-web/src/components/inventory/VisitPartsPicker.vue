@@ -3,6 +3,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as inventoryApi from '../../api/inventory'
 import type { PartOptionDto, VisitKitDto } from '../../api/inventory'
+import { formatGrams, formatQuantity } from '../../composables/useGramsDisplay'
+import GramsModeSwitch from './GramsModeSwitch.vue'
 
 // Piezas cambiadas en una visita. En una orden que incluye cambio de consumibles muestra el kit base del modelo
 // (todo marcado por defecto; desmarcar = no se cambió) y, en cualquier ticket u orden, permite agregar repuestos del
@@ -17,6 +19,8 @@ interface Row {
   groupName: string
   quantity: number
   stock: number
+  // Solo Revelador: la cantidad son gramos fijados por el kit del modelo (el técnico no los ajusta).
+  gramsPerBag: number | null
   checked: boolean
   fromKit: boolean
 }
@@ -40,6 +44,7 @@ const groups = computed(() => {
 })
 const extras = computed(() => rows.value.filter((r) => !r.fromKit))
 const locationName = computed(() => kit.value?.locationName ?? '')
+const hasRevealer = computed(() => rows.value.some((r) => r.gramsPerBag))
 
 async function load() {
   rows.value = []
@@ -53,7 +58,7 @@ async function load() {
     const { data } = await inventoryApi.getVisitKit(props.assetId, props.clientLocationId)
     kit.value = data
     rows.value = data.items.map((i) => ({
-      itemId: i.itemId, name: i.itemName, groupName: i.groupName, quantity: i.quantity, stock: i.stock, checked: true, fromKit: true
+      itemId: i.itemId, name: i.itemName, groupName: i.groupName, quantity: i.quantity, stock: i.stock, gramsPerBag: i.gramsPerBag, checked: true, fromKit: true
     }))
   } catch (err: any) {
     console.error('VisitPartsPicker.load failed', err)
@@ -89,7 +94,7 @@ function addExtra() {
     existing.checked = true
     existing.quantity += picked.quantity
   } else {
-    rows.value.push({ itemId: option.itemId, name: option.name, groupName: '', quantity: picked.quantity, stock: option.stock, checked: true, fromKit: false })
+    rows.value.push({ itemId: option.itemId, name: option.name, groupName: '', quantity: picked.quantity, stock: option.stock, gramsPerBag: null, checked: true, fromKit: false })
   }
   picked.itemId = ''
   picked.quantity = 1
@@ -116,13 +121,15 @@ void searchParts('')
         Se descuenta de: <strong>{{ locationName }}</strong>
         <span v-if="kit.usesMainWarehouse"> (el municipio del equipo no tiene zona: bodega principal)</span>
       </p>
+      <div v-if="hasRevealer" class="switch-row"><GramsModeSwitch /></div>
       <p v-if="kit && kit.items.length === 0" class="muted">Este modelo no tiene kit base definido (ni la marca).</p>
       <div v-for="[group, items] in groups" :key="group" class="group">
         <div class="group-title">{{ group }}</div>
         <div v-for="row in items" :key="row.itemId" class="row">
           <el-checkbox v-model="row.checked" @change="sync">{{ row.name }}</el-checkbox>
-          <el-input-number v-model="row.quantity" :min="1" :max="100" size="small" :disabled="!row.checked" @change="sync" />
-          <el-tag size="small" :type="row.stock < row.quantity ? 'danger' : 'info'">stock {{ row.stock }}</el-tag>
+          <span v-if="row.gramsPerBag" class="fixed-grams" title="Gramos fijados por el kit del modelo">{{ formatGrams(row.quantity, row.gramsPerBag, 'g') }}</span>
+          <el-input-number v-else v-model="row.quantity" :min="1" :max="100" size="small" :disabled="!row.checked" @change="sync" />
+          <el-tag size="small" :type="row.stock < row.quantity ? 'danger' : 'info'">stock {{ formatQuantity(row.stock, row.gramsPerBag) }}</el-tag>
         </div>
       </div>
     </template>
@@ -160,6 +167,8 @@ void searchParts('')
 .row { display: flex; align-items: center; gap: 0.75rem; padding: 0.15rem 0; }
 .row .name { flex: 1; }
 .row :deep(.el-checkbox) { flex: 1; }
+.switch-row { margin: 0.25rem 0 0.5rem; }
+.fixed-grams { min-width: 90px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .add-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 .option-stock { float: right; font-size: 0.75rem; color: var(--el-text-color-secondary); }
 .option-stock.low { color: var(--el-color-danger); }

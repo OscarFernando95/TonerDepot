@@ -17,6 +17,7 @@ public class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem
         builder.Property(i => i.Name).IsRequired().HasMaxLength(150);
         builder.HasIndex(i => i.Name).IsUnique();
         builder.Property(i => i.Category).HasConversion<string>().HasMaxLength(20);
+        builder.Property(i => i.GramsPerBag);
         builder.Property(i => i.Unit).HasMaxLength(30);
         builder.Property(i => i.UnitCost).HasPrecision(14, 2);
     }

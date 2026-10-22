@@ -68,7 +68,11 @@ export interface PendingInstallationDto {
   clientLocationId: string
   clientLocationName: string
   cityName: string | null
+  // Área de la máquina dentro de la sede, si ya se conoce.
+  area: string | null
   contractId: string | null
+  // Última lectura de contador del activo: precarga el contador inicial del check-out.
+  lastMeterReading: number | null
   // Vigencia del contrato activo del activo (null si no tiene contrato vinculado) — solo para
   // restringir el selector de fecha del check-out en la UI; la validación real vive en el backend.
   contractStartDate: string | null

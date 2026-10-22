@@ -4,6 +4,8 @@ import { ElMessage } from 'element-plus'
 import * as inventoryApi from '../../api/inventory'
 import * as citiesApi from '../../api/cities'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
+import { formatGrams, formatQuantity } from '../../composables/useGramsDisplay'
+import GramsModeSwitch from '../../components/inventory/GramsModeSwitch.vue'
 import { useAuthStore } from '../../stores/auth'
 import {
   InventoryCategories,
@@ -105,25 +107,39 @@ const itemDialogVisible = ref(false)
 const editingItemId = ref<string | null>(null)
 const savingItem = ref(false)
 // Sin precio unitario por ahora (decisión de negocio): el campo existe en la base pero no se captura ni se muestra.
-const itemForm = reactive({ name: '', category: 'ConsumibleBase' as inventoryApi.InventoryCategory, unit: '', minimumStock: 0, isActive: true })
+const itemForm = reactive({ name: '', category: 'ConsumibleBase' as inventoryApi.InventoryCategory, unit: '', gramsPerBag: undefined as number | undefined, minimumStock: 0, isActive: true })
+const isRevealerForm = computed(() => itemForm.category === 'Revelador')
+
+// Al elegir Revelador la unidad queda fija en gramos y aparece el tamaño de bolsa; al salir de ahí se limpia.
+watch(() => itemForm.category, (category, previous) => {
+  if (category === 'Revelador') itemForm.unit = 'g'
+  else if (previous === 'Revelador') {
+    itemForm.unit = ''
+    itemForm.gramsPerBag = undefined
+  }
+})
 
 function openItemDialog(item: InventoryItemDto | null) {
   editingItemId.value = item?.id ?? null
   itemForm.name = item?.name ?? ''
   itemForm.category = item?.category ?? 'ConsumibleBase'
   itemForm.unit = item?.unit ?? ''
+  itemForm.gramsPerBag = item?.gramsPerBag ?? undefined
   itemForm.minimumStock = item?.minimumStock ?? 0
   itemForm.isActive = item?.isActive ?? true
   itemDialogVisible.value = true
 }
 
+const itemFormValid = computed(() => !isRevealerForm.value || (!!itemForm.gramsPerBag && itemForm.gramsPerBag >= 1))
+
 async function saveItem() {
-  if (!itemForm.name.trim()) return
+  if (!itemForm.name.trim() || !itemFormValid.value) return
   savingItem.value = true
   const request = {
     name: itemForm.name.trim(),
     category: itemForm.category,
-    unit: itemForm.unit.trim() || null,
+    unit: isRevealerForm.value ? 'g' : itemForm.unit.trim() || null,
+    gramsPerBag: isRevealerForm.value ? itemForm.gramsPerBag ?? null : null,
     minimumStock: itemForm.minimumStock,
     isActive: itemForm.isActive
   }
@@ -149,6 +165,16 @@ const savingOp = ref(false)
 const opForm = reactive({ itemId: '', locationId: '', toLocationId: '', quantity: 1, delta: 1, notes: '' })
 const itemOptions = ref<InventoryItemDto[]>([])
 const searchingItems = ref(false)
+
+const opItem = computed(() => itemOptions.value.find((i) => i.id === opForm.itemId) ?? null)
+const opGramsPerBag = computed(() => opItem.value?.gramsPerBag ?? null)
+const opQuantityLabel = computed(() => {
+  if (!opGramsPerBag.value) return 'Cantidad'
+  return opKind.value === 'entry' ? 'Bolsas compradas' : 'Cantidad (gramos)'
+})
+const opEntryGramsHint = computed(() =>
+  opKind.value === 'entry' && opGramsPerBag.value ? `${opForm.quantity} bolsa(s) × ${opGramsPerBag.value} g = ${formatGrams(opForm.quantity * opGramsPerBag.value, opGramsPerBag.value, 'g')}` : ''
+)
 
 const opTitle = computed(() => ({ entry: 'Registrar entrada', transfer: 'Traspasar entre ubicaciones', adjust: 'Ajustar saldo' })[opKind.value])
 const opValid = computed(() => {
@@ -290,6 +316,7 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
           </el-select>
           <el-switch v-model="stockFilter.onlyLow" active-text="Solo stock bajo" />
           <span class="spacer" />
+          <GramsModeSwitch />
           <el-button type="primary" @click="openOperation('entry')">Registrar entrada</el-button>
           <el-button @click="openOperation('transfer')">Traspasar</el-button>
           <el-button @click="openOperation('adjust')">Ajustar</el-button>
@@ -300,13 +327,15 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
             <template #default="{ row }">{{ InventoryCategoryLabels[row.category as inventoryApi.InventoryCategory] }}</template>
           </el-table-column>
           <el-table-column prop="locationName" label="Ubicación" width="220" />
-          <el-table-column label="Saldo" width="130">
+          <el-table-column label="Saldo" width="230">
             <template #default="{ row }">
-              <el-tag :type="row.isLow ? 'danger' : 'success'" size="small">{{ row.quantity }}</el-tag>
+              <el-tag :type="row.isLow ? 'danger' : 'success'" size="small">{{ formatQuantity(row.quantity, row.gramsPerBag) }}</el-tag>
               <span v-if="row.isLow" class="low-hint">{{ row.quantity < 0 ? 'negativo' : 'bajo' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="minimumStock" label="Mínimo" width="100" />
+          <el-table-column label="Mínimo" width="150">
+            <template #default="{ row }">{{ formatQuantity(row.minimumStock, row.gramsPerBag) }}</template>
+          </el-table-column>
         </el-table>
         <el-pagination v-model:current-page="stockPage" class="pager" layout="prev, pager, next" :page-size="stockPageSize" :total="stockTotal" @current-change="loadStock()" />
       </el-tab-pane>
@@ -316,6 +345,8 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
           <el-select v-model="movementFilter.locationId" clearable placeholder="Todas las ubicaciones" style="width: 220px">
             <el-option v-for="l in locations" :key="l.id" :label="l.name" :value="l.id" />
           </el-select>
+          <span class="spacer" />
+          <GramsModeSwitch />
         </div>
         <el-table v-loading="movementsLoading && movements.length === 0" :data="movements" stripe empty-text="Sin movimientos.">
           <el-table-column label="Fecha" width="190">
@@ -326,9 +357,9 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
           <el-table-column label="Tipo" width="150">
             <template #default="{ row }">{{ MovementTypeLabels[row.type as keyof typeof MovementTypeLabels] }}</template>
           </el-table-column>
-          <el-table-column label="Cantidad" width="110">
+          <el-table-column label="Cantidad" width="230">
             <template #default="{ row }">
-              <span :class="row.delta < 0 ? 'neg' : 'pos'">{{ row.delta > 0 ? '+' : '' }}{{ row.delta }}</span>
+              <span :class="row.delta < 0 ? 'neg' : 'pos'">{{ row.delta > 0 ? '+' : '' }}{{ formatQuantity(row.delta, row.gramsPerBag) }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="createdByUserName" label="Registró" width="170" />
@@ -346,6 +377,7 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
             <el-option v-for="c in InventoryCategories" :key="c" :label="InventoryCategoryLabels[c]" :value="c" />
           </el-select>
           <span class="spacer" />
+          <GramsModeSwitch />
           <el-button type="primary" @click="openItemDialog(null)">Nuevo ítem</el-button>
         </div>
         <el-table v-loading="itemsLoading" :data="items" stripe empty-text="El catálogo está vacío.">
@@ -353,8 +385,13 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
           <el-table-column label="Categoría" width="150">
             <template #default="{ row }">{{ InventoryCategoryLabels[row.category as inventoryApi.InventoryCategory] }}</template>
           </el-table-column>
-          <el-table-column prop="unit" label="Unidad" width="110" />
-          <el-table-column prop="minimumStock" label="Mínimo" width="100" />
+          <el-table-column prop="unit" label="Unidad" width="90" />
+          <el-table-column label="Bolsa" width="100">
+            <template #default="{ row }">{{ row.gramsPerBag ? `${row.gramsPerBag} g` : '—' }}</template>
+          </el-table-column>
+          <el-table-column label="Mínimo" width="150">
+            <template #default="{ row }">{{ formatQuantity(row.minimumStock, row.gramsPerBag) }}</template>
+          </el-table-column>
           <el-table-column label="Estado" width="110">
             <template #default="{ row }"><el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? 'Activo' : 'Inactivo' }}</el-tag></template>
           </el-table-column>
@@ -405,10 +442,11 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
             <el-option v-for="l in locations.filter((x) => x.id !== opForm.locationId)" :key="l.id" :label="l.name" :value="l.id" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="opKind !== 'adjust'" label="Cantidad">
-          <el-input-number v-model="opForm.quantity" :min="1" :max="100000" style="width: 100%" />
+        <el-form-item v-if="opKind !== 'adjust'" :label="opQuantityLabel">
+          <el-input-number v-model="opForm.quantity" :min="1" :max="opKind === 'entry' && opGramsPerBag ? 1000 : 100000" style="width: 100%" />
+          <div v-if="opEntryGramsHint" class="op-hint">{{ opEntryGramsHint }}</div>
         </el-form-item>
-        <el-form-item v-else label="Ajuste (+ suma, − resta)">
+        <el-form-item v-else :label="opGramsPerBag ? 'Ajuste en gramos (+ suma, − resta)' : 'Ajuste (+ suma, − resta)'">
           <el-input-number v-model="opForm.delta" :min="-100000" :max="100000" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="opKind === 'adjust' ? 'Motivo (obligatorio)' : 'Notas (opcional)'">
@@ -430,14 +468,16 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
           </el-select>
         </el-form-item>
         <div class="form-grid">
-          <el-form-item label="Unidad"><el-input v-model="itemForm.unit" maxlength="30" placeholder="und" /></el-form-item>
-          <el-form-item label="Stock mínimo (0 = sin alerta)"><el-input-number v-model="itemForm.minimumStock" :min="0" style="width: 100%" /></el-form-item>
+          <el-form-item label="Unidad"><el-input v-model="itemForm.unit" maxlength="30" placeholder="und" :disabled="isRevealerForm" /></el-form-item>
+          <el-form-item v-if="isRevealerForm" label="Gramos por bolsa"><el-input-number v-model="itemForm.gramsPerBag" :min="1" :max="100000" :step="100" placeholder="500" style="width: 100%" /></el-form-item>
+          <el-form-item :label="isRevealerForm ? 'Stock mínimo en gramos (0 = sin alerta)' : 'Stock mínimo (0 = sin alerta)'"><el-input-number v-model="itemForm.minimumStock" :min="0" style="width: 100%" /></el-form-item>
           <el-form-item v-if="editingItemId" label="Activo"><el-switch v-model="itemForm.isActive" /></el-form-item>
         </div>
+        <p v-if="isRevealerForm" class="op-hint">El revelador se maneja en gramos: las compras entran en bolsas y se convierten con este tamaño; el kit de cada modelo define los gramos por cambio.</p>
       </el-form>
       <template #footer>
         <el-button @click="itemDialogVisible = false">Cancelar</el-button>
-        <el-button type="primary" :disabled="!itemForm.name.trim()" :loading="savingItem" @click="saveItem">Guardar</el-button>
+        <el-button type="primary" :disabled="!itemForm.name.trim() || !itemFormValid" :loading="savingItem" @click="saveItem">Guardar</el-button>
       </template>
     </el-dialog>
   </div>
@@ -454,5 +494,6 @@ useRealtimeUpdates(['Inventory', 'Zone'], () => {
 .pos { color: var(--el-color-success); font-weight: 600; }
 .neg { color: var(--el-color-danger); font-weight: 600; }
 .main-card { max-width: 560px; margin-bottom: 1.5rem; }
+.op-hint { margin-top: 0.25rem; font-size: 0.8rem; color: var(--el-text-color-secondary); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
 </style>

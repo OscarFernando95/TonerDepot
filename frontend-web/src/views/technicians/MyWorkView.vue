@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, Printer, Tickets, Tools } from '@element-plus/icons-vue'
@@ -12,6 +12,7 @@ import MaintenanceOrderThreadDialog from '../../components/maintenance/Maintenan
 import MaintenanceScheduleDialog from '../../components/maintenance/MaintenanceScheduleDialog.vue'
 import { canScheduleOrder, formatPlannedAt } from '../../composables/useMaintenanceSchedule'
 import { orderHasNewComments } from '../../composables/useMaintenanceThread'
+import MachineInfoPanel from '../../components/MachineInfoPanel.vue'
 import PhotoPicker from '../../components/technicians/PhotoPicker.vue'
 import VisitPartsPicker from '../../components/inventory/VisitPartsPicker.vue'
 import { getCurrentPosition } from '../../composables/useGeolocation'
@@ -98,6 +99,16 @@ const activeInstallation = computed(() =>
   status.value?.activeAssetInstallationId
     ? pendingInstallations.value.find((i) => i.assetId === status.value!.activeAssetInstallationId)
     : null
+)
+
+// Precarga "Lectura de contador" con el último contador registrado de la máquina (órdenes e instalaciones, donde es
+// obligatorio). En tickets no: el contador es opcional ahí y precargarlo forzaría foto y una lectura que el técnico no pidió.
+watch(
+  () => activeOrder.value?.lastMeterReading ?? activeInstallation.value?.lastMeterReading ?? null,
+  (last) => {
+    checkoutForm.initialCounterValue = last ?? undefined
+  },
+  { immediate: true }
 )
 
 // Ticket de un cliente externo (sin Asset catalogado) — habilita los campos opcionales del equipo.
@@ -425,18 +436,50 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
 
     <el-card v-if="isBusy" class="section-card status-card busy">
       <template #header>Visita en curso</template>
-      <p v-if="activeTicket">
-        <strong>Ticket:</strong> {{ activeTicket.clientName }} — {{ activeTicket.clientLocationName }}<br />
-        {{ activeTicket.description }}
-      </p>
-      <p v-else-if="activeOrder">
-        <strong>Mantenimiento:</strong> {{ activeOrder.assetBrandName }} {{ activeOrder.assetModel }} —
-        {{ activeOrder.assetSerialNumber }}
-      </p>
-      <p v-else-if="activeInstallation">
-        <strong>Instalación:</strong> {{ activeInstallation.clientName }} — {{ activeInstallation.clientLocationName }}<br />
-        {{ activeInstallation.assetBrandName }} {{ activeInstallation.model }} — {{ activeInstallation.serialNumber }}
-      </p>
+      <template v-if="activeTicket">
+        <p>
+          <strong>Ticket:</strong> {{ activeTicket.description }}
+          <template v-if="activeTicket.assetId"><br />{{ activeTicket.assetBrandName }} {{ activeTicket.assetModel }} — {{ activeTicket.assetSerialNumber }}</template>
+        </p>
+        <MachineInfoPanel
+          class="visit-machine"
+          :client-name="activeTicket.clientName"
+          :location-name="activeTicket.clientLocationName"
+          :city-name="activeTicket.cityName"
+          :area="activeTicket.assetArea"
+          :last-meter-reading="activeTicket.lastMeterReading"
+          :show-counter="!!activeTicket.assetId"
+        />
+      </template>
+      <template v-else-if="activeOrder">
+        <p>
+          <strong>Mantenimiento:</strong> {{ activeOrder.assetBrandName }} {{ activeOrder.assetModel }} —
+          {{ activeOrder.assetSerialNumber }}
+          <template v-if="activeOrder.description"><br />{{ activeOrder.description }}</template>
+        </p>
+        <MachineInfoPanel
+          class="visit-machine"
+          :client-name="activeOrder.clientName"
+          :location-name="activeOrder.clientLocationName"
+          :city-name="activeOrder.cityName"
+          :area="activeOrder.assetArea"
+          :last-meter-reading="activeOrder.lastMeterReading"
+        />
+      </template>
+      <template v-else-if="activeInstallation">
+        <p>
+          <strong>Instalación:</strong> {{ activeInstallation.assetBrandName }} {{ activeInstallation.model }} —
+          {{ activeInstallation.serialNumber }}
+        </p>
+        <MachineInfoPanel
+          class="visit-machine"
+          :client-name="activeInstallation.clientName"
+          :location-name="activeInstallation.clientLocationName"
+          :city-name="activeInstallation.cityName"
+          :area="activeInstallation.area"
+          :last-meter-reading="activeInstallation.lastMeterReading"
+        />
+      </template>
       <p class="checked-in-since" v-if="status?.checkedInAt">
         Desde {{ new Date(status.checkedInAt).toLocaleString() }}
       </p>
@@ -815,6 +858,9 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
 </template>
 
 <style scoped>
+.visit-machine {
+  margin: 12px 0;
+}
 .my-work-page {
   max-width: 1200px;
 }

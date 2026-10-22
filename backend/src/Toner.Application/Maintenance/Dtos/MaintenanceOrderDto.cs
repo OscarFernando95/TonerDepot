@@ -11,8 +11,12 @@ public class MaintenanceOrderDto
     public string Status { get; set; } = string.Empty;
     public Guid? TechnicianId { get; set; }
     public string? TechnicianName { get; set; }
+    public string? ClientName { get; set; }
     public string? ClientLocationName { get; set; }
     public string? CityName { get; set; }
+
+    // Área donde está la máquina dentro de la sede.
+    public string? AssetArea { get; set; }
     public bool IncludesGeneral { get; set; }
     public bool IncludesUnits { get; set; }
     public bool IncludesConsumables { get; set; }
@@ -24,6 +28,16 @@ public class MaintenanceOrderDto
     // Asignada (POST /technicians/me/maintenance-orders/{id}/cancel).
     public bool IsSelfStarted { get; set; }
     public string? Reason { get; set; }
+
+    // Notas que dejó el técnico al cerrar su última visita a esta orden (opcionales).
+    public string? ResolutionNotes { get; set; }
+
+    // Qué se debe hacer y por qué se generó la orden (tiempo, contador o a demanda).
+    public string? Description { get; set; }
+
+    // Última lectura de contador registrada del activo (null si nunca se ha registrado una).
+    public long? LastMeterReading { get; set; }
+    public DateTime? LastMeterReadingDate { get; set; }
     public DateTime ScheduledDate { get; set; }
 
     // Cuándo planea hacerlo el técnico (UTC), si ya lo programó, y el movimiento más reciente del hilo de comentarios.

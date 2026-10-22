@@ -373,7 +373,7 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
       </template>
     </el-dialog>
 
-    <TonerDialog ref="tonerDialogRef" />
+    <TonerDialog ref="tonerDialogRef" @saved="loadAll(true)" />
 
     <MaintenanceChoiceDialog
       v-model="manualOrderDialogVisible"

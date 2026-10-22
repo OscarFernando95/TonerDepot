@@ -13,7 +13,13 @@ public class CreateInventoryItemRequestValidator : AbstractValidator<CreateInven
         RuleFor(x => x.Unit).MaximumLength(30);
         RuleFor(x => x.UnitCost).GreaterThanOrEqualTo(0).When(x => x.UnitCost.HasValue);
         RuleFor(x => x.MinimumStock).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.GramsPerBag).Must(GramsPerBagRule).WithMessage("Los gramos por bolsa deben estar entre 1 y 100000.").When(x => IsRevealer(x.Category));
+        RuleFor(x => x.GramsPerBag).NotNull().WithMessage("Un revelador necesita los gramos que trae cada bolsa.").When(x => IsRevealer(x.Category));
+        RuleFor(x => x.GramsPerBag).Null().WithMessage("Solo el revelador lleva gramos por bolsa.").When(x => !IsRevealer(x.Category));
     }
+
+    internal static bool IsRevealer(string? category) => category == nameof(InventoryCategory.Revelador);
+    internal static bool GramsPerBagRule(int? grams) => grams is null || (grams >= 1 && grams <= 100000);
 
     internal static bool IsCategory(string? value) => Enum.TryParse<InventoryCategory>(value, out var parsed) && Enum.IsDefined(parsed);
 }
@@ -28,6 +34,12 @@ public class UpdateInventoryItemRequestValidator : AbstractValidator<UpdateInven
         RuleFor(x => x.Unit).MaximumLength(30);
         RuleFor(x => x.UnitCost).GreaterThanOrEqualTo(0).When(x => x.UnitCost.HasValue);
         RuleFor(x => x.MinimumStock).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.GramsPerBag).Must(CreateInventoryItemRequestValidator.GramsPerBagRule).WithMessage("Los gramos por bolsa deben estar entre 1 y 100000.")
+            .When(x => CreateInventoryItemRequestValidator.IsRevealer(x.Category));
+        RuleFor(x => x.GramsPerBag).NotNull().WithMessage("Un revelador necesita los gramos que trae cada bolsa.")
+            .When(x => CreateInventoryItemRequestValidator.IsRevealer(x.Category));
+        RuleFor(x => x.GramsPerBag).Null().WithMessage("Solo el revelador lleva gramos por bolsa.")
+            .When(x => !CreateInventoryItemRequestValidator.IsRevealer(x.Category));
     }
 }
 
@@ -101,7 +113,8 @@ public class SetBrandKitRequestValidator : AbstractValidator<SetBrandKitRequest>
         {
             item.RuleFor(i => i.ItemId).NotEmpty();
             item.RuleFor(i => i.GroupName).NotEmpty().MaximumLength(100);
-            item.RuleFor(i => i.Quantity).InclusiveBetween(1, 100);
+            // 1..100 unidades; un revelador va en gramos (hasta 10.000). El tope por categoría lo aplica BaseKitService.
+            item.RuleFor(i => i.Quantity).InclusiveBetween(1, 10000);
         });
     }
 }
@@ -117,7 +130,7 @@ public class SetModelKitRequestValidator : AbstractValidator<SetModelKitRequest>
         {
             item.RuleFor(i => i.ItemId).NotEmpty();
             item.RuleFor(i => i.GroupName).MaximumLength(100);
-            item.RuleFor(i => i.Quantity).InclusiveBetween(1, 100).When(i => i.Quantity.HasValue);
+            item.RuleFor(i => i.Quantity).InclusiveBetween(1, 10000).When(i => i.Quantity.HasValue);
         });
     }
 }

@@ -14,7 +14,13 @@ public class PendingInstallationDto
     public string ClientLocationName { get; set; } = string.Empty;
     public string? CityName { get; set; }
 
+    // Área de la máquina dentro de la sede, si ya se conoce.
+    public string? Area { get; set; }
+
     public Guid? ContractId { get; set; }
+
+    // Última lectura de contador del activo: precarga el contador inicial del check-out de instalación.
+    public long? LastMeterReading { get; set; }
 
     // Vigencia del contrato activo del activo (null si no tiene contrato vinculado). Le permite al
     // cliente (app/web) restringir la fecha de lectura del check-out al rango real del contrato, en

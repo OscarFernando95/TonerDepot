@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Assets;
+using Toner.Application.Maintenance;
 using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Inventory;
@@ -207,7 +209,7 @@ public class InventoryConsumptionTests
         }
 
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var kit = await new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock()).GetKitForAssetAsync(s.AssetId);
+        var kit = await new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db))).GetKitForAssetAsync(s.AssetId);
 
         Assert.Equal("Sur", kit.LocationName);
         Assert.False(kit.UsesMainWarehouse);
@@ -222,7 +224,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        var kit = await new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock()).GetKitForAssetAsync(null);
+        var kit = await new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db))).GetKitForAssetAsync(null);
 
         Assert.Empty(kit.Items);
         Assert.True(kit.UsesMainWarehouse);
@@ -240,7 +242,7 @@ public class InventoryConsumptionTests
         }
 
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
 
         var found = (await service.SearchPartsAsync(s.AssetId, "empa", null, null)).Items;
         Assert.Equal(6, Assert.Single(found).Stock);
@@ -256,7 +258,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 5);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
         var request = new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 2, DeliveredToUser = true, CounterValue = 1000 };
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.RegisterTonerAsync(request, Tech(s)));
@@ -282,7 +284,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 9);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
         var past = DateTime.UtcNow.AddDays(-20);
 
@@ -304,7 +306,7 @@ public class InventoryConsumptionTests
     {
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Coordinador, null, null);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
@@ -340,7 +342,7 @@ public class InventoryConsumptionTests
         var s = await SeedAsync();
         await StockAsync(s, s.ZoneLocationId, s.TonerId, 9);
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
         RegisterTonerRequest At(DateTime when, long counter) =>
             new() { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, OccurredAt = when, CounterValue = counter };
@@ -362,11 +364,63 @@ public class InventoryConsumptionTests
     {
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
-        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock());
+        var service = new InventoryConsumptionService(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
         var staff = new RequestingUser(Guid.NewGuid(), RoleNames.Administrador, null, null);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             service.RegisterTonerAsync(new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1 }, staff));
         Assert.Contains("contador", ex.Message);
+    }
+    private static InventoryConsumptionService TonerService(Infrastructure.Persistence.TonerDbContext db) =>
+        new(db, new BaseKitService(db), new PassThroughStockLock(), new MeterReadingRecorder(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db)));
+
+    [Fact]
+    public async Task Toner_ElContadorQuedaComoLecturaDeLaMaquina()
+    {
+        var s = await SeedAsync();
+        await StockAsync(s, s.ZoneLocationId, s.TonerId, 5);
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = s.TechnicianId, AssetId = s.AssetId });
+        await db.SaveChangesAsync();
+
+        await TonerService(db).RegisterTonerAsync(
+            new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 1500 }, Tech(s));
+
+        var reading = await db.MeterReadings.SingleAsync(m => m.AssetId == s.AssetId);
+        Assert.Equal(1500, reading.CounterValue);
+        Assert.Equal(s.ClientId, reading.ClientId);
+        Assert.Equal(s.TechnicianUserId, reading.RegisteredByUserId);
+    }
+
+    [Fact]
+    public async Task Toner_SiLaLecturaYaExisteConEseValor_NoLaDuplica()
+    {
+        var s = await SeedAsync();
+        await StockAsync(s, s.ZoneLocationId, s.TonerId, 5);
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = s.TechnicianId, AssetId = s.AssetId });
+        db.MeterReadings.Add(new MeterReading { AssetId = s.AssetId, ClientId = s.ClientId, ReadingDate = DateTime.UtcNow.AddHours(-1), CounterValue = 1500 });
+        await db.SaveChangesAsync();
+
+        await TonerService(db).RegisterTonerAsync(
+            new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 1500 }, Tech(s));
+
+        Assert.Equal(1, await db.MeterReadings.CountAsync(m => m.AssetId == s.AssetId));
+    }
+
+    [Fact]
+    public async Task Toner_ConUnContadorMenorALaUltimaLectura_SeRechazaYNoDescuentaStock()
+    {
+        var s = await SeedAsync();
+        await StockAsync(s, s.ZoneLocationId, s.TonerId, 5);
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        db.TechnicianAssets.Add(new TechnicianAsset { TechnicianId = s.TechnicianId, AssetId = s.AssetId });
+        db.MeterReadings.Add(new MeterReading { AssetId = s.AssetId, ClientId = s.ClientId, ReadingDate = DateTime.UtcNow.AddHours(-1), CounterValue = 2000 });
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ConflictException>(() => TonerService(db).RegisterTonerAsync(
+            new RegisterTonerRequest { AssetId = s.AssetId, ItemId = s.TonerId, Quantity = 1, CounterValue = 1500 }, Tech(s)));
+
+        Assert.Equal(0, await db.InventoryMovements.CountAsync(m => m.Type == InventoryMovementType.Consumo));
     }
 }

@@ -17,7 +17,7 @@ public class AssetStatusLogConfiguration : IEntityTypeConfiguration<AssetStatusL
 
         builder.Property(l => l.PreviousStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(l => l.NewStatus).HasConversion<string>().HasMaxLength(30);
-        builder.Property(l => l.Notes).HasMaxLength(500);
+        builder.Property(l => l.Notes).HasMaxLength(1500);
 
         builder.HasOne(l => l.Asset)
             .WithMany(a => a.StatusLogs)

@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import 'animated_gradient_border.dart';
 import 'clay_icon_badge.dart';
 import 'clay_surface.dart';
+import 'machine_info_panel.dart';
 
 class InstallationCard extends StatelessWidget {
   const InstallationCard({
@@ -79,18 +80,15 @@ class InstallationCard extends StatelessWidget {
             'Serie: ${installation.serialNumber}',
             style: const TextStyle(color: AppColors.inkSecondary),
           ),
-          Text(
-            '${installation.clientName} — ${installation.clientLocationName}',
-            style: const TextStyle(color: AppColors.inkSecondary),
+          const SizedBox(height: 8),
+          MachineInfoPanel(
+            clientName: installation.clientName,
+            locationName: installation.clientLocationName,
+            cityName: installation.cityName,
+            area: installation.area,
+            lastMeterReading: installation.lastMeterReading,
+            compact: true,
           ),
-          if (installation.cityName != null)
-            Text(
-              installation.cityName!,
-              style: const TextStyle(
-                color: AppColors.inkSecondary,
-                fontSize: 12,
-              ),
-            ),
           if (canCheckIn &&
               !isActive &&
               !installation.takenByAnotherTechnician &&

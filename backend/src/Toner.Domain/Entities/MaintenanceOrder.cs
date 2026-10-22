@@ -40,6 +40,9 @@ public class MaintenanceOrder : BaseEntity
     public Guid? RequestedByUserId { get; set; }
     public string? Reason { get; set; }
 
+    // Texto legible de qué se debe hacer y por qué se generó (tiempo, contador, a demanda), fijado al crear la orden.
+    public string? Description { get; set; }
+
     public Guid? TechnicianId { get; set; }
     public Technician? Technician { get; set; }
 

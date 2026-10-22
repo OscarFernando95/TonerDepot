@@ -405,8 +405,12 @@ public class ServiceTicketService : IServiceTicketService
             AssetBrandName = t.Asset != null ? t.Asset.AssetModel.AssetBrand.Name : null,
             AssetModel = t.Asset != null ? t.Asset.AssetModel.Name : null,
             AssetSerialNumber = t.Asset != null ? t.Asset.SerialNumber : null,
+            AssetArea = t.Asset != null ? t.Asset.Area : null,
             AssetUnderContract = t.Asset != null
                 && t.Asset.ContractAssets.Any(ca => ca.EndDate == null && ca.Contract.Status == ContractStatus.Activo),
+            LastMeterReading = t.Asset != null
+                ? t.Asset.MeterReadings.OrderByDescending(m => m.ReadingDate).Select(m => (long?)m.CounterValue).FirstOrDefault()
+                : null,
             ExternalAssetBrand = t.ExternalAssetBrand,
             ExternalAssetModel = t.ExternalAssetModel,
             ExternalAssetCounter = t.ExternalAssetCounter,

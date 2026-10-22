@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../models/base_kit.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
-import 'quantity_stepper.dart';
+import 'kit_quantity_input.dart';
 
 /// Campo de unidad/grupo con sugerencias (los grupos ya usados en el kit) — equivalente al `el-autocomplete` de la
 /// web. Las sugerencias aparecen como chips mientras el campo tiene el foco.
@@ -342,9 +342,10 @@ class _BaseKitAddFormState extends State<BaseKitAddForm> {
               style: TextStyle(color: AppColors.inkSecondary),
             ),
             const SizedBox(width: 8),
-            QuantityStepper(
+            KitQuantityInput(
+              key: ValueKey(_item?.id),
               value: _quantity,
-              max: baseKitMaxQuantity,
+              grams: _item?.gramsPerBag != null,
               onChanged: (v) => setState(() => _quantity = v),
             ),
           ],

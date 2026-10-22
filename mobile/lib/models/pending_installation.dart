@@ -11,7 +11,11 @@ class PendingInstallation {
   final String clientLocationId;
   final String clientLocationName;
   final String? cityName;
+  final String? area;
   final String? contractId;
+
+  /// Última lectura de contador del activo; precarga el contador inicial del check-out.
+  final int? lastMeterReading;
   // Vigencia del contrato activo de este activo — null si no tiene contrato vinculado. Solo sirve
   // para restringir el selector de fecha en el check-out (comodidad de UI); la validación real vive
   // en el backend (TechnicianCheckInService.EnsureCounterDateWithinContractAsync).
@@ -32,7 +36,9 @@ class PendingInstallation {
     required this.clientLocationId,
     required this.clientLocationName,
     required this.cityName,
+    this.area,
     required this.contractId,
+    this.lastMeterReading,
     required this.contractStartDate,
     required this.contractEndDate,
     required this.takenByAnotherTechnician,
@@ -50,7 +56,9 @@ class PendingInstallation {
         clientLocationId: json['clientLocationId'] as String,
         clientLocationName: json['clientLocationName'] as String? ?? '',
         cityName: json['cityName'] as String?,
+        area: json['area'] as String?,
         contractId: json['contractId'] as String?,
+        lastMeterReading: (json['lastMeterReading'] as num?)?.toInt(),
         contractStartDate: json['contractStartDate'] != null
             ? DateTime.parse(json['contractStartDate'] as String)
             : null,

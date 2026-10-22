@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Toner.Application.Assets;
 using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -16,12 +17,14 @@ public class InventoryConsumptionService : IInventoryConsumptionService
     private readonly IApplicationDbContext _db;
     private readonly IBaseKitService _kits;
     private readonly IStockLock _stockLock;
+    private readonly IMeterReadingRecorder _readings;
 
-    public InventoryConsumptionService(IApplicationDbContext db, IBaseKitService kits, IStockLock stockLock)
+    public InventoryConsumptionService(IApplicationDbContext db, IBaseKitService kits, IStockLock stockLock, IMeterReadingRecorder readings)
     {
         _db = db;
         _kits = kits;
         _stockLock = stockLock;
+        _readings = readings;
     }
 
     private sealed record Source(Guid LocationId, string Name, bool IsMain);
@@ -38,18 +41,22 @@ public class InventoryConsumptionService : IInventoryConsumptionService
 
         // El mismo ítem repetido se suma en una sola salida.
         var merged = parts.GroupBy(p => p.ItemId).ToDictionary(g => g.Key, g => g.Sum(p => p.Quantity));
-        if (merged.Values.Any(q => q < 1 || q > MaxQuantityPerPart))
-        {
-            throw new ConflictException($"La cantidad de cada pieza debe estar entre 1 y {MaxQuantityPerPart}.");
-        }
 
         var ids = merged.Keys.ToList();
-        var items = await _db.InventoryItems.Where(i => ids.Contains(i.Id)).Select(i => new { i.Id, i.Name, i.IsActive }).ToListAsync(cancellationToken);
+        var items = await _db.InventoryItems.Where(i => ids.Contains(i.Id)).Select(i => new { i.Id, i.Name, i.IsActive, i.Category }).ToListAsync(cancellationToken);
         var invalid = ids.Where(id => items.All(i => i.Id != id || !i.IsActive)).ToList();
         if (invalid.Count > 0)
         {
             throw new ConflictException("Alguna de las piezas no existe o está desactivada. Actualiza la lista e inténtalo de nuevo.");
         }
+
+        var revealerIds = items.Where(i => i.Category == InventoryCategory.Revelador).Select(i => i.Id).ToHashSet();
+        if (merged.Any(kv => !revealerIds.Contains(kv.Key) && (kv.Value < 1 || kv.Value > MaxQuantityPerPart)))
+        {
+            throw new ConflictException($"La cantidad de cada pieza debe estar entre 1 y {MaxQuantityPerPart}.");
+        }
+
+        await EnsureRevealerGramsMatchKitAsync(visit.AssetId, merged, items.Where(i => revealerIds.Contains(i.Id)).ToDictionary(i => i.Id, i => i.Name), cancellationToken);
 
         Guid? clientLocationId = null;
         if (!visit.AssetId.HasValue && visit.ServiceTicketId.HasValue)
@@ -70,7 +77,9 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         var shortages = items
             .Where(i => balances.GetValueOrDefault(i.Id) < merged[i.Id])
             .OrderBy(i => i.Name)
-            .Select(i => $"{i.Name} (hay {balances.GetValueOrDefault(i.Id)}, necesitas {merged[i.Id]})")
+            .Select(i => revealerIds.Contains(i.Id)
+                ? $"{i.Name} (hay {balances.GetValueOrDefault(i.Id)} g, necesitas {merged[i.Id]} g)"
+                : $"{i.Name} (hay {balances.GetValueOrDefault(i.Id)}, necesitas {merged[i.Id]})")
             .ToList();
         if (shortages.Count > 0)
         {
@@ -104,6 +113,41 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         }
     }
 
+    // El revelador se descuenta en gramos y el gramaje lo fija el kit del modelo: el técnico no lo ajusta, así que lo
+    // que llegue debe coincidir exactamente con el kit (y el ítem debe pertenecer a él).
+    private async Task EnsureRevealerGramsMatchKitAsync(
+        Guid? assetId, IReadOnlyDictionary<Guid, int> requested, IReadOnlyDictionary<Guid, string> revealerNames, CancellationToken cancellationToken)
+    {
+        if (revealerNames.Count == 0)
+        {
+            return;
+        }
+
+        if (!assetId.HasValue)
+        {
+            throw new ConflictException("El revelador solo se descuenta de equipos catalogados: su gramaje sale del kit del modelo.");
+        }
+
+        var modelId = await _db.Assets.Where(a => a.Id == assetId).Select(a => (Guid?)a.AssetModelId).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(Asset), assetId.Value);
+        var kitGrams = (await _kits.GetModelKitAsync(modelId, cancellationToken))
+            .Where(k => !k.Excluded && revealerNames.ContainsKey(k.ItemId))
+            .ToDictionary(k => k.ItemId, k => k.Quantity);
+
+        foreach (var (itemId, name) in revealerNames)
+        {
+            if (!kitGrams.TryGetValue(itemId, out var grams))
+            {
+                throw new ConflictException($"'{name}' no está en el kit de este modelo.");
+            }
+
+            if (requested[itemId] != grams)
+            {
+                throw new ConflictException($"El gramaje de '{name}' lo fija el kit del modelo ({grams} g) y no se puede cambiar.");
+            }
+        }
+    }
+
     public async Task<VisitKitDto> GetKitForAssetAsync(Guid? assetId, Guid? clientLocationId = null, CancellationToken cancellationToken = default)
     {
         var source = await ResolveSourceAsync(assetId, clientLocationId, cancellationToken);
@@ -124,7 +168,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
             .Select(k => new VisitKitItemDto
             {
                 ItemId = k.ItemId, ItemName = k.ItemName, Category = k.Category, GroupName = k.GroupName,
-                Quantity = k.Quantity, Stock = balances.GetValueOrDefault(k.ItemId)
+                Quantity = k.Quantity, Stock = balances.GetValueOrDefault(k.ItemId), GramsPerBag = k.GramsPerBag
             })
             .ToList();
         return dto;
@@ -133,7 +177,7 @@ public class InventoryConsumptionService : IInventoryConsumptionService
     public async Task<PagedResult<PartOptionDto>> SearchPartsAsync(
         Guid? assetId, string? search, int? page, int? pageSize, CancellationToken cancellationToken = default, string? category = null, Guid? clientLocationId = null)
     {
-        var query = _db.InventoryItems.Where(i => i.IsActive);
+        var query = _db.InventoryItems.Where(i => i.IsActive && i.Category != InventoryCategory.Revelador);
         if (!string.IsNullOrWhiteSpace(category))
         {
             var parsed = EnumParsing.ParseOrThrow<InventoryCategory>(category, nameof(category));
@@ -188,6 +232,12 @@ public class InventoryConsumptionService : IInventoryConsumptionService
         await EnsureCounterFitsAsync(asset.Id, request.CounterValue.Value, (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime(), cancellationToken);
 
         var source = await ResolveSourceAsync(asset.Id, null, cancellationToken);
+
+        // El contador que acompaña al tóner también es una lectura de la máquina: sin esto quedaba solo en el
+        // movimiento de inventario y "último contador" (activo, órdenes, contratos) no se enteraba. Cae en el mismo
+        // SaveChanges del movimiento, dentro de la transacción de stock.
+        await _readings.PrepareAsync(
+            asset.Id, request.CounterValue.Value, (request.OccurredAt ?? DateTime.UtcNow).ToUniversalTime(), requester.UserId, cancellationToken);
 
         var how = request.DeliveredToUser ? "Entregado al usuario para que lo cambie" : "Cambiado por el técnico en la máquina";
         var notes = string.IsNullOrWhiteSpace(request.Notes) ? how : $"{how}. {request.Notes.Trim()}";

@@ -9,6 +9,8 @@ class ServiceTicket {
   final String? assetBrandName;
   final String? assetModel;
   final String? assetSerialNumber;
+  final String? assetArea;
+  final int? lastMeterReading;
   final String? externalAssetBrand;
   final String? externalAssetModel;
   final num? externalAssetCounter;
@@ -39,6 +41,8 @@ class ServiceTicket {
     required this.assetBrandName,
     required this.assetModel,
     required this.assetSerialNumber,
+    this.assetArea,
+    this.lastMeterReading,
     required this.externalAssetBrand,
     required this.externalAssetModel,
     required this.externalAssetCounter,
@@ -79,6 +83,8 @@ class ServiceTicket {
     assetBrandName: json['assetBrandName'] as String?,
     assetModel: json['assetModel'] as String?,
     assetSerialNumber: json['assetSerialNumber'] as String?,
+    assetArea: json['assetArea'] as String?,
+    lastMeterReading: (json['lastMeterReading'] as num?)?.toInt(),
     externalAssetBrand: json['externalAssetBrand'] as String?,
     externalAssetModel: json['externalAssetModel'] as String?,
     externalAssetCounter: json['externalAssetCounter'] as num?,

@@ -88,7 +88,11 @@ class BaseKitState extends ChangeNotifier {
         itemName: item.name,
         category: item.category,
         groupName: group,
-        quantity: BaseKitLogic.clampQuantity(quantity),
+        quantity: BaseKitLogic.clampQuantity(
+          quantity,
+          grams: item.gramsPerBag != null,
+        ),
+        gramsPerBag: item.gramsPerBag,
       ),
     ];
     dirty = true;
@@ -115,7 +119,12 @@ class BaseKitState extends ChangeNotifier {
     rows = [
       for (final r in rows)
         r.itemId == itemId
-            ? r.copyWith(quantity: BaseKitLogic.clampQuantity(quantity))
+            ? r.copyWith(
+                quantity: BaseKitLogic.clampQuantity(
+                  quantity,
+                  grams: r.gramsPerBag != null,
+                ),
+              )
             : r,
     ];
     dirty = true;

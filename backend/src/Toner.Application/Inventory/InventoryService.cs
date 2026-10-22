@@ -11,6 +11,8 @@ namespace Toner.Application.Inventory;
 
 public class InventoryService : IInventoryService
 {
+    private const int MaxBagsPerEntry = 1000;
+
     private readonly IApplicationDbContext _db;
 
     private readonly IStockLock _stockLock;
@@ -49,7 +51,7 @@ public class InventoryService : IInventoryService
             .OrderBy(i => i.Name)
             .Select(i => new InventoryItemDto
             {
-                Id = i.Id, Name = i.Name, Category = i.Category.ToString(), Unit = i.Unit,
+                Id = i.Id, Name = i.Name, Category = i.Category.ToString(), Unit = i.Unit, GramsPerBag = i.GramsPerBag,
                 UnitCost = i.UnitCost, MinimumStock = i.MinimumStock, IsActive = i.IsActive
             })
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
@@ -65,9 +67,11 @@ public class InventoryService : IInventoryService
             Name = name,
             Category = EnumParsing.ParseOrThrow<InventoryCategory>(request.Category, nameof(request.Category)),
             Unit = string.IsNullOrWhiteSpace(request.Unit) ? null : request.Unit.Trim(),
+            GramsPerBag = request.GramsPerBag,
             UnitCost = request.UnitCost,
             MinimumStock = request.MinimumStock
         };
+        ApplyRevealerRules(item);
         _db.InventoryItems.Add(item);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -82,9 +86,21 @@ public class InventoryService : IInventoryService
         var name = request.Name.Trim();
         await EnsureNameAvailableAsync(name, id, cancellationToken);
 
+        var newCategory = EnumParsing.ParseOrThrow<InventoryCategory>(request.Category, nameof(request.Category));
+        if (newCategory != item.Category && (newCategory == InventoryCategory.Revelador || item.Category == InventoryCategory.Revelador)
+            && await HasHistoryAsync(id, cancellationToken))
+        {
+            // El saldo y el kit de un ítem con historia están en otra unidad: cambiarlo a/desde gramos los reinterpretaría.
+            throw new ConflictException(
+                "Un ítem con movimientos o en un kit no puede pasar a (o dejar de ser) Revelador porque su saldo cambiaría de unidad. " +
+                "Crea un ítem nuevo con la categoría correcta y desactiva este.");
+        }
+
         item.Name = name;
-        item.Category = EnumParsing.ParseOrThrow<InventoryCategory>(request.Category, nameof(request.Category));
+        item.Category = newCategory;
         item.Unit = string.IsNullOrWhiteSpace(request.Unit) ? null : request.Unit.Trim();
+        item.GramsPerBag = request.GramsPerBag;
+        ApplyRevealerRules(item);
         item.UnitCost = request.UnitCost;
         item.MinimumStock = request.MinimumStock;
         item.IsActive = request.IsActive;
@@ -173,6 +189,7 @@ public class InventoryService : IInventoryService
                 LocationId = r.Location.Id,
                 LocationName = r.Location.Zone != null ? r.Location.Zone.Name : (r.Location.Name ?? "Bodega principal"),
                 Quantity = r.Quantity,
+                GramsPerBag = r.Item.GramsPerBag,
                 MinimumStock = r.Item.MinimumStock,
                 IsLow = r.Quantity < 0 || (r.Item.MinimumStock > 0 && r.Quantity <= r.Item.MinimumStock)
             })
@@ -201,10 +218,25 @@ public class InventoryService : IInventoryService
 
     public async Task<InventoryMovementDto> RegisterEntryAsync(RegisterEntryRequest request, Guid userId, CancellationToken cancellationToken = default)
     {
-        await EnsureItemAvailableAsync(request.ItemId, cancellationToken);
+        var gramsPerBag = await EnsureItemAvailableAsync(request.ItemId, cancellationToken);
         await EnsureLocationExistsAsync(request.LocationId, cancellationToken);
 
-        var movement = NewMovement(request.ItemId, request.LocationId, InventoryMovementType.Entrada, request.Quantity, request.Notes, userId, null);
+        // Revelador: la compra se captura en bolsas y el saldo vive en gramos.
+        var delta = request.Quantity;
+        var notes = request.Notes;
+        if (gramsPerBag.HasValue)
+        {
+            if (request.Quantity > MaxBagsPerEntry)
+            {
+                throw new ConflictException($"Una entrada de revelador admite hasta {MaxBagsPerEntry} bolsas.");
+            }
+
+            delta = checked(request.Quantity * gramsPerBag.Value);
+            var detail = $"{request.Quantity} bolsa(s) de {gramsPerBag.Value} g = {delta} g";
+            notes = string.IsNullOrWhiteSpace(notes) ? detail : $"{detail}. {notes.Trim()}";
+        }
+
+        var movement = NewMovement(request.ItemId, request.LocationId, InventoryMovementType.Entrada, delta, notes, userId, null);
         _db.InventoryMovements.Add(movement);
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -304,16 +336,42 @@ public class InventoryService : IInventoryService
             .Where(m => m.InventoryLocationId == locationId && m.InventoryItemId == itemId)
             .SumAsync(m => m.Delta, cancellationToken);
 
-    private async Task EnsureItemAvailableAsync(Guid itemId, CancellationToken cancellationToken)
+    // Devuelve los gramos por bolsa del ítem (solo Revelador) para que la entrada convierta bolsas a gramos.
+    private async Task<int?> EnsureItemAvailableAsync(Guid itemId, CancellationToken cancellationToken)
     {
-        var item = await _db.InventoryItems.Where(i => i.Id == itemId).Select(i => new { i.IsActive }).FirstOrDefaultAsync(cancellationToken)
+        var item = await _db.InventoryItems.Where(i => i.Id == itemId).Select(i => new { i.IsActive, i.GramsPerBag }).FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(InventoryItem), itemId);
 
         if (!item.IsActive)
         {
             throw new ConflictException("El ítem está desactivado: reactívalo para registrar movimientos.");
         }
+
+        return item.GramsPerBag;
     }
+
+    // Revelador: unidad fija en gramos y tamaño de bolsa obligatorio; el resto de categorías no lleva bolsa.
+    private static void ApplyRevealerRules(InventoryItem item)
+    {
+        if (item.Category == InventoryCategory.Revelador)
+        {
+            if (item.GramsPerBag is null or < 1)
+            {
+                throw new ConflictException("Un revelador necesita los gramos que trae cada bolsa.");
+            }
+
+            item.Unit = "g";
+        }
+        else
+        {
+            item.GramsPerBag = null;
+        }
+    }
+
+    private async Task<bool> HasHistoryAsync(Guid itemId, CancellationToken cancellationToken) =>
+        await _db.InventoryMovements.AnyAsync(m => m.InventoryItemId == itemId, cancellationToken)
+        || await _db.BrandBaseItems.AnyAsync(b => b.InventoryItemId == itemId, cancellationToken)
+        || await _db.ModelBaseItems.AnyAsync(m => m.InventoryItemId == itemId, cancellationToken);
 
     private async Task EnsureLocationExistsAsync(Guid locationId, CancellationToken cancellationToken)
     {
@@ -345,6 +403,7 @@ public class InventoryService : IInventoryService
             LocationName = m.InventoryLocation.Zone != null ? m.InventoryLocation.Zone.Name : (m.InventoryLocation.Name ?? "Bodega principal"),
             Type = m.Type.ToString(),
             Delta = m.Delta,
+            GramsPerBag = m.InventoryItem.GramsPerBag,
             Notes = m.Notes,
             CreatedByUserName = _db.Users.Where(u => u.Id == m.CreatedByUserId).Select(u => u.FullName).FirstOrDefault(),
             OccurredAt = m.OccurredAt
@@ -352,7 +411,7 @@ public class InventoryService : IInventoryService
 
     private static InventoryItemDto ToDto(InventoryItem i) => new()
     {
-        Id = i.Id, Name = i.Name, Category = i.Category.ToString(), Unit = i.Unit,
+        Id = i.Id, Name = i.Name, Category = i.Category.ToString(), Unit = i.Unit, GramsPerBag = i.GramsPerBag,
         UnitCost = i.UnitCost, MinimumStock = i.MinimumStock, IsActive = i.IsActive
     };
 }

@@ -128,6 +128,8 @@ interface KitRow {
   itemName: string
   groupName: string
   quantity: number
+  // Solo Revelador: la cantidad son gramos por cambio.
+  gramsPerBag?: number | null
 }
 
 const brandKit = ref<KitRow[]>([])
@@ -148,8 +150,8 @@ async function searchItems(query: string) {
   }
 }
 
-function toRows(data: { itemId: string; itemName: string; groupName: string; quantity: number }[]): KitRow[] {
-  return data.map((k) => ({ itemId: k.itemId, itemName: k.itemName, groupName: k.groupName, quantity: k.quantity }))
+function toRows(data: { itemId: string; itemName: string; groupName: string; quantity: number; gramsPerBag?: number | null }[]): KitRow[] {
+  return data.map((k) => ({ itemId: k.itemId, itemName: k.itemName, groupName: k.groupName, quantity: k.quantity, gramsPerBag: k.gramsPerBag ?? null }))
 }
 
 async function loadBrandKit() {
@@ -163,6 +165,7 @@ async function loadBrandKit() {
 }
 
 const newKitItem = reactive({ itemId: '', groupName: '', quantity: 1 })
+const newKitIsRevealer = computed(() => !!itemOptions.value.find((i) => i.id === newKitItem.itemId)?.gramsPerBag)
 
 function addKitItem() {
   if (!newKitItem.itemId || !newKitItem.groupName.trim()) return
@@ -171,7 +174,7 @@ function addKitItem() {
     return
   }
   const option = itemOptions.value.find((i) => i.id === newKitItem.itemId)
-  brandKit.value.push({ itemId: newKitItem.itemId, itemName: option?.name ?? '', groupName: newKitItem.groupName.trim(), quantity: newKitItem.quantity })
+  brandKit.value.push({ itemId: newKitItem.itemId, itemName: option?.name ?? '', groupName: newKitItem.groupName.trim(), quantity: newKitItem.quantity, gramsPerBag: option?.gramsPerBag ?? null })
   newKitItem.itemId = ''
   newKitItem.quantity = 1
 }
@@ -210,6 +213,7 @@ const modelKit = ref<ModelKitRow[]>([])
 const loadingModelKit = ref(false)
 const savingModelKit = ref(false)
 const addModelItem = reactive({ itemId: '', groupName: '', quantity: 1 })
+const addModelIsRevealer = computed(() => !!itemOptions.value.find((i) => i.id === addModelItem.itemId)?.gramsPerBag)
 
 async function openModelKit(model: AssetModelDto) {
   kitModel.value = model
@@ -238,7 +242,7 @@ function addToModel() {
   }
   const option = itemOptions.value.find((i) => i.id === addModelItem.itemId)
   modelKit.value.push({
-    itemId: addModelItem.itemId, itemName: option?.name ?? '', category: option?.category ?? 'Repuesto',
+    itemId: addModelItem.itemId, itemName: option?.name ?? '', category: option?.category ?? 'Repuesto', gramsPerBag: option?.gramsPerBag ?? null,
     groupName: addModelItem.groupName.trim(), quantity: addModelItem.quantity, source: 'Modelo', excluded: false,
     fromBrand: false, brandGroup: '', brandQuantity: 1
   })
@@ -386,8 +390,8 @@ onMounted(async () => {
               />
             </template>
           </el-table-column>
-          <el-table-column label="Cantidad" width="130">
-            <template #default="{ row }"><el-input-number v-model="row.quantity" :min="1" :max="100" size="small" /></template>
+          <el-table-column label="Cantidad" width="170">
+            <template #default="{ row }"><el-input-number v-model="row.quantity" :min="1" :max="row.gramsPerBag ? 10000 : 100" size="small" /><span v-if="row.gramsPerBag" class="unit-suffix"> g/cambio</span></template>
           </el-table-column>
           <el-table-column label="" width="90">
             <template #default="{ row }"><el-button link type="danger" @click="removeKitItem(row)">Quitar</el-button></template>
@@ -398,7 +402,8 @@ onMounted(async () => {
             <el-option v-for="i in itemOptions" :key="i.id" :label="i.name" :value="i.id" />
           </el-select>
           <el-input v-model="newKitItem.groupName" placeholder="Unidad / grupo" style="flex: 1" />
-          <el-input-number v-model="newKitItem.quantity" :min="1" :max="100" />
+          <el-input-number v-model="newKitItem.quantity" :min="1" :max="newKitIsRevealer ? 10000 : 100" />
+          <span v-if="newKitIsRevealer" class="unit-suffix">g por cambio</span>
           <el-button :disabled="!newKitItem.itemId || !newKitItem.groupName.trim()" @click="addKitItem">Agregar</el-button>
         </div>
         <div class="kit-actions">
@@ -420,8 +425,8 @@ onMounted(async () => {
           <el-table-column label="Unidad / grupo" width="180">
             <template #default="{ row }"><el-input v-model="row.groupName" :disabled="row.excluded" /></template>
           </el-table-column>
-          <el-table-column label="Cant." width="120">
-            <template #default="{ row }"><el-input-number v-model="row.quantity" :min="1" :max="100" size="small" :disabled="row.excluded" /></template>
+          <el-table-column label="Cant." width="170">
+            <template #default="{ row }"><el-input-number v-model="row.quantity" :min="1" :max="row.gramsPerBag ? 10000 : 100" size="small" :disabled="row.excluded" /><span v-if="row.gramsPerBag" class="unit-suffix"> g/cambio</span></template>
           </el-table-column>
           <el-table-column label="Origen" width="130">
             <template #default="{ row }">
@@ -437,7 +442,8 @@ onMounted(async () => {
             <el-option v-for="i in itemOptions" :key="i.id" :label="i.name" :value="i.id" />
           </el-select>
           <el-input v-model="addModelItem.groupName" placeholder="Unidad / grupo" style="flex: 1" />
-          <el-input-number v-model="addModelItem.quantity" :min="1" :max="100" />
+          <el-input-number v-model="addModelItem.quantity" :min="1" :max="addModelIsRevealer ? 10000 : 100" />
+          <span v-if="addModelIsRevealer" class="unit-suffix">g por cambio</span>
           <el-button :disabled="!addModelItem.itemId || !addModelItem.groupName.trim()" @click="addToModel">Agregar</el-button>
         </div>
       </div>
@@ -483,6 +489,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.unit-suffix {
+  margin-left: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--el-text-color-secondary);
+}
 .kit-card {
   margin-top: 1.5rem;
 }

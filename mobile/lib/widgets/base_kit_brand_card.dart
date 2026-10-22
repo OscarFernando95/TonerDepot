@@ -7,7 +7,7 @@ import '../theme/app_theme.dart';
 import 'base_kit_add_form.dart';
 import 'clay_icon_badge.dart';
 import 'clay_surface.dart';
-import 'quantity_stepper.dart';
+import 'kit_quantity_input.dart';
 
 /// Tarjeta "Kit base de consumibles de la marca" (AssetBrandDetailView.vue): lista editable + agregar + guardar.
 /// Requiere un [BaseKitState] en el árbol.
@@ -185,9 +185,9 @@ class _BrandKitRow extends StatelessWidget {
                   style: TextStyle(color: AppColors.inkSecondary),
                 ),
                 const SizedBox(width: 8),
-                QuantityStepper(
+                KitQuantityInput(
                   value: row.quantity,
-                  max: baseKitMaxQuantity,
+                  grams: row.gramsPerBag != null,
                   onChanged: enabled
                       ? (v) => state.setQuantity(row.itemId, v)
                       : (_) {},

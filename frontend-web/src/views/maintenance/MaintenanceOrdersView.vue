@@ -67,7 +67,7 @@ function clearFilters() {
 
 function openCompleteDialog(order: MaintenanceOrderDto) {
   completingOrder.value = order
-  completeForm.counterValue = undefined
+  completeForm.counterValue = order.lastMeterReading ?? undefined
   completeForm.readingDate = ''
   completeDialogVisible.value = true
 }
@@ -150,6 +150,12 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
           {{ orderComboLabel(row) }}
           <el-tag v-if="row.isManual" size="small" type="warning" effect="plain" :title="row.reason ?? ''">Manual</el-tag>
         </template>
+      </el-table-column>
+      <el-table-column label="Descripción" min-width="260" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.description ?? '—' }}</template>
+      </el-table-column>
+      <el-table-column label="Últ. contador" width="120" align="right">
+        <template #default="{ row }">{{ row.lastMeterReading?.toLocaleString('es-CO') ?? '—' }}</template>
       </el-table-column>
       <el-table-column prop="technicianName" label="Técnico" width="150">
         <template #default="{ row }">{{ row.technicianName ?? '—' }}</template>

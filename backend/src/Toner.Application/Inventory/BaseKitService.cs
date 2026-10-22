@@ -3,6 +3,7 @@ using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Inventory.Dtos;
 using Toner.Domain.Entities;
+using Toner.Domain.Enums;
 
 namespace Toner.Application.Inventory;
 
@@ -22,6 +23,7 @@ public class BaseKitService : IBaseKitService
     {
         await EnsureBrandExistsAsync(brandId, cancellationToken);
         await EnsureItemsExistAsync(request.Items.Select(i => i.ItemId), cancellationToken);
+        await EnsureQuantitiesAsync(request.Items.Select(i => (i.ItemId, (int?)i.Quantity)), cancellationToken);
 
         var current = await _db.BrandBaseItems.Where(b => b.AssetBrandId == brandId).ToListAsync(cancellationToken);
         var wanted = request.Items.ToDictionary(i => i.ItemId);
@@ -57,6 +59,7 @@ public class BaseKitService : IBaseKitService
     {
         var brandId = await BrandOfModelAsync(modelId, cancellationToken);
         await EnsureItemsExistAsync(request.Overrides.Select(o => o.ItemId), cancellationToken);
+        await EnsureQuantitiesAsync(request.Overrides.Where(o => !o.Excluded).Select(o => (o.ItemId, o.Quantity)), cancellationToken);
 
         var inBrand = (await _db.BrandBaseItems.Where(b => b.AssetBrandId == brandId).Select(b => b.InventoryItemId).ToListAsync(cancellationToken)).ToHashSet();
 
@@ -106,10 +109,10 @@ public class BaseKitService : IBaseKitService
     private async Task<IReadOnlyList<ModelKitItemDto>> EffectiveKitAsync(Guid brandId, Guid modelId, CancellationToken cancellationToken)
     {
         var brandItems = await _db.BrandBaseItems.Where(b => b.AssetBrandId == brandId)
-            .Select(b => new { b.InventoryItemId, ItemName = b.InventoryItem.Name, Category = b.InventoryItem.Category.ToString(), b.GroupName, b.Quantity })
+            .Select(b => new { b.InventoryItemId, ItemName = b.InventoryItem.Name, Category = b.InventoryItem.Category.ToString(), b.InventoryItem.GramsPerBag, b.GroupName, b.Quantity })
             .ToListAsync(cancellationToken);
         var overrides = await _db.ModelBaseItems.Where(m => m.AssetModelId == modelId)
-            .Select(m => new { m.InventoryItemId, ItemName = m.InventoryItem.Name, Category = m.InventoryItem.Category.ToString(), m.Excluded, m.GroupName, m.Quantity })
+            .Select(m => new { m.InventoryItemId, ItemName = m.InventoryItem.Name, Category = m.InventoryItem.Category.ToString(), m.InventoryItem.GramsPerBag, m.Excluded, m.GroupName, m.Quantity })
             .ToListAsync(cancellationToken);
         var overrideById = overrides.ToDictionary(o => o.InventoryItemId);
 
@@ -123,6 +126,7 @@ public class BaseKitService : IBaseKitService
                 ItemId = b.InventoryItemId,
                 ItemName = b.ItemName,
                 Category = b.Category,
+                GramsPerBag = b.GramsPerBag,
                 GroupName = o?.GroupName ?? b.GroupName,
                 Quantity = o?.Quantity ?? b.Quantity,
                 Excluded = o?.Excluded ?? false,
@@ -135,7 +139,7 @@ public class BaseKitService : IBaseKitService
         {
             result.Add(new ModelKitItemDto
             {
-                ItemId = o.InventoryItemId, ItemName = o.ItemName, Category = o.Category,
+                ItemId = o.InventoryItemId, ItemName = o.ItemName, Category = o.Category, GramsPerBag = o.GramsPerBag,
                 GroupName = o.GroupName ?? string.Empty, Quantity = o.Quantity ?? 1, Excluded = false, Source = "Modelo"
             });
         }
@@ -150,7 +154,7 @@ public class BaseKitService : IBaseKitService
             .Select(b => new BaseKitItemDto
             {
                 ItemId = b.InventoryItemId, ItemName = b.InventoryItem.Name, Category = b.InventoryItem.Category.ToString(),
-                GroupName = b.GroupName, Quantity = b.Quantity
+                GramsPerBag = b.InventoryItem.GramsPerBag, GroupName = b.GroupName, Quantity = b.Quantity
             });
 
     private async Task EnsureBrandExistsAsync(Guid brandId, CancellationToken cancellationToken)
@@ -164,6 +168,25 @@ public class BaseKitService : IBaseKitService
     private async Task<Guid> BrandOfModelAsync(Guid modelId, CancellationToken cancellationToken) =>
         await _db.AssetModels.Where(m => m.Id == modelId).Select(m => (Guid?)m.AssetBrandId).FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(AssetModel), modelId);
+
+    // Unidades: hasta 100 por pieza. Revelador: gramos por cambio, hasta 10.000 (el validador solo fija el techo común).
+    private async Task EnsureQuantitiesAsync(IEnumerable<(Guid ItemId, int? Quantity)> rows, CancellationToken cancellationToken)
+    {
+        var withQuantity = rows.Where(r => r.Quantity.HasValue).ToList();
+        if (withQuantity.Count == 0) return;
+
+        var ids = withQuantity.Select(r => r.ItemId).Distinct().ToList();
+        var categories = await _db.InventoryItems.Where(i => ids.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => new { i.Name, i.Category }, cancellationToken);
+
+        foreach (var (itemId, quantity) in withQuantity)
+        {
+            if (!categories.TryGetValue(itemId, out var item)) continue;
+            if (item.Category != InventoryCategory.Revelador && quantity > 100)
+            {
+                throw new ConflictException($"La cantidad de '{item.Name}' no puede pasar de 100 unidades.");
+            }
+        }
+    }
 
     private async Task EnsureItemsExistAsync(IEnumerable<Guid> itemIds, CancellationToken cancellationToken)
     {

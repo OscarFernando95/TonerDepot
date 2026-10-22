@@ -6,7 +6,7 @@ import '../services/api_client.dart';
 import '../state/base_kit_model_state.dart';
 import '../theme/app_theme.dart';
 import 'base_kit_add_form.dart';
-import 'quantity_stepper.dart';
+import 'kit_quantity_input.dart';
 
 /// Hoja "Kit — {modelo}": kit efectivo del modelo (heredado de la marca + ajustes). Se puede excluir/incluir cada
 /// ítem, ajustar unidad y cantidad, y agregar piezas solo para este modelo. Al guardar solo se mandan los ajustes.
@@ -314,9 +314,9 @@ class _ModelKitRowTile extends StatelessWidget {
                     style: TextStyle(color: AppColors.inkSecondary),
                   ),
                   const SizedBox(width: 8),
-                  QuantityStepper(
+                  KitQuantityInput(
                     value: row.quantity,
-                    max: baseKitMaxQuantity,
+                    grams: row.gramsPerBag != null,
                     onChanged: row.excluded
                         ? (_) {}
                         : (v) => state.setQuantity(row.itemId, v),

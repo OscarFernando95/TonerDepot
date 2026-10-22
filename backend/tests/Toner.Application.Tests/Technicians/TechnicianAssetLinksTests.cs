@@ -204,6 +204,35 @@ public class TechnicianAssetLinksTests
         Assert.Equal(TechnicianAssetSource.Manual, link.Source);
     }
 
+    [Fact]
+    public async Task CheckOut_InstallationWithNotes_LeavesTechnicianNotesInAssetStatusHistory()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var w = new World();
+        var asset = TestEntities.Asset(w.Model, AssetLifecycleStatus.PendienteInstalacion, w.LocationInZone.Id);
+        await w.SeedAsync(dbName, technicianCoversZone: true, asset);
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            await TestCheckIn.Create(db).CheckInAsync(w.Technician.Id, new CheckInRequest { AssetId = asset.Id });
+        }
+
+        using (var db = TonerTestDb.CreateContext(dbName))
+        {
+            await TestCheckIn.Create(db).CheckOutAsync(w.Technician.Id, new CheckOutRequest
+            {
+                Resolved = true, Area = "Recepción", InitialCounterValue = 1200,
+                GeneralMaintenanceDone = true, UnitsMaintenanceDone = false,
+                Notes = "  El cliente pidió dejarla junto a la ventana.  "
+            });
+        }
+
+        using var assertDb = TonerTestDb.CreateContext(dbName);
+        var log = await assertDb.AssetStatusLogs.Where(l => l.AssetId == asset.Id && l.NewStatus == AssetLifecycleStatus.Instalado).SingleAsync();
+        Assert.Contains("Instalación confirmada por técnico.", log.Notes);
+        Assert.EndsWith("Notas del técnico: El cliente pidió dejarla junto a la ventana.", log.Notes);
+    }
+
     // ── Revocación ───────────────────────────────────────────────────────────────────────────────────────
     // TechnicianAsset concede permisos (ver y registrar tóner): lo automático se retira cuando deja de aplicar,
     // y lo manual nunca se retira por cambios de cobertura.

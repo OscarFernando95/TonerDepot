@@ -188,6 +188,7 @@ builder.Services.AddScoped<IDeviceTokenService, DeviceTokenService>();
 builder.Services.AddScoped<IStockLock, PostgresStockLock>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<IBaseKitService, BaseKitService>();
+builder.Services.AddScoped<IMeterReadingRecorder, MeterReadingRecorder>();
 builder.Services.AddScoped<IInventoryConsumptionService, InventoryConsumptionService>();
 builder.Services.AddScoped<ITonerAnalyticsService, TonerAnalyticsService>();
 builder.Services.AddScoped<IClientService, ClientService>();

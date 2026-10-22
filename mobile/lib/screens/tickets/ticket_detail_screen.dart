@@ -11,6 +11,7 @@ import '../../state/ticket_detail_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/evidence_gallery.dart';
+import '../../widgets/machine_info_panel.dart';
 import '../../widgets/status_chip.dart';
 
 /// Detalle de ticket — espejo de TicketDetailView.vue. Para
@@ -187,10 +188,13 @@ class _TicketDetailBody extends StatelessWidget {
                         StatusChip(value: ticket.status),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${ticket.clientLocationName}${ticket.cityName != null ? ' — ${ticket.cityName}' : ''}',
-                      style: const TextStyle(color: AppColors.inkSecondary),
+                    const SizedBox(height: 12),
+                    MachineInfoPanel(
+                      locationName: ticket.clientLocationName,
+                      cityName: ticket.cityName,
+                      area: ticket.assetArea,
+                      lastMeterReading: ticket.lastMeterReading,
+                      showCounter: !ticket.isExternal,
                     ),
                     const SizedBox(height: 12),
                     Row(

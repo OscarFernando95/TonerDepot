@@ -67,7 +67,12 @@ class BaseKitModelState extends ChangeNotifier {
 
   void setQuantity(String itemId, int quantity) => _update(
     itemId,
-    (r) => r.copyWith(quantity: BaseKitLogic.clampQuantity(quantity)),
+    (r) => r.copyWith(
+      quantity: BaseKitLogic.clampQuantity(
+        quantity,
+        grams: r.gramsPerBag != null,
+      ),
+    ),
   );
 
   void _update(String itemId, ModelKitRow Function(ModelKitRow) change) {
@@ -89,9 +94,13 @@ class BaseKitModelState extends ChangeNotifier {
         itemName: item.name,
         category: item.category,
         groupName: group,
-        quantity: BaseKitLogic.clampQuantity(quantity),
+        quantity: BaseKitLogic.clampQuantity(
+          quantity,
+          grams: item.gramsPerBag != null,
+        ),
         excluded: false,
         fromBrand: false,
+        gramsPerBag: item.gramsPerBag,
       ),
     ];
     notifyListeners();

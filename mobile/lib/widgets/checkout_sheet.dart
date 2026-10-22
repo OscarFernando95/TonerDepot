@@ -154,6 +154,16 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
     return !_requiresPhoto || _photo != null;
   }
 
+  // Precarga el último contador registrado de la máquina (orden o instalación); el técnico lo corrige con la lectura real.
+  @override
+  void initState() {
+    super.initState();
+    final last =
+        widget.activeOrder?.lastMeterReading ??
+        widget.activeInstallation?.lastMeterReading;
+    if (last != null) _counterController.text = last.toString();
+  }
+
   @override
   void dispose() {
     _notesController.dispose();

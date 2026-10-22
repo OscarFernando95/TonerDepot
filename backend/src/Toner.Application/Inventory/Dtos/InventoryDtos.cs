@@ -4,9 +4,11 @@ public class InventoryItemDto
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    // ConsumibleBase | Repuesto | Toner
+    // ConsumibleBase | Repuesto | Toner | Revelador
     public string Category { get; set; } = string.Empty;
     public string? Unit { get; set; }
+    // Solo Revelador: gramos por bolsa. Su saldo, mínimo y kit se expresan en gramos.
+    public int? GramsPerBag { get; set; }
     public decimal? UnitCost { get; set; }
     public int MinimumStock { get; set; }
     public bool IsActive { get; set; }
@@ -17,6 +19,7 @@ public class CreateInventoryItemRequest
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string? Unit { get; set; }
+    public int? GramsPerBag { get; set; }
     public decimal? UnitCost { get; set; }
     public int MinimumStock { get; set; }
 }
@@ -26,6 +29,7 @@ public class UpdateInventoryItemRequest
     public string Name { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string? Unit { get; set; }
+    public int? GramsPerBag { get; set; }
     public decimal? UnitCost { get; set; }
     public int MinimumStock { get; set; }
     public bool IsActive { get; set; } = true;
@@ -59,6 +63,8 @@ public class StockRowDto
     public Guid LocationId { get; set; }
     public string LocationName { get; set; } = string.Empty;
     public int Quantity { get; set; }
+    // Solo Revelador: el saldo está en gramos y esto permite mostrarlo en kg / bolsas.
+    public int? GramsPerBag { get; set; }
     public int MinimumStock { get; set; }
     // Saldo menor o igual al mínimo del ítem (con mínimo > 0), o negativo.
     public bool IsLow { get; set; }
@@ -73,6 +79,7 @@ public class InventoryMovementDto
     public string LocationName { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public int Delta { get; set; }
+    public int? GramsPerBag { get; set; }
     public string? Notes { get; set; }
     public string? CreatedByUserName { get; set; }
     public DateTime OccurredAt { get; set; }
@@ -82,6 +89,7 @@ public class RegisterEntryRequest
 {
     public Guid LocationId { get; set; }
     public Guid ItemId { get; set; }
+    // Unidades; para un Revelador son BOLSAS y el servicio las convierte a gramos (bolsas × gramos por bolsa).
     public int Quantity { get; set; }
     public string? Notes { get; set; }
 }
@@ -124,7 +132,9 @@ public class BaseKitItemDto
     public string ItemName { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
+    // Unidades; para un Revelador son GRAMOS por cambio.
     public int Quantity { get; set; }
+    public int? GramsPerBag { get; set; }
 }
 
 public class ModelKitOverrideRequest
@@ -165,9 +175,11 @@ public class VisitKitItemDto
     public string ItemName { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
+    // Para un Revelador son gramos por cambio, fijados por el kit (el técnico no los ajusta).
     public int Quantity { get; set; }
-    // Saldo en la ubicación de inventario de la zona del equipo.
+    // Saldo en la ubicación de inventario de la zona del equipo (gramos si es Revelador).
     public int Stock { get; set; }
+    public int? GramsPerBag { get; set; }
 }
 
 // Kit base del modelo del equipo + de dónde se descuenta.

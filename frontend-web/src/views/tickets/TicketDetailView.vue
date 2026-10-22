@@ -6,6 +6,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import EvidenceGallery from '../../components/EvidenceGallery.vue'
+import MachineInfoPanel from '../../components/MachineInfoPanel.vue'
 import * as techniciansApi from '../../api/technicians'
 import { useAuthStore } from '../../stores/auth'
 import {
@@ -128,6 +129,15 @@ useRealtimeUpdates(['Ticket'], (event) => {
 
       <el-card class="section-card">
         <template #header>Detalle del ticket</template>
+        <MachineInfoPanel
+          class="machine-panel"
+          :client-name="ticket.clientName"
+          :location-name="ticket.clientLocationName"
+          :city-name="ticket.cityName"
+          :area="ticket.assetArea"
+          :last-meter-reading="ticket.lastMeterReading"
+          :show-counter="!!ticket.assetId"
+        />
         <dl class="detail-grid">
           <dt>Descripción</dt>
           <dd>{{ ticket.description }}</dd>
@@ -240,6 +250,9 @@ useRealtimeUpdates(['Ticket'], (event) => {
 </template>
 
 <style scoped>
+.machine-panel {
+  margin-bottom: 16px;
+}
 .page-header {
   display: flex;
   align-items: center;

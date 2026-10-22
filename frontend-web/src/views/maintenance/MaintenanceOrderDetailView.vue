@@ -9,6 +9,7 @@ import { MaintenanceOrderStatusLabels, type AssignmentHistoryDto, type Maintenan
 import EvidenceGallery from '../../components/EvidenceGallery.vue'
 import MaintenanceOrderThread from '../../components/maintenance/MaintenanceOrderThread.vue'
 import { plannedAtLabel } from '../../composables/useMaintenanceSchedule'
+import MachineInfoPanel from '../../components/MachineInfoPanel.vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useStatusTag } from '../../composables/useStatusTag'
 
@@ -78,7 +79,7 @@ async function saveAssign() {
 }
 
 function openCompleteDialog() {
-  completeForm.counterValue = undefined
+  completeForm.counterValue = order.value?.lastMeterReading ?? undefined
   completeForm.readingDate = ''
   completeDialogVisible.value = true
 }
@@ -131,9 +132,33 @@ useRealtimeUpdates(['MaintenanceOrder'], (event) => {
 
       <el-card class="section-card">
         <template #header>Detalle</template>
+        <MachineInfoPanel
+          class="machine-panel"
+          :client-name="order.clientName"
+          :location-name="order.clientLocationName"
+          :city-name="order.cityName"
+          :area="order.assetArea"
+          :last-meter-reading="order.lastMeterReading"
+        />
         <dl class="detail-grid">
           <dt>Tipo</dt>
           <dd>{{ orderComboLabel(order) }}</dd>
+          <template v-if="order.description">
+            <dt>Descripción</dt>
+            <dd>{{ order.description }}</dd>
+          </template>
+          <dt>Último contador</dt>
+          <dd>
+            <template v-if="order.lastMeterReading !== null">
+              {{ order.lastMeterReading.toLocaleString('es-CO') }}
+              <template v-if="order.lastMeterReadingDate"> ({{ new Date(order.lastMeterReadingDate).toLocaleDateString() }})</template>
+            </template>
+            <template v-else>Sin lecturas registradas</template>
+          </dd>
+          <template v-if="order.resolutionNotes">
+            <dt>Notas del técnico</dt>
+            <dd class="technician-notes">{{ order.resolutionNotes }}</dd>
+          </template>
           <template v-if="order.isManual">
             <dt>Origen</dt>
             <dd>Pedida a demanda<template v-if="order.reason"> — {{ order.reason }}</template></dd>
@@ -250,6 +275,12 @@ useRealtimeUpdates(['MaintenanceOrder'], (event) => {
 </template>
 
 <style scoped>
+.machine-panel {
+  margin-bottom: 16px;
+}
+.technician-notes {
+  white-space: pre-wrap;
+}
 .page-header {
   display: flex;
   align-items: center;

@@ -444,8 +444,10 @@ export interface MaintenanceOrderDto {
   status: string
   technicianId: string | null
   technicianName: string | null
+  clientName: string | null
   clientLocationName: string | null
   cityName: string | null
+  assetArea: string | null
   includesGeneral: boolean
   includesUnits: boolean
   includesConsumables: boolean
@@ -454,6 +456,13 @@ export interface MaintenanceOrderDto {
   // La inició el propio técnico asignado (no el staff): es la única que él puede cancelar, y solo mientras siga Asignada.
   isSelfStarted: boolean
   reason: string | null
+  // Qué se debe hacer y por qué se generó (tiempo, contador o a demanda).
+  description: string | null
+  // Notas que dejó el técnico al cerrar su última visita a la orden.
+  resolutionNotes: string | null
+  // Última lectura de contador registrada del activo.
+  lastMeterReading: number | null
+  lastMeterReadingDate: string | null
   scheduledDate: string
   // Cuándo planea hacerlo el técnico asignado (ISO UTC); null mientras no haya programado una fecha.
   plannedAt: string | null
@@ -561,6 +570,9 @@ export interface ServiceTicketDto {
   assetBrandName: string | null
   assetModel: string | null
   assetSerialNumber: string | null
+  assetArea: string | null
+  // Última lectura de contador del activo (null si nunca se registró una).
+  lastMeterReading: number | null
   // El activo tiene hoy un contrato vigente: la foto del contador es obligatoria solo en ese caso.
   assetUnderContract: boolean
   // Solo aplican cuando assetId es null (cliente externo, equipo sin catalogar) — las llena el técnico

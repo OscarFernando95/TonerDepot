@@ -50,6 +50,28 @@ public class ManualMaintenanceOrderTests
     };
 
     [Fact]
+    public async Task ElDto_TraeLaDescripcionYElUltimoContadorRegistrado()
+    {
+        var s = await SeedAsync();
+        using (var seed = TonerTestDb.CreateContext(s.DbName))
+        {
+            seed.MeterReadings.AddRange(
+                new MeterReading { AssetId = s.AssetId, ReadingDate = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc), CounterValue = 40_000 },
+                new MeterReading { AssetId = s.AssetId, ReadingDate = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc), CounterValue = 46_800 });
+            await seed.SaveChangesAsync();
+        }
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var dto = await Service(db).CreateManualAsync(Request(s, general: true, units: false, consumables: true, reason: "Falla de arrastre"), Guid.NewGuid());
+
+        Assert.Equal(
+            "Pedida a demanda: mantenimiento general, cambio de insumos. Motivo: Falla de arrastre",
+            dto.Description);
+        Assert.Equal(46_800, dto.LastMeterReading);
+        Assert.Equal(new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc), dto.LastMeterReadingDate);
+    }
+
+    [Fact]
     public async Task CreaLaOrdenManual_MarcadaYConSuMotivo_YLaAsignaAlTecnicoDisponible()
     {
         var s = await SeedAsync();

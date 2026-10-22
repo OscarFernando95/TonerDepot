@@ -17,6 +17,7 @@ import '../../widgets/clay_surface.dart';
 import '../../widgets/evidence_gallery.dart';
 import '../../widgets/maintenance_order_thread.dart';
 import '../../widgets/maintenance_schedule_picker.dart';
+import '../../widgets/machine_info_panel.dart';
 import '../../widgets/status_chip.dart';
 
 /// Detalle de orden de mantenimiento — Coordinador/Administrador. Espejo de
@@ -126,7 +127,10 @@ class _OrderDetailBody extends StatelessWidget {
     BuildContext context,
     MaintenanceOrderDetailState state,
   ) async {
-    final counterController = TextEditingController();
+    // Precargado con el último contador registrado de la máquina.
+    final counterController = TextEditingController(
+      text: state.order?.lastMeterReading?.toString() ?? '',
+    );
     DateTime? readingDate = DateTime.now();
     final result = await showDialog<bool>(
       context: context,
@@ -307,11 +311,14 @@ class _OrderDetailBody extends StatelessWidget {
                       'Serie: ${order.assetSerialNumber}',
                       style: const TextStyle(color: AppColors.inkSecondary),
                     ),
-                    if (order.clientLocationName != null)
-                      Text(
-                        '${order.clientLocationName}${order.cityName != null ? ' — ${order.cityName}' : ''}',
-                        style: const TextStyle(color: AppColors.inkSecondary),
-                      ),
+                    const SizedBox(height: 12),
+                    MachineInfoPanel(
+                      clientName: order.clientName,
+                      locationName: order.clientLocationName,
+                      cityName: order.cityName,
+                      area: order.assetArea,
+                      lastMeterReading: order.lastMeterReading,
+                    ),
                     const SizedBox(height: 12),
                     _InfoRow(
                       label: 'Fecha objetivo',
@@ -323,6 +330,8 @@ class _OrderDetailBody extends StatelessWidget {
                     ),
                     if (order.technicianName != null)
                       _InfoRow(label: 'Técnico', value: order.technicianName!),
+                    if (order.description != null)
+                      _InfoRow(label: 'Descripción', value: order.description!),
                     if (order.isManual)
                       _InfoRow(
                         label: 'Origen',
@@ -350,6 +359,22 @@ class _OrderDetailBody extends StatelessWidget {
                   ],
                 ),
               ),
+              if (order.resolutionNotes != null) ...[
+                const SizedBox(height: 16),
+                ClaySurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Notas del técnico',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(order.resolutionNotes!),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -541,6 +566,7 @@ class _InfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 110,

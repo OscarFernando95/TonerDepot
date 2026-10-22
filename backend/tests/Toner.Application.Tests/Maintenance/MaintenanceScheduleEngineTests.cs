@@ -423,4 +423,93 @@ public class MaintenanceScheduleEngineTests
         var order = Assert.Single(createdOrders);
         Assert.True(order.IncludesGeneral);
     }
+
+    [Fact]
+    public async Task EvaluateAsync_UnitsDueByCounter_DescriptionExplainsCounterTrigger()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model);
+        var schedule = TestEntities.MaintenanceSchedule(
+            asset, contract,
+            nextGeneralDueAt: FarDate, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: 100_000,
+            nextConsumablesDueCounter: FarCounter);
+        arrangeDb.AddRange(client, contract, brand, model, asset, schedule);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var engine = new MaintenanceScheduleEngine(actDb);
+
+        var order = await engine.EvaluateAsync(asset.Id, currentCounter: 98_000, DateTime.UtcNow);
+
+        Assert.NotNull(order);
+        Assert.Equal(
+            "Mantenimiento de unidades: por contador (vence a las 100.000 impresiones; contador actual 98.000).",
+            order!.Description);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_UnitsDueByTime_DescriptionExplainsTimeTrigger()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model);
+        var asOf = DateTime.UtcNow;
+        var dueAt = asOf.AddDays(3);
+        var schedule = TestEntities.MaintenanceSchedule(
+            asset, contract,
+            nextGeneralDueAt: FarDate, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: dueAt, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: FarCounter);
+        arrangeDb.AddRange(client, contract, brand, model, asset, schedule);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var engine = new MaintenanceScheduleEngine(actDb);
+
+        var order = await engine.EvaluateAsync(asset.Id, currentCounter: 0, asOf);
+
+        Assert.NotNull(order);
+        Assert.Equal(
+            $"Mantenimiento de unidades: por tiempo (vence el {dueAt.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)}).",
+            order!.Description);
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_ConsumablesDueByCounter_DescriptionMentionsConsumables()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrangeDb = TonerTestDb.CreateContext(dbName);
+        var client = TestEntities.Client();
+        var contract = TestEntities.Contract(client);
+        var brand = TestEntities.AssetBrand();
+        var model = TestEntities.AssetModel(brand);
+        var asset = TestEntities.Asset(model);
+        var schedule = TestEntities.MaintenanceSchedule(
+            asset, contract,
+            nextGeneralDueAt: FarDate, nextGeneralDueCounter: FarCounter,
+            nextUnitsDueAt: FarDate, nextUnitsDueCounter: FarCounter,
+            nextConsumablesDueCounter: 50_000);
+        arrangeDb.AddRange(client, contract, brand, model, asset, schedule);
+        await arrangeDb.SaveChangesAsync();
+
+        using var actDb = TonerTestDb.CreateContext(dbName);
+        var engine = new MaintenanceScheduleEngine(actDb);
+
+        var order = await engine.EvaluateAsync(asset.Id, currentCounter: 47_000, DateTime.UtcNow);
+
+        Assert.NotNull(order);
+        Assert.Equal(
+            "Cambio de insumos: por contador (vence a las 50.000 impresiones; contador actual 47.000).",
+            order!.Description);
+    }
 }

@@ -29,6 +29,7 @@ class VisitKitItem {
     required this.groupName,
     required this.quantity,
     required this.stock,
+    this.gramsPerBag,
   });
 
   final String itemId;
@@ -36,11 +37,16 @@ class VisitKitItem {
   final String category;
   final String groupName;
 
-  /// Cantidad por defecto del kit.
+  /// Cantidad por defecto del kit. Para un revelador son los gramos por cambio, fijados por el kit del modelo.
   final int quantity;
 
-  /// Saldo en la ubicación de inventario de la zona del equipo.
+  /// Saldo en la ubicación de inventario de la zona del equipo (gramos si es revelador).
   final int stock;
+
+  /// Solo revelador: gramos por bolsa. Su cantidad no se ajusta en el check-out.
+  final int? gramsPerBag;
+
+  bool get isRevealer => gramsPerBag != null;
 
   factory VisitKitItem.fromJson(Map<String, dynamic> json) => VisitKitItem(
     itemId: json['itemId'] as String,
@@ -49,6 +55,7 @@ class VisitKitItem {
     groupName: json['groupName'] as String? ?? '',
     quantity: (json['quantity'] as num?)?.toInt() ?? 1,
     stock: (json['stock'] as num?)?.toInt() ?? 0,
+    gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
   );
 }
 

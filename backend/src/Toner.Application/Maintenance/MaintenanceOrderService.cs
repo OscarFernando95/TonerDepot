@@ -93,6 +93,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             RequestedByUserId = requestedByUserId,
             Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim()
         };
+        order.Description = DescribeManual(order);
         _db.MaintenanceOrders.Add(order);
 
         return order;
@@ -543,6 +544,17 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             .ToCursorPageAsync(pageSize, last => PageCursor.Encode(last.AssignedAt, last.Id), cancellationToken);
     }
 
+    private static string DescribeManual(MaintenanceOrder order)
+    {
+        var parts = new List<string>();
+        if (order.IncludesGeneral) parts.Add("mantenimiento general");
+        if (order.IncludesUnits) parts.Add("mantenimiento de unidades");
+        if (order.IncludesConsumables) parts.Add("cambio de insumos");
+
+        var text = $"Pedida a demanda: {string.Join(", ", parts)}.";
+        return order.Reason is null ? text : $"{text} Motivo: {order.Reason}";
+    }
+
     private async Task<MaintenanceOrderDto> ToDtoAsync(Guid id, CancellationToken cancellationToken) =>
         await Projected(_db).FirstAsync(o => o.Id == id, cancellationToken);
 
@@ -560,6 +572,8 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             Status = o.Status.ToString(),
             TechnicianId = o.TechnicianId,
             TechnicianName = o.Technician != null ? o.Technician.User.FullName : null,
+            ClientName = o.Asset.CurrentClientLocation != null ? o.Asset.CurrentClientLocation.Client.Name : null,
+            AssetArea = o.Asset.Area,
             ClientLocationName = o.Asset.CurrentClientLocation != null ? o.Asset.CurrentClientLocation.Name : null,
             CityName = o.Asset.CurrentClientLocation != null ? o.Asset.CurrentClientLocation.City.Name : null,
             IncludesGeneral = o.IncludesGeneral,
@@ -568,6 +582,20 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             IsManual = o.IsManual,
             IsSelfStarted = o.IsManual && o.Technician != null && o.RequestedByUserId == o.Technician.UserId,
             Reason = o.Reason,
+            Description = o.Description,
+            ResolutionNotes = o.TimeLogs
+                .Where(t => t.EndTime != null && t.Notes != null && t.Notes != "")
+                .OrderByDescending(t => t.EndTime)
+                .Select(t => t.Notes)
+                .FirstOrDefault(),
+            LastMeterReading = o.Asset.MeterReadings
+                .OrderByDescending(m => m.ReadingDate)
+                .Select(m => (long?)m.CounterValue)
+                .FirstOrDefault(),
+            LastMeterReadingDate = o.Asset.MeterReadings
+                .OrderByDescending(m => m.ReadingDate)
+                .Select(m => (DateTime?)m.ReadingDate)
+                .FirstOrDefault(),
             ScheduledDate = o.ScheduledDate,
             PlannedAt = o.PlannedAt,
             LastCommentAt = o.LastCommentAt,

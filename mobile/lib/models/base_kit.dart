@@ -5,6 +5,9 @@ library;
 
 const baseKitMinQuantity = 1;
 const baseKitMaxQuantity = 100;
+
+/// Tope de gramos por cambio de un revelador (el resto de piezas va por unidades, hasta [baseKitMaxQuantity]).
+const baseKitMaxGrams = 10000;
 const baseKitMaxGroupLength = 100;
 
 /// Fila del kit de una marca (también lo que devuelve GET /asset-brands/{id}/base-items).
@@ -15,12 +18,16 @@ class BaseKitItem {
   final String groupName;
   final int quantity;
 
+  /// Solo revelador: la cantidad son GRAMOS por cambio (no unidades).
+  final int? gramsPerBag;
+
   const BaseKitItem({
     required this.itemId,
     required this.itemName,
     this.category = '',
     required this.groupName,
     required this.quantity,
+    this.gramsPerBag,
   });
 
   factory BaseKitItem.fromJson(Map<String, dynamic> json) => BaseKitItem(
@@ -29,6 +36,7 @@ class BaseKitItem {
     category: json['category'] as String? ?? '',
     groupName: json['groupName'] as String? ?? '',
     quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+    gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
   );
 
   BaseKitItem copyWith({String? groupName, int? quantity}) => BaseKitItem(
@@ -37,6 +45,7 @@ class BaseKitItem {
     category: category,
     groupName: groupName ?? this.groupName,
     quantity: quantity ?? this.quantity,
+    gramsPerBag: gramsPerBag,
   );
 }
 
@@ -52,6 +61,7 @@ class ModelKitItem extends BaseKitItem {
     super.category,
     required super.groupName,
     required super.quantity,
+    super.gramsPerBag,
     required this.source,
     required this.excluded,
   });
@@ -62,6 +72,7 @@ class ModelKitItem extends BaseKitItem {
     category: json['category'] as String? ?? '',
     groupName: json['groupName'] as String? ?? '',
     quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+    gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
     source: json['source'] as String? ?? 'Marca',
     excluded: json['excluded'] as bool? ?? false,
   );
@@ -75,11 +86,15 @@ class KitItemOption {
   final String category;
   final String? unit;
 
+  /// Solo revelador: su cantidad en el kit son gramos por cambio.
+  final int? gramsPerBag;
+
   const KitItemOption({
     required this.id,
     required this.name,
     required this.category,
     this.unit,
+    this.gramsPerBag,
   });
 
   factory KitItemOption.fromJson(Map<String, dynamic> json) => KitItemOption(
@@ -87,6 +102,7 @@ class KitItemOption {
     name: json['name'] as String? ?? '',
     category: json['category'] as String? ?? '',
     unit: json['unit'] as String?,
+    gramsPerBag: (json['gramsPerBag'] as num?)?.toInt(),
   );
 }
 
@@ -114,6 +130,9 @@ class ModelKitRow {
   final String brandGroup;
   final int brandQuantity;
 
+  /// Solo revelador: la cantidad son gramos por cambio.
+  final int? gramsPerBag;
+
   const ModelKitRow({
     required this.itemId,
     required this.itemName,
@@ -124,6 +143,7 @@ class ModelKitRow {
     required this.fromBrand,
     this.brandGroup = '',
     this.brandQuantity = 1,
+    this.gramsPerBag,
   });
 
   ModelKitRow copyWith({String? groupName, int? quantity, bool? excluded}) =>
@@ -137,6 +157,7 @@ class ModelKitRow {
         fromBrand: fromBrand,
         brandGroup: brandGroup,
         brandQuantity: brandQuantity,
+        gramsPerBag: gramsPerBag,
       );
 
   bool get groupDiffersFromBrand => groupName.trim() != brandGroup.trim();
@@ -160,8 +181,9 @@ class ModelKitRow {
 class BaseKitLogic {
   const BaseKitLogic._();
 
-  static int clampQuantity(int value) =>
-      value.clamp(baseKitMinQuantity, baseKitMaxQuantity);
+  /// Unidades (1..100) o, para un revelador, gramos por cambio (1..[baseKitMaxGrams]).
+  static int clampQuantity(int value, {bool grams = false}) =>
+      value.clamp(baseKitMinQuantity, grams ? baseKitMaxGrams : baseKitMaxQuantity);
 
   /// Une el kit efectivo del modelo con el de su marca. Una fila es "de la marca" si la marca tiene ese ítem.
   static List<ModelKitRow> buildModelRows(
@@ -181,6 +203,7 @@ class BaseKitLogic {
           fromBrand: brandById.containsKey(k.itemId),
           brandGroup: brandById[k.itemId]?.groupName ?? '',
           brandQuantity: brandById[k.itemId]?.quantity ?? 1,
+          gramsPerBag: k.gramsPerBag,
         ),
     ];
   }
@@ -200,7 +223,9 @@ class BaseKitLogic {
         'itemId': r.itemId,
         'excluded': r.excluded,
         'groupName': sendGroup ? group : null,
-        'quantity': sendQuantity ? clampQuantity(r.quantity) : null,
+        'quantity': sendQuantity
+            ? clampQuantity(r.quantity, grams: r.gramsPerBag != null)
+            : null,
       });
     }
     return result;
@@ -212,7 +237,7 @@ class BaseKitLogic {
       {
         'itemId': r.itemId,
         'groupName': r.groupName.trim(),
-        'quantity': clampQuantity(r.quantity),
+        'quantity': clampQuantity(r.quantity, grams: r.gramsPerBag != null),
       },
   ];
 

@@ -1,12 +1,13 @@
 import { http } from './http'
 import { getPaged } from './paging'
 
-export type InventoryCategory = 'ConsumibleBase' | 'Repuesto' | 'Toner'
+export type InventoryCategory = 'ConsumibleBase' | 'Repuesto' | 'Toner' | 'Revelador'
 
 export const InventoryCategoryLabels: Record<InventoryCategory, string> = {
   ConsumibleBase: 'Consumible base',
   Repuesto: 'Repuesto',
-  Toner: 'Tóner'
+  Toner: 'Tóner',
+  Revelador: 'Revelador (gramos)'
 }
 
 export const InventoryCategories = Object.keys(InventoryCategoryLabels) as InventoryCategory[]
@@ -16,6 +17,8 @@ export interface InventoryItemDto {
   name: string
   category: InventoryCategory
   unit: string | null
+  // Solo Revelador: gramos por bolsa. Su saldo, mínimo y kit se expresan en gramos.
+  gramsPerBag: number | null
   unitCost: number | null
   minimumStock: number
   isActive: boolean
@@ -25,6 +28,7 @@ export interface InventoryItemRequest {
   name: string
   category: InventoryCategory
   unit?: string | null
+  gramsPerBag?: number | null
   unitCost?: number | null
   minimumStock: number
   isActive?: boolean
@@ -47,6 +51,7 @@ export interface StockRowDto {
   locationId: string
   locationName: string
   quantity: number
+  gramsPerBag: number | null
   minimumStock: number
   isLow: boolean
 }
@@ -59,6 +64,7 @@ export interface InventoryMovementDto {
   locationName: string
   type: 'Entrada' | 'TraspasoSalida' | 'TraspasoEntrada' | 'Consumo' | 'Ajuste'
   delta: number
+  gramsPerBag: number | null
   notes: string | null
   createdByUserName: string | null
   occurredAt: string
@@ -77,7 +83,9 @@ export interface BaseKitItemDto {
   itemName: string
   category: InventoryCategory
   groupName: string
+  // Para un Revelador son gramos por cambio.
   quantity: number
+  gramsPerBag: number | null
 }
 
 export interface ModelKitItemDto extends BaseKitItemDto {
@@ -156,8 +164,9 @@ export interface VisitKitItemDto {
   category: InventoryCategory
   groupName: string
   quantity: number
-  // Saldo en la ubicación de inventario de la zona del equipo.
+  // Saldo en la ubicación de inventario de la zona del equipo (gramos si es Revelador).
   stock: number
+  gramsPerBag: number | null
 }
 
 export interface VisitKitDto {

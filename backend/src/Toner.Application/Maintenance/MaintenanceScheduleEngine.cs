@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Common;
 using Toner.Application.Common.Interfaces;
@@ -212,8 +213,60 @@ public class MaintenanceScheduleEngine : IMaintenanceScheduleEngine
             return null;
         }
 
+        order.Description = DescribeGenerated(order, schedule, currentCounter, asOf);
         return order;
     }
+
+    private static string DescribeGenerated(MaintenanceOrder order, MaintenanceSchedule schedule, long currentCounter, DateTime asOf)
+    {
+        var parts = new List<string>();
+        if (order.IncludesGeneral)
+        {
+            parts.Add(DescribeRule("Mantenimiento general", schedule.NextGeneralDueAt, schedule.NextGeneralDueCounter, currentCounter, asOf));
+        }
+
+        if (order.IncludesUnits)
+        {
+            parts.Add(DescribeRule("Mantenimiento de unidades", schedule.NextUnitsDueAt, schedule.NextUnitsDueCounter, currentCounter, asOf));
+        }
+
+        if (order.IncludesConsumables)
+        {
+            parts.Add(DescribeRule("Cambio de insumos", null, schedule.NextConsumablesDueCounter, currentCounter, asOf));
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    // Dice POR QUÉ toca la regla: tiempo y/o contador dentro de la ventana de anticipación, o "acompañante" cuando
+    // se sumó a la visita solo por ser lo más próximo a vencer (general nunca va sola).
+    private static string DescribeRule(string label, DateTime? dueAt, long dueCounter, long currentCounter, DateTime asOf)
+    {
+        var reasons = new List<string>();
+
+        if (dueAt is { } at && (at - asOf).TotalDays <= LeadDays)
+        {
+            var verb = at < asOf ? "venció" : "vence";
+            reasons.Add($"por tiempo ({verb} el {at.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)})");
+        }
+
+        var remaining = dueCounter - currentCounter;
+        if (remaining <= LeadPrints)
+        {
+            var verb = remaining <= 0 ? "venció" : "vence";
+            reasons.Add($"por contador ({verb} a las {FormatCount(dueCounter)} impresiones; contador actual {FormatCount(currentCounter)})");
+        }
+
+        if (reasons.Count == 0)
+        {
+            reasons.Add($"se suma a la visita por ser lo más próximo a vencer (contador actual {FormatCount(currentCounter)}, vence a las {FormatCount(dueCounter)})");
+        }
+
+        return $"{label}: {string.Join(" y ", reasons)}.";
+    }
+
+    private static string FormatCount(long value) =>
+        value.ToString("N0", CultureInfo.InvariantCulture).Replace(',', '.');
 
     public async Task RecalculateAfterMaintenanceAsync(
         Guid scheduleId,

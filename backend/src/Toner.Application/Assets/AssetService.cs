@@ -520,7 +520,8 @@ public class AssetService : IAssetService
                 ClientName = a.CurrentClientLocation!.Client.Name,
                 ClientLocationId = a.CurrentClientLocation!.Id,
                 ClientLocationName = a.CurrentClientLocation!.Name,
-                CityName = a.CurrentClientLocation!.City.Name
+                CityName = a.CurrentClientLocation!.City.Name,
+                Area = a.Area
             })
             .OrderBy(p => p.ClientName)
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
@@ -553,8 +554,11 @@ public class AssetService : IAssetService
             .ToListAsync(cancellationToken);
         var takenSet = takenAssetIds.ToHashSet();
 
+        var lastReadingByAsset = await MeterReadingQueries.GetLastReadingsByAssetAsync(_db, assetIds, cancellationToken);
+
         foreach (var item in pending)
         {
+            item.LastMeterReading = lastReadingByAsset.TryGetValue(item.AssetId, out var lastReading) ? lastReading : null;
             item.ContractId = contractByAsset.TryGetValue(item.AssetId, out var contractId) ? contractId : null;
             if (item.ContractId.HasValue && contractDatesById.TryGetValue(item.ContractId.Value, out var contractDates))
             {

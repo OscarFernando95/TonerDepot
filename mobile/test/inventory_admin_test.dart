@@ -122,6 +122,7 @@ void main() {
         'name': 'Fusor',
         'category': 'Repuesto',
         'unit': null,
+        'gramsPerBag': null,
         'minimumStock': 2,
       });
       final edit = draft.toJson(editing: true);

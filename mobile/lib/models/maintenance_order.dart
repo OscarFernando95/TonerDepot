@@ -8,8 +8,10 @@ class MaintenanceOrder {
   final String status; // Pendiente|Asignada|EnProceso|Completada|Cancelada
   final String? technicianId;
   final String? technicianName;
+  final String? clientName;
   final String? clientLocationName;
   final String? cityName;
+  final String? assetArea;
   final bool includesGeneral;
   final bool includesUnits;
   final bool includesConsumables;
@@ -20,6 +22,16 @@ class MaintenanceOrder {
   /// La inició el propio técnico asignado (no el staff): es la única que él puede cancelar, y solo mientras siga Asignada.
   final bool isSelfStarted;
   final String? reason;
+
+  /// Qué se debe hacer y por qué se generó (tiempo, contador o a demanda).
+  final String? description;
+
+  /// Notas que dejó el técnico al cerrar su última visita a la orden.
+  final String? resolutionNotes;
+
+  /// Última lectura de contador registrada del activo.
+  final int? lastMeterReading;
+  final String? lastMeterReadingDate;
   final String scheduledDate;
   final String? completedAt;
   final String createdAt;
@@ -43,14 +55,20 @@ class MaintenanceOrder {
     required this.status,
     required this.technicianId,
     required this.technicianName,
+    this.clientName,
     required this.clientLocationName,
     required this.cityName,
+    this.assetArea,
     required this.includesGeneral,
     required this.includesUnits,
     required this.includesConsumables,
     this.isManual = false,
     this.isSelfStarted = false,
     this.reason,
+    this.description,
+    this.resolutionNotes,
+    this.lastMeterReading,
+    this.lastMeterReadingDate,
     required this.scheduledDate,
     required this.completedAt,
     required this.createdAt,
@@ -62,6 +80,14 @@ class MaintenanceOrder {
   /// La web solo habilita asignar/completar/cancelar en estos dos estados
   /// (el backend es más permisivo con completar/cancelar, pero replicamos el
   /// gate de UI para paridad exacta — ver MaintenanceOrderDetailView.vue).
+  /// "46.800" o "Sin lecturas" — separador de miles con punto, como en la web (es-CO).
+  String get lastMeterReadingLabel => lastMeterReading == null
+      ? 'Sin lecturas registradas'
+      : lastMeterReading.toString().replaceAllMapped(
+          RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (_) => '.',
+        );
+
   bool get canManage => status == 'Pendiente' || status == 'Asignada';
 
   /// Todavía por hacer o en curso (ni completada ni cancelada).
@@ -133,14 +159,20 @@ class MaintenanceOrder {
         status: json['status'] as String,
         technicianId: json['technicianId'] as String?,
         technicianName: json['technicianName'] as String?,
+        clientName: json['clientName'] as String?,
         clientLocationName: json['clientLocationName'] as String?,
         cityName: json['cityName'] as String?,
+        assetArea: json['assetArea'] as String?,
         includesGeneral: json['includesGeneral'] as bool? ?? false,
         includesUnits: json['includesUnits'] as bool? ?? false,
         includesConsumables: json['includesConsumables'] as bool? ?? false,
         isManual: json['isManual'] as bool? ?? false,
         isSelfStarted: json['isSelfStarted'] as bool? ?? false,
         reason: json['reason'] as String?,
+        description: json['description'] as String?,
+        resolutionNotes: json['resolutionNotes'] as String?,
+        lastMeterReading: (json['lastMeterReading'] as num?)?.toInt(),
+        lastMeterReadingDate: json['lastMeterReadingDate'] as String?,
         scheduledDate: json['scheduledDate'] as String,
         completedAt: json['completedAt'] as String?,
         createdAt: json['createdAt'] as String,

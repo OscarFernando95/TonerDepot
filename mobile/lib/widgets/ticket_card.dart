@@ -5,6 +5,7 @@ import '../models/status_labels.dart';
 import '../theme/app_theme.dart';
 import 'clay_icon_badge.dart';
 import 'clay_surface.dart';
+import 'machine_info_panel.dart';
 import 'status_chip.dart';
 import 'animated_gradient_border.dart';
 
@@ -59,19 +60,16 @@ class TicketCard extends StatelessWidget {
               StatusChip(value: ticket.status),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            ticket.clientLocationName,
-            style: const TextStyle(color: AppColors.inkSecondary),
+          const SizedBox(height: 8),
+          MachineInfoPanel(
+            clientName: ticket.clientName,
+            locationName: ticket.clientLocationName,
+            cityName: ticket.cityName,
+            area: ticket.assetArea,
+            lastMeterReading: ticket.lastMeterReading,
+            showCounter: !ticket.isExternal,
+            compact: true,
           ),
-          if (ticket.cityName != null)
-            Text(
-              ticket.cityName!,
-              style: const TextStyle(
-                color: AppColors.inkSecondary,
-                fontSize: 12,
-              ),
-            ),
           const SizedBox(height: 6),
           Text(ticket.description),
           if (ticket.isExternal) ...[

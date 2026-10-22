@@ -10,6 +10,10 @@ public class InventoryItem : BaseEntity
     public InventoryCategory Category { get; set; }
     public string? Unit { get; set; }
 
+    // Solo para Revelador: gramos que trae cada bolsa. El saldo del ítem se guarda y se descuenta en gramos; este valor
+    // convierte las compras (bolsas) a gramos y permite mostrar el saldo como bolsas.
+    public int? GramsPerBag { get; set; }
+
     // Costo por unidad, opcional: alimenta el costo por página del BI.
     public decimal? UnitCost { get; set; }
 
