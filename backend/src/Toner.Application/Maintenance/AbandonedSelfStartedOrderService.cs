@@ -42,7 +42,11 @@ public class AbandonedSelfStartedOrderService
             .Where(o => o.Status == MaintenanceOrderStatus.Asignada
                 && o.IsManual
                 && o.AssignmentHistories.All(h => h.AssignmentType == AssignmentType.IniciadaPorTecnico)
-                && o.AssignmentHistories.Any(h => h.AssignedAt < cutoff))
+                // El plazo corre desde que se asignó, salvo que el técnico la haya PROGRAMADA: entonces desde la fecha
+                // que fijó (una orden para la semana que viene no puede caducar a las 4 horas de crearse).
+                && (o.PlannedAt != null
+                    ? o.PlannedAt < cutoff
+                    : o.AssignmentHistories.Any(h => h.AssignedAt < cutoff)))
             .OrderBy(o => o.CreatedAt)
             .Take(BatchSize)
             .ToListAsync(cancellationToken);

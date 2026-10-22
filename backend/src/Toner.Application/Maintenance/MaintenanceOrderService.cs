@@ -250,10 +250,18 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             throw new ConflictException($"Solo se puede programar una orden asignada que aún no se inicia (estado actual: '{order.Status}').");
         }
 
+        ApplySchedule(order, authorUserId, plannedAtUtc);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    public void ApplySchedule(MaintenanceOrder order, Guid authorUserId, DateTime plannedAtUtc)
+    {
         var planned = DateTime.SpecifyKind(plannedAtUtc.ToUniversalTime(), DateTimeKind.Utc);
-        var now = DateTime.UtcNow;
         order.PlannedAt = planned;
-        order.LastCommentAt = now;
+        order.LastCommentAt = DateTime.UtcNow;
 
         _db.MaintenanceOrderComments.Add(new MaintenanceOrderComment
         {
@@ -264,10 +272,6 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             Kind = OrderCommentKind.Programacion,
             PlannedAt = planned
         });
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return await ToDtoAsync(id, cancellationToken);
     }
 
     public async Task<IReadOnlyList<MaintenanceOrderCommentDto>> ListCommentsAsync(

@@ -51,6 +51,8 @@ public class ClientRoleSurfaceTests
             "ClientLocations.List",
             // Sus equipos (incluye las instalaciones pendientes en sus sedes)
             "Assets.GetById", "Assets.List",
+            // Su inicio: el resumen de su servicio
+            "ClientPortal.GetHome",
             // Tickets: reportar y seguir
             "ServiceTickets.Create", "ServiceTickets.GetById", "ServiceTickets.List",
             // Mantenimientos programados: solo lectura

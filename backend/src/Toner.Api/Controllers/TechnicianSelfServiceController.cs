@@ -32,7 +32,7 @@ public class TechnicianSelfServiceController : ControllerBase
     private readonly ITechnicianCheckInService _checkInService;
     private readonly IValidator<CheckInRequest> _checkInValidator;
     private readonly IValidator<CheckOutRequest> _checkOutValidator;
-    private readonly IValidator<CreateManualMaintenanceOrderRequest> _startMaintenanceValidator;
+    private readonly IValidator<StartSelfMaintenanceRequest> _startMaintenanceValidator;
     private readonly IAssetService _assetService;
     private readonly IMaintenanceOrderService _maintenanceOrderService;
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
@@ -45,7 +45,7 @@ public class TechnicianSelfServiceController : ControllerBase
         ITechnicianCheckInService checkInService,
         IValidator<CheckInRequest> checkInValidator,
         IValidator<CheckOutRequest> checkOutValidator,
-        IValidator<CreateManualMaintenanceOrderRequest> startMaintenanceValidator,
+        IValidator<StartSelfMaintenanceRequest> startMaintenanceValidator,
         IAssetService assetService,
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
@@ -135,10 +135,11 @@ public class TechnicianSelfServiceController : ControllerBase
         return Ok(await _maintenanceOrderService.ScheduleAsync(id, CurrentTechnicianId, userId, request.PlannedAt, cancellationToken));
     }
 
-    // Mantenimiento a demanda iniciado por el propio técnico: el body es el mismo que el del staff
-    // (POST /maintenance-orders) y la orden nace asignada a él. Después sigue el check-in normal.
+    // Mantenimiento a demanda iniciado por el propio técnico: el body es el del staff (POST /maintenance-orders) más un
+    // plannedAt opcional, y la orden nace asignada a él. Sin plannedAt lo empieza ahora; con él queda programado y el
+    // cliente ve la fecha. Después sigue el check-in normal.
     [HttpPost("maintenance-orders")]
-    public async Task<ActionResult<MaintenanceOrderDto>> StartMaintenance([FromBody] CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<MaintenanceOrderDto>> StartMaintenance([FromBody] StartSelfMaintenanceRequest request, CancellationToken cancellationToken)
     {
         await _startMaintenanceValidator.ValidateAndThrowAsync(request, cancellationToken);
 

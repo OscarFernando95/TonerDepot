@@ -105,7 +105,7 @@ public class SelfStartedMaintenancePostgresTests
             MaintenanceOrderDto order;
             await using (var db = AppContext(tenant))
             {
-                order = await TestCheckIn.Create(db).StartMaintenanceAsync(seed.TechnicianId, new CreateManualMaintenanceOrderRequest
+                order = await TestCheckIn.Create(db).StartMaintenanceAsync(seed.TechnicianId, new StartSelfMaintenanceRequest
                 {
                     AssetId = seed.AssetId, IncludesUnits = true, Reason = marker
                 });
@@ -168,7 +168,7 @@ public class SelfStartedMaintenancePostgresTests
             await using (var db = AppContext(tenant))
             {
                 await Assert.ThrowsAsync<Toner.Application.Common.Exceptions.ConflictException>(() =>
-                    TestCheckIn.Create(db).StartMaintenanceAsync(seed.TechnicianId, new CreateManualMaintenanceOrderRequest
+                    TestCheckIn.Create(db).StartMaintenanceAsync(seed.TechnicianId, new StartSelfMaintenanceRequest
                     {
                         AssetId = seed.AssetId, IncludesUnits = true
                     }));
@@ -291,7 +291,7 @@ public class SelfStartedMaintenancePostgresTests
 
             var ex = await Assert.ThrowsAsync<Toner.Application.Common.Exceptions.ConflictException>(() =>
                 TestCheckIn.Create(technicianDb).StartMaintenanceAsync(
-                    seed.TechnicianId, new CreateManualMaintenanceOrderRequest { AssetId = seed.AssetId, IncludesUnits = true }));
+                    seed.TechnicianId, new StartSelfMaintenanceRequest { AssetId = seed.AssetId, IncludesUnits = true }));
 
             Assert.Contains("orden de mantenimiento abierta", ex.Message);
 

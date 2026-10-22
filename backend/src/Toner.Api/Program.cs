@@ -34,6 +34,7 @@ using Toner.Application.Clients;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Contracts;
 using Toner.Application.Dashboard;
+using Toner.Application.ClientPortal;
 using Toner.Application.Maintenance;
 using Toner.Application.Technicians;
 using Toner.Application.Tickets;
@@ -231,6 +232,7 @@ dataRetentionOptions.EnsureValid();
 builder.Services.Configure<DataRetentionOptions>(builder.Configuration.GetSection("Retention"));
 builder.Services.AddScoped<DataRetentionJob>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IClientPortalService, ClientPortalService>();
 
 // Contraseña generada al crear/resetear un usuario (hallazgo #3 de SECURITY_AUDIT.md).
 builder.Services.AddSingleton<IJobPayloadEncryptor, AesGcmJobPayloadEncryptor>();

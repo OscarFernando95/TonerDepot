@@ -132,12 +132,15 @@ public class TechnicianCheckInService : ITechnicianCheckInService
     }
 
     public async Task<MaintenanceOrderDto> StartMaintenanceAsync(
-        Guid technicianId, CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken = default)
+        Guid technicianId, StartSelfMaintenanceRequest request, CancellationToken cancellationToken = default)
     {
+        var plannedAt = request.PlannedAt?.ToUniversalTime();
+
         var technician = await _db.Technicians.FirstOrDefaultAsync(t => t.Id == technicianId, cancellationToken)
             ?? throw new NotFoundException(nameof(Technician), technicianId);
 
-        if (technician.Status == TechnicianStatus.Ocupado)
+        // Programarlo para después no ocupa al técnico hoy: solo empezarlo ahora exige estar libre.
+        if (plannedAt is null && technician.Status == TechnicianStatus.Ocupado)
         {
             throw new ConflictException("Ya tienes una visita en curso. Haz check-out antes de iniciar otra.");
         }
@@ -166,7 +169,8 @@ public class TechnicianCheckInService : ITechnicianCheckInService
 
         // Es trabajo de campo que no pasó por el motor de asignación (que es quien respeta horario, festivos y
         // permisos), así que el control va aquí — igual que en la lista abierta de instalaciones.
-        if (!await CanStartNowAsync(technicianId, asset.CurrentClientLocationId, cancellationToken))
+        // Si lo deja programado, el horario se exige cuando haga el check-in, no ahora.
+        if (plannedAt is null && !await CanStartNowAsync(technicianId, asset.CurrentClientLocationId, cancellationToken))
         {
             _logger.LogInformation(
                 "Mantenimiento propio rechazado por horario: técnico {TechnicianId}, activo {AssetId}", technicianId, request.AssetId);
@@ -187,11 +191,16 @@ public class TechnicianCheckInService : ITechnicianCheckInService
             AssignmentType = AssignmentType.IniciadaPorTecnico
         });
 
+        if (plannedAt is not null)
+        {
+            _orderService.ApplySchedule(order, technician.UserId, plannedAt.Value);
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Mantenimiento propio iniciado: técnico {TechnicianId}, activo {AssetId}, orden {OrderId} (general {General}, unidades {Units}, insumos {Consumables})",
-            technicianId, request.AssetId, order.Id, order.IncludesGeneral, order.IncludesUnits, order.IncludesConsumables);
+            "Mantenimiento propio {Mode}: técnico {TechnicianId}, activo {AssetId}, orden {OrderId} (general {General}, unidades {Units}, insumos {Consumables})",
+            plannedAt is null ? "iniciado" : "programado", technicianId, request.AssetId, order.Id, order.IncludesGeneral, order.IncludesUnits, order.IncludesConsumables);
 
         return await _orderService.GetByIdAsync(
             new RequestingUser(technician.UserId, RoleNames.Tecnico, null, technicianId), order.Id, cancellationToken);

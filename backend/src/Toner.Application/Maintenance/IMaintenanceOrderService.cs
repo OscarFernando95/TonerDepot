@@ -43,6 +43,10 @@ public interface IMaintenanceOrderService
     // hilo, que el cliente ve para poder pedir un cambio.
     Task<MaintenanceOrderDto> ScheduleAsync(Guid id, Guid technicianId, Guid authorUserId, DateTime plannedAtUtc, CancellationToken cancellationToken = default);
 
+    // Fija la fecha en la orden y deja el registro en el hilo, SIN guardar: la comparten ScheduleAsync y el técnico que crea su
+    // mantenimiento ya programado (un solo SaveChanges para toda la operación).
+    void ApplySchedule(MaintenanceOrder order, Guid authorUserId, DateTime plannedAtUtc);
+
     // Hilo de la orden. Mismo alcance que ver la orden: staff, el técnico asignado y el cliente (y sus sedes) dueño de ella.
     Task<IReadOnlyList<MaintenanceOrderCommentDto>> ListCommentsAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderCommentDto> AddCommentAsync(RequestingUser requestingUser, Guid id, string body, CancellationToken cancellationToken = default);
