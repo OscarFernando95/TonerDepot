@@ -1,6 +1,11 @@
 import { getList } from './paging'
 import { http } from './http'
-import type { MaintenanceOrderDto, MaintenanceScheduleDto, ServiceTicketDto } from './types'
+import type {
+  CreateManualMaintenanceOrderRequest,
+  MaintenanceOrderDto,
+  MaintenanceScheduleDto,
+  ServiceTicketDto
+} from './types'
 
 export interface TechnicianSelfStatusDto {
   technicianId: string
@@ -176,4 +181,15 @@ export interface TechnicianHomeDto {
 
 export function getMyHome() {
   return http.get<TechnicianHomeDto>('/technicians/me/home')
+}
+
+// El técnico inicia por su cuenta un mantenimiento a demanda de un equipo de su zona (o vinculado a él): la orden
+// nace asignada a él y se atiende con el check-in de siempre. El servidor valida alcance, horario y orden abierta.
+export function startMaintenance(request: CreateManualMaintenanceOrderRequest) {
+  return http.post<MaintenanceOrderDto>('/technicians/me/maintenance-orders', request)
+}
+
+// Se arrepiente de un mantenimiento que inició él mismo y todavía no empezó (sin check-in).
+export function cancelStartedMaintenance(orderId: string) {
+  return http.post<MaintenanceOrderDto>(`/technicians/me/maintenance-orders/${orderId}/cancel`)
 }
