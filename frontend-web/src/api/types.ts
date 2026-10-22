@@ -426,6 +426,8 @@ export interface MaintenanceOrderDto {
   includesConsumables: boolean
   // Pedida a demanda por el staff (no por umbral del cronograma), con el motivo que dio.
   isManual: boolean
+  // La inició el propio técnico asignado (no el staff): es la única que él puede cancelar, y solo mientras siga Asignada.
+  isSelfStarted: boolean
   reason: string | null
   scheduledDate: string
   completedAt: string | null

@@ -16,6 +16,7 @@ class OrderCard extends StatelessWidget {
     required this.isActive,
     required this.checkingIn,
     required this.onCheckIn,
+    this.onCancel,
   });
 
   final MaintenanceOrder order;
@@ -23,6 +24,9 @@ class OrderCard extends StatelessWidget {
   final bool isActive;
   final bool checkingIn;
   final VoidCallback onCheckIn;
+
+  /// Solo para el mantenimiento que inició el propio técnico y aún no empezó (ver MaintenanceOrder.canCancelByTechnician).
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -78,24 +82,33 @@ class OrderCard extends StatelessWidget {
           ),
           if (canCheckIn && !isActive) ...[
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: AnimatedGradientBorder(
-                backgroundColor: isActive
-                    ? AppColors.claySurfaceRaised
-                    : AppColors.claySurface,
-                child: FilledButton.icon(
-                  onPressed: checkingIn ? null : onCheckIn,
-                  icon: checkingIn
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.login, size: 18),
-                  label: const Text('Check-in'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (onCancel != null && order.canCancelByTechnician) ...[
+                  TextButton(
+                    onPressed: checkingIn ? null : onCancel,
+                    child: const Text('Cancelar'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                AnimatedGradientBorder(
+                  backgroundColor: isActive
+                      ? AppColors.claySurfaceRaised
+                      : AppColors.claySurface,
+                  child: FilledButton.icon(
+                    onPressed: checkingIn ? null : onCheckIn,
+                    icon: checkingIn
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.login, size: 18),
+                    label: const Text('Check-in'),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
           if (isActive) ...[

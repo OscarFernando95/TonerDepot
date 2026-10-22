@@ -10,6 +10,7 @@ using Toner.Application.Assets;
 using Toner.Application.Assets.Dtos;
 using Toner.Application.Assignment;
 using Toner.Application.Calendar;
+using Toner.Application.Common;
 using Toner.Application.Common.Paging;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
@@ -17,6 +18,7 @@ using Toner.Application.Maintenance;
 using Toner.Application.Maintenance.Dtos;
 using Toner.Application.Technicians.Dtos;
 using Toner.Application.Tickets;
+using Toner.Domain.Common;
 using Toner.Domain.Entities;
 using Toner.Domain.Enums;
 
@@ -127,6 +129,72 @@ public class TechnicianCheckInService : ITechnicianCheckInService
         var now = _time.GetUtcNow().UtcDateTime;
         var calendar = await _calendar.LoadAsync(new[] { technicianId }, now, now.AddMinutes(1), cancellationToken);
         return calendar.IsAssignable(technicianId, coverage, now);
+    }
+
+    public async Task<MaintenanceOrderDto> StartMaintenanceAsync(
+        Guid technicianId, CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken = default)
+    {
+        var technician = await _db.Technicians.FirstOrDefaultAsync(t => t.Id == technicianId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Technician), technicianId);
+
+        if (technician.Status == TechnicianStatus.Ocupado)
+        {
+            throw new ConflictException("Ya tienes una visita en curso. Haz check-out antes de iniciar otra.");
+        }
+
+        var asset = await _db.Assets
+            .Where(a => a.Id == request.AssetId)
+            .Select(a => new
+            {
+                a.CurrentClientLocationId,
+                CityId = a.CurrentClientLocation != null ? (Guid?)a.CurrentClientLocation.CityId : null,
+                Linked = a.TechnicianAssets.Any(ta => ta.TechnicianId == technicianId)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(Asset), request.AssetId);
+
+        // Mismo alcance que ve en "Lectura de contadores": los equipos de las ciudades que cubre o los que un admin le
+        // vinculó a mano. Sin esto cualquier técnico podría abrir órdenes sobre equipos de cualquier cliente.
+        var inCoverage = asset.CityId.HasValue
+            && await _db.CoveredCityIds(technicianId).AnyAsync(id => id == asset.CityId.Value, cancellationToken);
+        if (!inCoverage && !asset.Linked)
+        {
+            _logger.LogWarning(
+                "Mantenimiento propio rechazado por alcance: técnico {TechnicianId}, activo {AssetId}", technicianId, request.AssetId);
+            throw new ForbiddenException("Este equipo no está en tu zona de cobertura ni vinculado a ti.");
+        }
+
+        // Es trabajo de campo que no pasó por el motor de asignación (que es quien respeta horario, festivos y
+        // permisos), así que el control va aquí — igual que en la lista abierta de instalaciones.
+        if (!await CanStartNowAsync(technicianId, asset.CurrentClientLocationId, cancellationToken))
+        {
+            _logger.LogInformation(
+                "Mantenimiento propio rechazado por horario: técnico {TechnicianId}, activo {AssetId}", technicianId, request.AssetId);
+            throw new ConflictException(
+                "No puedes iniciar este mantenimiento ahora: estás fuera de tu horario laboral, en un día festivo o en permiso.");
+        }
+
+        // Valida el equipo y crea la orden sin guardar; asignarla y persistirla va en UN solo SaveChanges. Así nunca
+        // existe una orden Pendiente sin técnico que el job de reasignación pueda recoger y darle a otro.
+        var order = await _orderService.PrepareManualAsync(request, technician.UserId, cancellationToken);
+        order.TechnicianId = technicianId;
+        order.Status = MaintenanceOrderStatus.Asignada;
+        _db.AssignmentHistories.Add(new AssignmentHistory
+        {
+            MaintenanceOrderId = order.Id,
+            TechnicianId = technicianId,
+            AssignedByUserId = technician.UserId,
+            AssignmentType = AssignmentType.IniciadaPorTecnico
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Mantenimiento propio iniciado: técnico {TechnicianId}, activo {AssetId}, orden {OrderId} (general {General}, unidades {Units}, insumos {Consumables})",
+            technicianId, request.AssetId, order.Id, order.IncludesGeneral, order.IncludesUnits, order.IncludesConsumables);
+
+        return await _orderService.GetByIdAsync(
+            new RequestingUser(technician.UserId, RoleNames.Tecnico, null, technicianId), order.Id, cancellationToken);
     }
 
     public async Task<TechnicianSelfStatusDto> CheckInAsync(Guid technicianId, CheckInRequest request, CancellationToken cancellationToken = default)

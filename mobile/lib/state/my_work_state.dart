@@ -256,6 +256,26 @@ class MyWorkState extends ChangeNotifier {
   /// Corre una acción de check-in/check-out, recarga todo al terminar (igual
   /// que loadAll() tras cada acción en MyWorkView.vue) y devuelve un mensaje
   /// de error para mostrar en un SnackBar, o null si salió bien.
+  /// El técnico se arrepiente de un mantenimiento que inició él mismo y todavía no empezó. Devuelve null si salió
+  /// bien, o un mensaje de error (por ejemplo, si ya hizo check-in).
+  Future<String?> cancelStartedMaintenance(MaintenanceOrder order) async {
+    busyWithAction = true;
+    notifyListeners();
+    try {
+      await _technicianApi.cancelStartedMaintenance(order.id);
+      await loadAll();
+      return null;
+    } catch (e, st) {
+      debugPrint('MyWorkState.cancelStartedMaintenance failed: $e\n$st');
+      return e is ApiException
+          ? e.message
+          : 'No se pudo cancelar el mantenimiento.';
+    } finally {
+      busyWithAction = false;
+      notifyListeners();
+    }
+  }
+
   Future<String?> _runAction(
     Future<TechnicianSelfStatus> Function() action,
   ) async {

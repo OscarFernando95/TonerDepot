@@ -932,6 +932,10 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TechnicianId");
 
+                    b.HasIndex(new[] { "MaintenanceScheduleId" }, "IX_MaintenanceOrders_MaintenanceScheduleId_Open")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN ('Pendiente', 'Asignada', 'EnProceso')");
+
                     b.ToTable("MaintenanceOrders", (string)null);
                 });
 

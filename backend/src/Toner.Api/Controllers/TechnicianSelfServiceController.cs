@@ -32,6 +32,7 @@ public class TechnicianSelfServiceController : ControllerBase
     private readonly ITechnicianCheckInService _checkInService;
     private readonly IValidator<CheckInRequest> _checkInValidator;
     private readonly IValidator<CheckOutRequest> _checkOutValidator;
+    private readonly IValidator<CreateManualMaintenanceOrderRequest> _startMaintenanceValidator;
     private readonly IAssetService _assetService;
     private readonly IMaintenanceOrderService _maintenanceOrderService;
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
@@ -43,6 +44,7 @@ public class TechnicianSelfServiceController : ControllerBase
         ITechnicianCheckInService checkInService,
         IValidator<CheckInRequest> checkInValidator,
         IValidator<CheckOutRequest> checkOutValidator,
+        IValidator<CreateManualMaintenanceOrderRequest> startMaintenanceValidator,
         IAssetService assetService,
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
@@ -55,6 +57,7 @@ public class TechnicianSelfServiceController : ControllerBase
         _checkInService = checkInService;
         _checkInValidator = checkInValidator;
         _checkOutValidator = checkOutValidator;
+        _startMaintenanceValidator = startMaintenanceValidator;
         _assetService = assetService;
         _maintenanceOrderService = maintenanceOrderService;
         _maintenanceScheduleService = maintenanceScheduleService;
@@ -117,6 +120,24 @@ public class TechnicianSelfServiceController : ControllerBase
     public async Task<ActionResult<MaintenanceOrderDto>> ClaimMaintenanceOrder(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _maintenanceOrderService.ClaimAsync(id, CurrentTechnicianId, cancellationToken));
+    }
+
+    // Mantenimiento a demanda iniciado por el propio técnico: el body es el mismo que el del staff
+    // (POST /maintenance-orders) y la orden nace asignada a él. Después sigue el check-in normal.
+    [HttpPost("maintenance-orders")]
+    public async Task<ActionResult<MaintenanceOrderDto>> StartMaintenance([FromBody] CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken)
+    {
+        await _startMaintenanceValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var order = await _checkInService.StartMaintenanceAsync(CurrentTechnicianId, request, cancellationToken);
+        return CreatedAtAction(nameof(MaintenanceOrdersController.GetById), "MaintenanceOrders", new { id = order.Id }, order);
+    }
+
+    // Se arrepiente de un mantenimiento que inició él mismo y todavía no empezó (sin check-in).
+    [HttpPost("maintenance-orders/{id:guid}/cancel")]
+    public async Task<ActionResult<MaintenanceOrderDto>> CancelSelfStartedMaintenance(Guid id, CancellationToken cancellationToken)
+    {
+        return Ok(await _maintenanceOrderService.CancelSelfStartedAsync(id, CurrentTechnicianId, cancellationToken));
     }
 
     // Autoasignación: toma un ticket libre o asignado a otro técnico que aún no lo inició.

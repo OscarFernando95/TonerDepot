@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/maintenance_order.dart';
 import '../models/my_work_filters.dart';
 import '../state/my_work_state.dart';
 import '../theme/app_theme.dart';
@@ -11,6 +12,7 @@ import '../widgets/animated_gradient_border.dart';
 import '../widgets/checkout_sheet.dart';
 import '../widgets/clay_surface.dart';
 import '../widgets/installation_card.dart';
+import '../widgets/maintenance_choice_dialog.dart';
 import '../widgets/order_card.dart';
 import '../widgets/ticket_card.dart';
 
@@ -70,6 +72,41 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
       return;
     }
     await _handleCheckIn(() => action(photo), id);
+  }
+
+  /// Confirma y cancela un mantenimiento que el técnico inició y todavía no empezó.
+  Future<void> _handleCancelStarted(MaintenanceOrder order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('¿Cancelar el mantenimiento?'),
+        content: Text(
+          '${order.assetBrandName} ${order.assetModel} · Serie ${order.assetSerialNumber}\n\n'
+          'El equipo queda libre y el cronograma sigue como estaba.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cancelar mantenimiento'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await waitForDialogExit();
+    if (!mounted) return;
+    setState(() => _actingOnId = order.id);
+    final error = await _state.cancelStartedMaintenance(order);
+    if (!mounted) return;
+    setState(() => _actingOnId = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Mantenimiento cancelado.')),
+    );
   }
 
   Future<void> _handleCheckOut(MyWorkState state) async {
@@ -217,6 +254,7 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                     (photo) => _state.checkInOrder(o, photo),
                     o.id,
                   ),
+                  onCancel: () => _handleCancelStarted(o),
                 ),
               ),
               const SizedBox(height: 16),

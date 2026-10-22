@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Calendar, Printer, Tickets, Tools } from '@element-plus/icons-vue'
 import * as selfApi from '../../api/technicianSelf'
 import * as ticketsApi from '../../api/tickets'
@@ -279,6 +279,37 @@ async function claimTicketRow(ticket: ServiceTicketDto) {
     ElMessage.error(apiErrorMessage(err, 'No se pudo tomar el ticket.'))
   } finally {
     claiming.value = null
+  }
+}
+
+// El técnico puede arrepentirse de un mantenimiento que inició él mismo mientras no haya hecho check-in.
+const cancelingOrder = ref<string | null>(null)
+
+function canCancelStarted(order: MaintenanceOrderDto) {
+  return order.isSelfStarted && order.status === 'Asignada'
+}
+
+async function cancelStartedOrder(order: MaintenanceOrderDto) {
+  try {
+    await ElMessageBox.confirm(
+      `${order.assetBrandName} ${order.assetModel} — ${order.assetSerialNumber}. El equipo queda libre y el cronograma sigue como estaba.`,
+      '¿Cancelar el mantenimiento?',
+      { confirmButtonText: 'Cancelar mantenimiento', cancelButtonText: 'Volver', type: 'warning' }
+    )
+  } catch {
+    return // cerró el diálogo: no es un error
+  }
+
+  cancelingOrder.value = order.id
+  try {
+    await selfApi.cancelStartedMaintenance(order.id)
+    ElMessage.success('Mantenimiento cancelado.')
+    await loadAll()
+  } catch (err: any) {
+    console.error('No se pudo cancelar el mantenimiento:', err)
+    ElMessage.error(apiErrorMessage(err, 'No se pudo cancelar el mantenimiento.'))
+  } finally {
+    cancelingOrder.value = null
   }
 }
 
@@ -592,8 +623,11 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
                   <el-tag size="small">{{ MaintenanceOrderStatusLabels[row.status] ?? row.status }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="" width="130">
+              <el-table-column label="" width="230">
                 <template #default="{ row }">
+                  <el-button v-if="canCancelStarted(row)" class="tap-btn" :loading="cancelingOrder === row.id" @click="cancelStartedOrder(row)">
+                    Cancelar
+                  </el-button>
                   <el-button type="primary" class="tap-btn" :loading="checkingIn === row.id" @click="checkInOrder(row)">
                     Check-in
                   </el-button>

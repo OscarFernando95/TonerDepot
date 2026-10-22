@@ -16,6 +16,9 @@ class MaintenanceOrder {
 
   /// Pedida a demanda por el staff (no por umbral del cronograma), con el motivo que dio.
   final bool isManual;
+
+  /// La inició el propio técnico asignado (no el staff): es la única que él puede cancelar, y solo mientras siga Asignada.
+  final bool isSelfStarted;
   final String? reason;
   final String scheduledDate;
   final String? completedAt;
@@ -37,6 +40,7 @@ class MaintenanceOrder {
     required this.includesUnits,
     required this.includesConsumables,
     this.isManual = false,
+    this.isSelfStarted = false,
     this.reason,
     required this.scheduledDate,
     required this.completedAt,
@@ -78,6 +82,9 @@ class MaintenanceOrder {
     return '${parts[2]}/${parts[1]}/${parts[0]}';
   }
 
+  /// El técnico puede arrepentirse antes del check-in (POST /technicians/me/maintenance-orders/{id}/cancel).
+  bool get canCancelByTechnician => isSelfStarted && status == 'Asignada';
+
   factory MaintenanceOrder.fromJson(Map<String, dynamic> json) =>
       MaintenanceOrder(
         id: json['id'] as String,
@@ -95,6 +102,7 @@ class MaintenanceOrder {
         includesUnits: json['includesUnits'] as bool? ?? false,
         includesConsumables: json['includesConsumables'] as bool? ?? false,
         isManual: json['isManual'] as bool? ?? false,
+        isSelfStarted: json['isSelfStarted'] as bool? ?? false,
         reason: json['reason'] as String?,
         scheduledDate: json['scheduledDate'] as String,
         completedAt: json['completedAt'] as String?,

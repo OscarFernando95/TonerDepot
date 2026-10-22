@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Toner.Domain.Entities;
 
 namespace Toner.Application.Common.Interfaces;
@@ -7,6 +8,9 @@ namespace Toner.Application.Common.Interfaces;
 // Se amplía con más DbSet a medida que cada módulo del MVP los necesita.
 public interface IApplicationDbContext
 {
+    // Para descartar lo pendiente de un guardado que falló y reintentar (ver MaintenanceScheduleEvaluationJob).
+    ChangeTracker ChangeTracker { get; }
+
     DbSet<Role> Roles { get; }
     DbSet<User> Users { get; }
     DbSet<UserSession> UserSessions { get; }

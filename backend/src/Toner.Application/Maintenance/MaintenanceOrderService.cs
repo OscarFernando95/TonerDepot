@@ -33,6 +33,23 @@ public class MaintenanceOrderService : IMaintenanceOrderService
     public async Task<MaintenanceOrderDto> CreateManualAsync(
         CreateManualMaintenanceOrderRequest request, Guid requestedByUserId, CancellationToken cancellationToken = default)
     {
+        var order = await PrepareManualAsync(request, requestedByUserId, cancellationToken);
+
+        // Mismo patrón que ServiceTicketService.CreateAsync: la asignación corre sobre la entidad sin guardar y
+        // todo cae en un único SaveChanges.
+        await _assignmentEngine.AssignMaintenanceOrderAsync(order, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(order.Id, cancellationToken);
+    }
+
+    // Valida y deja trackeada (Pendiente, sin técnico, sin guardar) la orden a demanda: la comparten el staff
+    // (CreateManualAsync, que la asigna por el motor) y el técnico que inicia su propio mantenimiento
+    // (TechnicianCheckInService.StartMaintenanceAsync, que se la asigna a sí mismo). Las reglas de "se puede
+    // mantener este equipo" viven aquí, una sola vez.
+    public async Task<MaintenanceOrder> PrepareManualAsync(
+        CreateManualMaintenanceOrderRequest request, Guid requestedByUserId, CancellationToken cancellationToken = default)
+    {
         var asset = await _db.Assets.FirstOrDefaultAsync(a => a.Id == request.AssetId, cancellationToken)
             ?? throw new NotFoundException(nameof(Asset), request.AssetId);
 
@@ -47,6 +64,8 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             .FirstOrDefaultAsync(s => s.AssetId == asset.Id && s.IsActive, cancellationToken)
             ?? throw new ConflictException("Este activo no tiene un cronograma de mantenimiento activo (no está bajo un contrato vigente).");
 
+        // Una sola orden abierta por equipo: es la misma condición con la que el motor del cronograma se salta un
+        // equipo, así que mientras esta orden siga abierta el job no genera otra encima.
         var hasOpenOrder = await _db.MaintenanceOrders.AnyAsync(
             o => o.AssetId == asset.Id
                 && (o.Status == MaintenanceOrderStatus.Pendiente || o.Status == MaintenanceOrderStatus.Asignada || o.Status == MaintenanceOrderStatus.EnProceso),
@@ -72,12 +91,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         };
         _db.MaintenanceOrders.Add(order);
 
-        // Mismo patrón que ServiceTicketService.CreateAsync: la asignación corre sobre la entidad sin guardar y
-        // todo cae en un único SaveChanges.
-        await _assignmentEngine.AssignMaintenanceOrderAsync(order, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return await ToDtoAsync(order.Id, cancellationToken);
+        return order;
     }
 
     public async Task<PagedResult<MaintenanceOrderDto>> ListAsync(
@@ -340,6 +354,37 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         return await ToDtoAsync(id, cancellationToken);
     }
 
+    // El técnico se arrepiente de un mantenimiento que inició él mismo y todavía no empezó (sin check-in): lo
+    // cancela y el equipo vuelve a quedar libre para el cronograma. Sin esta salida, una orden abandonada
+    // bloquearía al motor del cronograma para ese equipo (salta los que ya tienen una orden abierta). Solo las
+    // que él creó y solo mientras estén Asignada: una EnProceso tiene un check-in abierto que cerrar, y las
+    // del cronograma o del staff las cancela el staff.
+    public async Task<MaintenanceOrderDto> CancelSelfStartedAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default)
+    {
+        var order = await _db.MaintenanceOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(MaintenanceOrder), id);
+
+        var technicianUserId = await _db.Technicians
+            .Where(t => t.Id == technicianId)
+            .Select(t => t.UserId)
+            .FirstAsync(cancellationToken);
+
+        if (order.TechnicianId != technicianId || !order.IsManual || order.RequestedByUserId != technicianUserId)
+        {
+            throw new ForbiddenException("Solo puedes cancelar un mantenimiento que iniciaste tú.");
+        }
+
+        if (order.Status != MaintenanceOrderStatus.Asignada)
+        {
+            throw new ConflictException($"No puedes cancelar una orden en estado '{order.Status}'.");
+        }
+
+        order.Status = MaintenanceOrderStatus.Cancelada;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
     public async Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
         var orderExists = await _db.MaintenanceOrders.AnyAsync(o => o.Id == id, cancellationToken);
@@ -395,6 +440,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             IncludesUnits = o.IncludesUnits,
             IncludesConsumables = o.IncludesConsumables,
             IsManual = o.IsManual,
+            IsSelfStarted = o.IsManual && o.Technician != null && o.RequestedByUserId == o.Technician.UserId,
             Reason = o.Reason,
             ScheduledDate = o.ScheduledDate,
             CompletedAt = o.CompletedAt,

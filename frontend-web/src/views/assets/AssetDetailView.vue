@@ -10,6 +10,8 @@ import * as assetModelsApi from '../../api/assetModels'
 import * as locationsApi from '../../api/clientLocations'
 import * as ordersApi from '../../api/maintenanceOrders'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
+import MaintenanceChoiceDialog from '../../components/maintenance/MaintenanceChoiceDialog.vue'
+import type { MaintenanceChoice } from '../../composables/useMaintenanceChoice'
 import {
   AssetAllowedTransitions,
   AssetLifecycleStatusLabels,
@@ -139,30 +141,11 @@ const tonerDialogRef = ref<InstanceType<typeof TonerDialog> | null>(null)
 
 const manualOrderDialogVisible = ref(false)
 const creatingManualOrder = ref(false)
-const manualOrderForm = reactive({ includesGeneral: true, includesUnits: false, includesConsumables: false, reason: '' })
-const manualOrderValid = computed(
-  () => manualOrderForm.includesGeneral || manualOrderForm.includesUnits || manualOrderForm.includesConsumables
-)
 
-function openManualOrderDialog() {
-  manualOrderForm.includesGeneral = true
-  manualOrderForm.includesUnits = false
-  manualOrderForm.includesConsumables = false
-  manualOrderForm.reason = ''
-  manualOrderDialogVisible.value = true
-}
-
-async function saveManualOrder() {
-  if (!manualOrderValid.value) return
+async function saveManualOrder(choice: MaintenanceChoice) {
   creatingManualOrder.value = true
   try {
-    const { data } = await ordersApi.createManualMaintenanceOrder({
-      assetId,
-      includesGeneral: manualOrderForm.includesGeneral,
-      includesUnits: manualOrderForm.includesUnits,
-      includesConsumables: manualOrderForm.includesConsumables,
-      reason: manualOrderForm.reason.trim() || null
-    })
+    const { data } = await ordersApi.createManualMaintenanceOrder({ assetId, ...choice })
     manualOrderDialogVisible.value = false
     ElMessage.success(data.technicianName ? `Mantenimiento pedido y asignado a ${data.technicianName}.` : 'Mantenimiento pedido; queda pendiente de técnico.')
     router.push({ name: 'maintenance-order-detail', params: { id: data.id } })
@@ -298,7 +281,7 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
           >
             Tóner
           </el-button>
-          <el-button v-if="asset.lifecycleStatus === 'Instalado'" type="warning" plain @click="openManualOrderDialog">
+          <el-button v-if="asset.lifecycleStatus === 'Instalado'" type="warning" plain @click="manualOrderDialogVisible = true">
             Pedir mantenimiento
           </el-button>
           <el-button type="primary" :loading="savingInfo" @click="saveInfo">Guardar cambios</el-button>
@@ -378,25 +361,15 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
 
     <TonerDialog ref="tonerDialogRef" />
 
-    <el-dialog v-model="manualOrderDialogVisible" title="Pedir mantenimiento" width="440px">
-      <el-form label-position="top">
-        <el-form-item label="Qué se hará en la visita">
-          <div class="manual-checks">
-            <el-checkbox v-model="manualOrderForm.includesGeneral">Mantenimiento general</el-checkbox>
-            <el-checkbox v-model="manualOrderForm.includesUnits">Mantenimiento de unidades</el-checkbox>
-            <el-checkbox v-model="manualOrderForm.includesConsumables">Cambio de insumos</el-checkbox>
-          </div>
-        </el-form-item>
-        <el-form-item label="Motivo (opcional)">
-          <el-input v-model="manualOrderForm.reason" type="textarea" :rows="2" maxlength="500" show-word-limit placeholder="Ej: falla de arrastre reportada por el cliente" />
-        </el-form-item>
-        <p class="hint">Se asigna a un técnico disponible de la ciudad; al completarla, el cronograma solo reinicia lo que marques aquí.</p>
-      </el-form>
-      <template #footer>
-        <el-button @click="manualOrderDialogVisible = false">Cancelar</el-button>
-        <el-button type="primary" :disabled="!manualOrderValid" :loading="creatingManualOrder" @click="saveManualOrder">Pedir</el-button>
-      </template>
-    </el-dialog>
+    <MaintenanceChoiceDialog
+      v-model="manualOrderDialogVisible"
+      title="Pedir mantenimiento"
+      confirm-label="Pedir"
+      hint="Se asigna a un técnico disponible de la ciudad; al completarla, el cronograma solo reinicia lo que marques aquí."
+      initial-general
+      :loading="creatingManualOrder"
+      @confirm="saveManualOrder"
+    />
 
     <el-dialog v-model="readingDialogVisible" title="Registrar lectura" width="360px">
       <el-form label-position="top">
@@ -417,12 +390,6 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
 </template>
 
 <style scoped>
-.manual-checks {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
 .hint {
   margin: 0;
   font-size: 0.8rem;

@@ -221,6 +221,9 @@ builder.Services.AddScoped<IEvidenceService, EvidenceService>();
 builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
 builder.Services.AddScoped<PendingAssignmentService>();
 builder.Services.AddScoped<PendingAssignmentJob>();
+builder.Services.Configure<AbandonedSelfStartedOrderOptions>(builder.Configuration.GetSection("SelfStartedMaintenance"));
+builder.Services.AddScoped<AbandonedSelfStartedOrderService>();
+builder.Services.AddScoped<AbandonedSelfStartedOrderJob>();
 
 // Plazo de retención de datos operativos (AUDIT.md H-27). Falla al arrancar si es menor al mínimo.
 var dataRetentionOptions = builder.Configuration.GetSection("Retention").Get<DataRetentionOptions>() ?? new DataRetentionOptions();
@@ -402,6 +405,12 @@ RecurringJob.AddOrUpdate<PendingAssignmentJob>(
     "retry-pending-assignments",
     job => job.RunAsync(CancellationToken.None),
     "*/10 * * * *");
+
+// Caduca las órdenes que un técnico inició por su cuenta y nunca empezó (MANT-2): abiertas, bloquean el cronograma.
+RecurringJob.AddOrUpdate<AbandonedSelfStartedOrderJob>(
+    "expire-abandoned-self-started-orders",
+    job => job.RunAsync(CancellationToken.None),
+    "*/30 * * * *");
 
 // Outbox del correo de contraseña (AUDIT.md H-19): el recurrente es la garantía de entrega; en el caso normal
 // PasswordEmailOutboxKickInterceptor lo dispara al momento.
