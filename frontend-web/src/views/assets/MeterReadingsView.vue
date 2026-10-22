@@ -12,7 +12,7 @@ import type { CityDto, ClientDto, MeterReadingAssetDto } from '../../api/types'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
 import RentalRetirementTag from '../../components/assets/RentalRetirementTag.vue'
 import MaintenanceChoiceDialog from '../../components/maintenance/MaintenanceChoiceDialog.vue'
-import type { MaintenanceChoice } from '../../composables/useMaintenanceChoice'
+import { maintenanceStartedMessage, type MaintenanceChoice } from '../../composables/useMaintenanceChoice'
 import { useAuthStore } from '../../stores/auth'
 import { RoleNames } from '../../api/types'
 
@@ -120,7 +120,7 @@ async function startMaintenance(choice: MaintenanceChoice) {
   try {
     await technicianSelfApi.startMaintenance({ assetId: maintenanceAsset.value.assetId, ...choice })
     maintenanceDialogVisible.value = false
-    ElMessage.success('Mantenimiento listo. Haz el check-in en Mi trabajo.')
+    ElMessage.success(maintenanceStartedMessage(choice.plannedAt))
     router.push({ name: 'my-work' })
   } catch (err: any) {
     console.error('No se pudo iniciar el mantenimiento:', err)
@@ -284,6 +284,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
     :subtitle="maintenanceSubtitle"
     hint="Marca lo que vas a hacer. Al cerrar la visita, el cronograma del equipo reinicia solo eso."
     :loading="startingMaintenance"
+    allow-schedule
     @confirm="startMaintenance"
   />
   <TonerDialog ref="tonerDialogRef" @saved="loadAll()" />

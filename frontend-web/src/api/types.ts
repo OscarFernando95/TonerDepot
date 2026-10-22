@@ -487,6 +487,8 @@ export interface CreateManualMaintenanceOrderRequest {
   includesUnits: boolean
   includesConsumables: boolean
   reason?: string | null
+  // Solo técnico (POST /technicians/me/maintenance-orders): ISO UTC. Si viene, la orden nace ya programada.
+  plannedAt?: string | null
 }
 
 export interface MeterReadingAssetDto extends RentalRetirementInfoFields {
@@ -607,4 +609,54 @@ export interface ProblemDetails {
   title: string
   status: number
   errors: Record<string, string[]> | null
+}
+
+// Inicio del Cliente (GET /client-portal/home): el estado de SU servicio de un solo llamado. Sin nada de contratos ni
+// de límites de alquiler (el backend no los envía).
+export interface ClientHomeTicketDto {
+  id: string
+  equipment: string
+  locationName: string | null
+  description: string
+  status: ServiceTicketStatusName
+  priority: ServiceTicketPriorityName
+  technicianName: string | null
+  createdAt: string
+}
+
+export interface ClientHomeMaintenanceDto {
+  id: string
+  equipment: string
+  locationName: string | null
+  status: string
+  scheduledDate: string | null
+  plannedAt: string | null
+  technicianName: string | null
+  commentCount: number
+}
+
+export interface ClientHomeInstallationDto {
+  assetId: string
+  equipment: string
+  locationName: string | null
+  inProgress: boolean
+}
+
+export interface ClientHomeDto {
+  clientName: string
+  locationCount: number
+  openTickets: number
+  ticketsInProgress: number
+  openMaintenance: number
+  maintenanceScheduled: number
+  maintenanceInProgress: number
+  maintenanceWithoutVisitDate: number
+  pendingInstallations: number
+  installationsInProgress: number
+  installedAssets: number
+  assetsInMaintenance: number
+  assetsWithOpenTicket: number
+  recentTickets: ClientHomeTicketDto[]
+  upcomingMaintenance: ClientHomeMaintenanceDto[]
+  installations: ClientHomeInstallationDto[]
 }
