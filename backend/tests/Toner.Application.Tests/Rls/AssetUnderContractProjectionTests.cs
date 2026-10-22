@@ -102,7 +102,8 @@ public class AssetUnderContractProjectionTests
         var user = new RequestingUser(Guid.NewGuid(), isStaff ? RoleNames.Administrador : RoleNames.Cliente, clientId, null);
         var service = new ServiceTicketService(db, null!);
 
-        Assert.True((await service.GetByIdAsync(user, s.TicketVigente)).AssetUnderContract);
+        // El cliente no ve nada de contratos: la marca llega siempre en false, aunque el equipo sí tenga uno vigente.
+        Assert.Equal(isStaff, (await service.GetByIdAsync(user, s.TicketVigente)).AssetUnderContract);
         Assert.False((await service.GetByIdAsync(user, s.TicketSinContrato)).AssetUnderContract);
         Assert.False((await service.GetByIdAsync(user, s.TicketContratoVencido)).AssetUnderContract);
         Assert.False((await service.GetByIdAsync(user, s.TicketSinActivo)).AssetUnderContract);
@@ -126,7 +127,7 @@ public class AssetUnderContractProjectionTests
     }
 
     [PostgresFact]
-    public async Task Cliente_ConRls_VeElMismoResultadoParaSusPropiosTickets()
+    public async Task Cliente_ConRls_VeSusTickets_PeroNuncaLaMarcaDeContrato()
     {
         await _fixture.EnsureSeededAsync();
         await using var owner = new NpgsqlConnection(PostgresFactAttribute.OwnerConnectionString);

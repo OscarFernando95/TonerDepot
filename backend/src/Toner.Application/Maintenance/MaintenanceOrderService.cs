@@ -90,6 +90,11 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         {
             query = query.Where(o => o.TechnicianId == requestingUser.TechnicianId);
         }
+        else if (requestingUser.IsClient)
+        {
+            var clientId = requestingUser.RequireClientId();
+            query = query.Where(o => o.ClientId == clientId);
+        }
 
         // Filtros del servidor (AUDIT.md H-11): DESPUÉS del alcance del rol, así que son un AND.
         if (filter is not null)
@@ -116,9 +121,22 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         }
 
         // Desempate por Id: sin él, paginar por offset con CreatedAt repetido repite o salta filas.
-        return await ProjectedFrom(query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id))
+        var result = await ProjectedFrom(query.OrderByDescending(o => o.CreatedAt).ThenByDescending(o => o.Id))
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
+
+        if (requestingUser.IsClient)
+        {
+            foreach (var item in result.Items)
+            {
+                HideInternalFields(item);
+            }
+        }
+
+        return result;
     }
+
+    // Lo que el cliente nunca ve de una orden: el motivo que el staff dio al pedirla (nota interna).
+    private static void HideInternalFields(MaintenanceOrderDto order) => order.Reason = null;
 
     public async Task<PagedResult<MaintenanceOrderDto>> ListByScheduleAsync(Guid scheduleId, string? cursor, int? pageSize, CancellationToken cancellationToken = default)
     {
@@ -167,6 +185,17 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         if (requestingUser.IsTechnician && order.TechnicianId != requestingUser.TechnicianId)
         {
             throw new ForbiddenException("Esta orden no está asignada a ti.");
+        }
+
+        if (requestingUser.IsClient)
+        {
+            var clientId = requestingUser.RequireClientId();
+            if (!await _db.MaintenanceOrders.AnyAsync(o => o.Id == id && o.ClientId == clientId, cancellationToken))
+            {
+                throw new ForbiddenException("No puedes ver una orden que no pertenece a tu cliente.");
+            }
+
+            HideInternalFields(order);
         }
 
         return order;

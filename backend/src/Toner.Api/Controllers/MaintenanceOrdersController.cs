@@ -35,8 +35,9 @@ public class MaintenanceOrdersController : ControllerBase
         _completeValidator = completeValidator;
     }
 
+    // El Cliente ve solo las de su empresa, de solo lectura (ver MaintenanceOrderService).
     [HttpGet]
-    [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
+    [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
     public async Task<ActionResult<PagedResult<MaintenanceOrderDto>>> List(
         [FromQuery] int? page, [FromQuery] int? pageSize,
         [FromQuery] string? status, [FromQuery] Guid? clientId, [FromQuery] string? search,
@@ -47,7 +48,7 @@ public class MaintenanceOrdersController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = RoleNames.StaffAndTechnicianRoles)]
+    [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
     public async Task<ActionResult<MaintenanceOrderDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _orderService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));
