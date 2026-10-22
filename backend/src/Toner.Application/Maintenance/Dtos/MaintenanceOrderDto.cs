@@ -19,6 +19,10 @@ public class MaintenanceOrderDto
 
     // Pedida a demanda por el staff (no por umbral del cronograma), con el motivo que dio.
     public bool IsManual { get; set; }
+
+    // La inició el propio técnico asignado (la pidió él, no el staff): es la única que él puede cancelar mientras siga
+    // Asignada (POST /technicians/me/maintenance-orders/{id}/cancel).
+    public bool IsSelfStarted { get; set; }
     public string? Reason { get; set; }
     public DateTime ScheduledDate { get; set; }
     public DateTime? CompletedAt { get; set; }

@@ -79,6 +79,7 @@ public class SelfStartedMaintenanceTests
         Assert.Equal(nameof(MaintenanceOrderStatus.Asignada), dto.Status);
         Assert.Equal(s.TechnicianId, dto.TechnicianId);
         Assert.True(dto.IsManual);
+        Assert.True(dto.IsSelfStarted);
         Assert.True(dto.IncludesGeneral && dto.IncludesUnits && !dto.IncludesConsumables);
         Assert.Equal("Cambio de unidades", dto.Reason);
 
@@ -333,5 +334,21 @@ public class SelfStartedMaintenanceTests
         using var cancelDb = TonerTestDb.CreateContext(s.DbName);
         var service = new MaintenanceOrderService(cancelDb, new MaintenanceScheduleEngine(cancelDb), TestAssignment.Create(cancelDb));
         await Assert.ThrowsAsync<ForbiddenException>(() => service.CancelSelfStartedAsync(dto.Id, otherTechnicianId));
+    }
+
+    // MANT-3: el botón "Cancelar" del técnico solo aparece en lo que inició él; la misma orden a demanda pedida por el
+    // staff (aunque caiga asignada a este técnico) no lo lleva, y el servidor la rechazaría igual.
+    [Fact]
+    public async Task LaOrdenADemandaPedidaPorElStaff_NoSeMarcaComoAutoiniciada()
+    {
+        var s = await SeedAsync();
+        using var db = TonerTestDb.CreateContext(s.DbName);
+
+        var dto = await new MaintenanceOrderService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db))
+            .CreateManualAsync(Request(s), Guid.NewGuid());
+
+        Assert.True(dto.IsManual);
+        Assert.Equal(s.TechnicianId, dto.TechnicianId);
+        Assert.False(dto.IsSelfStarted);
     }
 }

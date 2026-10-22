@@ -440,6 +440,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             IncludesUnits = o.IncludesUnits,
             IncludesConsumables = o.IncludesConsumables,
             IsManual = o.IsManual,
+            IsSelfStarted = o.IsManual && o.Technician != null && o.RequestedByUserId == o.Technician.UserId,
             Reason = o.Reason,
             ScheduledDate = o.ScheduledDate,
             CompletedAt = o.CompletedAt,
