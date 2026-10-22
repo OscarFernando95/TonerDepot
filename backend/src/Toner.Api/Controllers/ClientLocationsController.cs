@@ -44,6 +44,9 @@ public class ClientLocationsController : ControllerBase
             {
                 throw new ForbiddenException("No puedes ver sedes de un cliente distinto al tuyo.");
             }
+
+            // Solo las sedes a las que el administrador le dio acceso (todas, si no tiene restricción).
+            return Ok(await _locationService.ListForClientUserAsync(User.ToRequestingUser(), cancellationToken));
         }
 
         return Ok(await _locationService.ListByClientAsync(clientId, cancellationToken));

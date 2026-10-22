@@ -219,7 +219,7 @@ public class TechnicianMachinesTests
         var s = await SeedFilterableAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
         var service = new AssetService(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
-        var asClientA = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, s.ClientA, null);
+        var asClientA = await TestClientUsers.SeedAsync(s.DbName, s.ClientA);
 
         var other = await service.ListAsync(asClientA, null, null, new AssetListFilter(ClientId: s.ClientB));
         Assert.Empty(other.Items);

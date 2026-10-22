@@ -27,6 +27,7 @@ public interface IApplicationDbContext
     DbSet<Zone> Zones { get; }
     DbSet<TechnicianZone> TechnicianZones { get; }
     DbSet<TechnicianAsset> TechnicianAssets { get; }
+    DbSet<UserClientLocation> UserClientLocations { get; }
     DbSet<AssetBrand> AssetBrands { get; }
     DbSet<AssetModel> AssetModels { get; }
     DbSet<Asset> Assets { get; }

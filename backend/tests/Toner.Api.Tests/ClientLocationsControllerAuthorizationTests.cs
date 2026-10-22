@@ -90,6 +90,12 @@ public class ClientLocationsControllerAuthorizationTests
             return Task.FromResult<IReadOnlyList<ClientLocationDto>>(Array.Empty<ClientLocationDto>());
         }
 
+        public Task<IReadOnlyList<ClientLocationDto>> ListForClientUserAsync(Toner.Application.Common.RequestingUser user, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult<IReadOnlyList<ClientLocationDto>>(Array.Empty<ClientLocationDto>());
+        }
+
         public Task<ClientLocationDto> CreateAsync(Guid clientId, CreateClientLocationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PagedResult<ClientLocationDto>> ListAllAsync(int? page, int? pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClientLocationDto> UpdateAsync(Guid clientId, Guid id, UpdateClientLocationRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

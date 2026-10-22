@@ -94,6 +94,13 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         {
             var clientId = requestingUser.RequireClientId();
             query = query.Where(o => o.ClientId == clientId);
+
+            var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+            if (allowedLocations is not null)
+            {
+                query = query.Where(o => o.Asset.CurrentClientLocationId != null
+                    && allowedLocations.Contains(o.Asset.CurrentClientLocationId.Value));
+            }
         }
 
         // Filtros del servidor (AUDIT.md H-11): DESPUÉS del alcance del rol, así que son un AND.
@@ -190,7 +197,15 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         if (requestingUser.IsClient)
         {
             var clientId = requestingUser.RequireClientId();
-            if (!await _db.MaintenanceOrders.AnyAsync(o => o.Id == id && o.ClientId == clientId, cancellationToken))
+            var visible = _db.MaintenanceOrders.Where(o => o.Id == id && o.ClientId == clientId);
+            var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+            if (allowedLocations is not null)
+            {
+                visible = visible.Where(o => o.Asset.CurrentClientLocationId != null
+                    && allowedLocations.Contains(o.Asset.CurrentClientLocationId.Value));
+            }
+
+            if (!await visible.AnyAsync(cancellationToken))
             {
                 throw new ForbiddenException("No puedes ver una orden que no pertenece a tu cliente.");
             }

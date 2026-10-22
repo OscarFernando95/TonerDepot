@@ -34,6 +34,7 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     public DbSet<Zone> Zones => Set<Zone>();
     public DbSet<TechnicianZone> TechnicianZones => Set<TechnicianZone>();
     public DbSet<TechnicianAsset> TechnicianAssets => Set<TechnicianAsset>();
+    public DbSet<UserClientLocation> UserClientLocations => Set<UserClientLocation>();
     public DbSet<TechnicianAvailability> TechnicianAvailabilities => Set<TechnicianAvailability>();
 
     public DbSet<AssetBrand> AssetBrands => Set<AssetBrand>();

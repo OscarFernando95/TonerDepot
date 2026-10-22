@@ -12,7 +12,7 @@ namespace Toner.Application.Tests.Maintenance;
 // El cliente sigue sus mantenimientos programados: solo los de su empresa, de solo lectura, sin las notas internas.
 public class MaintenanceOrderClientScopeTests
 {
-    private sealed record Seed(string DbName, Client Mine, Client Other, MaintenanceOrder MyOrder, MaintenanceOrder OtherOrder);
+    private sealed record Seed(string DbName, Client Mine, Guid MyUserId, Client Other, MaintenanceOrder MyOrder, MaintenanceOrder OtherOrder);
 
     private static async Task<Seed> SeedAsync()
     {
@@ -27,6 +27,8 @@ public class MaintenanceOrderClientScopeTests
         var otherLocation = TestEntities.ClientLocation(other, city, "Sede ajena");
         var myAsset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, myLocation.Id);
         var otherAsset = TestEntities.Asset(model, AssetLifecycleStatus.Instalado, otherLocation.Id);
+        var role = TestEntities.Role(RoleNames.Cliente);
+        var myUser = TestEntities.User(role, clientId: mine.Id);
         var contract = new Contract { Id = Guid.NewGuid() }; // solo la referencia del cronograma; no se persiste
         var mySchedule = TestEntities.MaintenanceSchedule(myAsset, contract);
         var otherSchedule = TestEntities.MaintenanceSchedule(otherAsset, contract);
@@ -36,13 +38,14 @@ public class MaintenanceOrderClientScopeTests
         myOrder.IsManual = true;
         var otherOrder = TestEntities.MaintenanceOrder(otherSchedule, otherAsset, MaintenanceOrderStatus.Asignada);
         otherOrder.ClientId = other.Id;
-        db.AddRange(city, brand, model, mine, other, myLocation, otherLocation, myAsset, otherAsset,
+        db.AddRange(role, myUser, city, brand, model, mine, other, myLocation, otherLocation, myAsset, otherAsset,
             mySchedule, otherSchedule, myOrder, otherOrder);
         await db.SaveChangesAsync();
-        return new Seed(dbName, mine, other, myOrder, otherOrder);
+        return new Seed(dbName, mine, myUser.Id, other, myOrder, otherOrder);
     }
 
-    private static RequestingUser Client(Guid? clientId) => new(Guid.NewGuid(), RoleNames.Cliente, clientId, null);
+    private static RequestingUser Client(Seed s) => new(s.MyUserId, RoleNames.Cliente, s.Mine.Id, null);
+    private static RequestingUser ClientWithoutCompany() => new(Guid.NewGuid(), RoleNames.Cliente, null, null);
 
     private static MaintenanceOrderService Service(Infrastructure.Persistence.TonerDbContext db) =>
         new(db, new MaintenanceScheduleEngine(db), TestAssignment.Create(db));
@@ -53,7 +56,7 @@ public class MaintenanceOrderClientScopeTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        var page = await Service(db).ListAsync(Client(s.Mine.Id), null, null);
+        var page = await Service(db).ListAsync(Client(s), null, null);
 
         var order = Assert.Single(page.Items);
         Assert.Equal(s.MyOrder.Id, order.Id);
@@ -66,7 +69,7 @@ public class MaintenanceOrderClientScopeTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        var page = await Service(db).ListAsync(Client(s.Mine.Id), null, null, new MaintenanceOrderListFilter(null, s.Other.Id, null));
+        var page = await Service(db).ListAsync(Client(s), null, null, new MaintenanceOrderListFilter(null, s.Other.Id, null));
 
         Assert.Empty(page.Items);
     }
@@ -89,7 +92,7 @@ public class MaintenanceOrderClientScopeTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        var order = await Service(db).GetByIdAsync(Client(s.Mine.Id), s.MyOrder.Id);
+        var order = await Service(db).GetByIdAsync(Client(s), s.MyOrder.Id);
 
         Assert.Equal(s.MyOrder.Id, order.Id);
         Assert.Null(order.Reason);
@@ -101,7 +104,7 @@ public class MaintenanceOrderClientScopeTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => Service(db).GetByIdAsync(Client(s.Mine.Id), s.OtherOrder.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(db).GetByIdAsync(Client(s), s.OtherOrder.Id));
     }
 
     [Fact]
@@ -110,7 +113,7 @@ public class MaintenanceOrderClientScopeTests
         var s = await SeedAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
 
-        await Assert.ThrowsAsync<ForbiddenException>(() => Service(db).ListAsync(Client(null), null, null));
-        await Assert.ThrowsAsync<ForbiddenException>(() => Service(db).GetByIdAsync(Client(null), s.MyOrder.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(db).ListAsync(ClientWithoutCompany(), null, null));
+        await Assert.ThrowsAsync<ForbiddenException>(() => Service(db).GetByIdAsync(ClientWithoutCompany(), s.MyOrder.Id));
     }
 }

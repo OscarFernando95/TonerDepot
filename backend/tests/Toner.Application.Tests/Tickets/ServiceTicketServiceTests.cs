@@ -397,7 +397,7 @@ public class ServiceTicketServiceTests
         var s = await SeedForListAsync();
         using var db = TonerTestDb.CreateContext(s.DbName);
         var service = BuildService(db);
-        var asClientA = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, s.ClientA, null);
+        var asClientA = await TestClientUsers.SeedAsync(s.DbName, s.ClientA);
 
         var other = await service.ListAsync(asClientA, null, null, new ServiceTicketListFilter(ClientId: s.ClientB));
         Assert.Empty(other.Items);

@@ -43,5 +43,24 @@ public class CreateUserRequestValidator : AbstractValidator<CreateUserRequest>
             .MustAsync(async (clientId, ct) => await db.Clients.AnyAsync(c => c.Id == clientId, ct))
             .WithMessage("El ClientId especificado no existe.")
             .When(x => x.ClientId.HasValue);
+
+        RuleFor(x => x.AllowedLocationIds)
+            .Null()
+            .WithMessage("AllowedLocationIds solo aplica cuando RoleName es Cliente.")
+            .When(x => x.RoleName != RoleNames.Cliente);
+
+        RuleFor(x => x.AllowedLocationIds)
+            .Must(ids => ids!.Count > 0)
+            .WithMessage("Indica al menos una sede, o deja AllowedLocationIds sin valor para que vea todas.")
+            .When(x => x.AllowedLocationIds is not null);
+
+        RuleFor(x => x.AllowedLocationIds)
+            .MustAsync(async (request, ids, ct) =>
+            {
+                var wanted = ids!.Distinct().ToList();
+                return await db.ClientLocations.CountAsync(l => wanted.Contains(l.Id) && l.ClientId == request.ClientId, ct) == wanted.Count;
+            })
+            .WithMessage("Alguna de las sedes no existe o no pertenece a la empresa del usuario.")
+            .When(x => x.RoleName == RoleNames.Cliente && x.ClientId.HasValue && x.AllowedLocationIds is { Count: > 0 });
     }
 }

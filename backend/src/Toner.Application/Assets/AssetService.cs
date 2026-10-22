@@ -86,6 +86,12 @@ public class AssetService : IAssetService
             // Un Cliente solo ve activos instalados en alguna de sus sedes ahora mismo.
             var clientId = requestingUser.RequireClientId();
             query = query.Where(a => a.CurrentClientLocation != null && a.CurrentClientLocation.Client.Id == clientId);
+
+            var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+            if (allowedLocations is not null)
+            {
+                query = query.Where(a => a.CurrentClientLocationId != null && allowedLocations.Contains(a.CurrentClientLocationId.Value));
+            }
         }
 
         // Filtros del servidor (AUDIT.md H-11), sobre la entidad y ANTES de paginar. Van DESPUÉS del alcance del rol,
@@ -180,6 +186,12 @@ public class AssetService : IAssetService
             // El DTO ya proyectado trae CurrentClientId — evita repetir la consulta que Projected()
             // acaba de resolver (CODE_QUALITY_AUDIT.md hallazgo #26).
             if (asset.CurrentClientId != clientId)
+            {
+                throw new ForbiddenException("Este activo no está instalado en ninguna de tus sedes.");
+            }
+
+            var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+            if (allowedLocations is not null && !allowedLocations.Contains(asset.CurrentClientLocationId!.Value))
             {
                 throw new ForbiddenException("Este activo no está instalado en ninguna de tus sedes.");
             }

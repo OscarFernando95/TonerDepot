@@ -12,7 +12,7 @@ namespace Toner.Application.Tests.Assets;
 // El cliente no ve nada de contratos: ni su vigencia, ni su id, ni siquiera si un equipo está bajo uno.
 public class ClientContractVisibilityTests
 {
-    private sealed record Seed(string DbName, Client Client, Asset Asset, ServiceTicket Ticket, Guid ContractId);
+    private sealed record Seed(string DbName, Client Client, Guid ClientUserId, Asset Asset, ServiceTicket Ticket, Guid ContractId);
 
     private static async Task<Seed> SeedAsync()
     {
@@ -33,10 +33,10 @@ public class ClientContractVisibilityTests
         ticket.AssetId = asset.Id;
         db.AddRange(city, brand, model, client, location, asset, contract, link, role, reporter, ticket);
         await db.SaveChangesAsync();
-        return new Seed(dbName, client, asset, ticket, contract.Id);
+        return new Seed(dbName, client, reporter.Id, asset, ticket, contract.Id);
     }
 
-    private static RequestingUser Client(Guid clientId) => new(Guid.NewGuid(), RoleNames.Cliente, clientId, null);
+    private static RequestingUser Client(Seed s) => new(s.ClientUserId, RoleNames.Cliente, s.Client.Id, null);
     private static RequestingUser Staff() => new(Guid.NewGuid(), RoleNames.Coordinador, null, null);
 
     private static AssetService Assets(Infrastructure.Persistence.TonerDbContext db) =>
@@ -52,8 +52,8 @@ public class ClientContractVisibilityTests
         Assert.Equal(s.ContractId, (await service.GetByIdAsync(Staff(), s.Asset.Id)).ActiveContractId);
         Assert.Equal(s.ContractId, Assert.Single((await service.ListAsync(Staff(), null, null)).Items).ActiveContractId);
 
-        Assert.Null((await service.GetByIdAsync(Client(s.Client.Id), s.Asset.Id)).ActiveContractId);
-        Assert.Null(Assert.Single((await service.ListAsync(Client(s.Client.Id), null, null)).Items).ActiveContractId);
+        Assert.Null((await service.GetByIdAsync(Client(s), s.Asset.Id)).ActiveContractId);
+        Assert.Null(Assert.Single((await service.ListAsync(Client(s), null, null)).Items).ActiveContractId);
     }
 
     [Fact]
@@ -64,6 +64,6 @@ public class ClientContractVisibilityTests
         var service = new ServiceTicketService(db, TestAssignment.Create(db));
 
         Assert.True(Assert.Single((await service.ListAsync(Staff(), null, null)).Items).AssetUnderContract);
-        Assert.False(Assert.Single((await service.ListAsync(Client(s.Client.Id), null, null)).Items).AssetUnderContract);
+        Assert.False(Assert.Single((await service.ListAsync(Client(s), null, null)).Items).AssetUnderContract);
     }
 }

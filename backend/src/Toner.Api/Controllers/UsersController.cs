@@ -53,6 +53,13 @@ public class UsersController : ControllerBase
         return Ok(user);
     }
 
+    // A qué sedes de su empresa accede un usuario Cliente (null = todas). Surte efecto en su siguiente petición.
+    [HttpPut("{id:guid}/client-locations")]
+    public async Task<ActionResult<UserDto>> SetClientLocations(Guid id, [FromBody] SetUserClientLocationsRequest request, CancellationToken cancellationToken)
+    {
+        return Ok(await _userService.SetClientLocationsAsync(id, request, cancellationToken));
+    }
+
     [HttpPatch("{id:guid}/status")]
     public async Task<ActionResult<UserDto>> SetStatus(Guid id, [FromBody] SetUserStatusRequest request, CancellationToken cancellationToken)
     {

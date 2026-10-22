@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Common.Paging;
 using Toner.Application.Clients.Dtos;
+using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Domain.Entities;
@@ -46,6 +47,20 @@ public class ClientLocationService : IClientLocationService
     public async Task<IReadOnlyList<ClientLocationDto>> ListByClientAsync(Guid clientId, CancellationToken cancellationToken = default)
     {
         return await Projected(_db).Where(l => l.ClientId == clientId).OrderBy(l => l.Name).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ClientLocationDto>> ListForClientUserAsync(RequestingUser user, CancellationToken cancellationToken = default)
+    {
+        var clientId = user.RequireClientId();
+        var query = Projected(_db).Where(l => l.ClientId == clientId);
+
+        var allowedLocations = await _db.AllowedLocationIdsAsync(user, cancellationToken);
+        if (allowedLocations is not null)
+        {
+            query = query.Where(l => allowedLocations.Contains(l.Id));
+        }
+
+        return await query.OrderBy(l => l.Name).ToListAsync(cancellationToken);
     }
 
     public async Task<PagedResult<ClientLocationDto>> ListAllAsync(int? page, int? pageSize, CancellationToken cancellationToken = default)

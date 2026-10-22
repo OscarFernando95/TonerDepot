@@ -1553,6 +1553,9 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<bool>("RestrictedToLocations")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uuid");
 
@@ -1576,6 +1579,38 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.UserClientLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("ClientLocationId");
+
+                    b.HasIndex("UserId", "ClientLocationId")
+                        .IsUnique();
+
+                    b.ToTable("UserClientLocations", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.UserSession", b =>
@@ -2169,6 +2204,25 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.UserClientLocation", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.ClientLocation", "ClientLocation")
+                        .WithMany()
+                        .HasForeignKey("ClientLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Toner.Domain.Entities.User", "User")
+                        .WithMany("AllowedLocations")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientLocation");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.UserSession", b =>
                 {
                     b.HasOne("Toner.Domain.Entities.User", "User")
@@ -2286,6 +2340,8 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Toner.Domain.Entities.User", b =>
                 {
+                    b.Navigation("AllowedLocations");
+
                     b.Navigation("Technician");
                 });
 

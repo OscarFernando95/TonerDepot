@@ -78,7 +78,7 @@ public class TicketsPagingPostgresTests
             Assert.Equal(Total / 10, closed.TotalCount);
 
             // Aislamiento: un Cliente B pasando el clientId del A sigue sin ver nada (RLS + AND del servicio).
-            var asClientB = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, RlsFixture.ClientB, null);
+            var asClientB = new RequestingUser(RlsFixture.ClientUserB, RoleNames.Cliente, RlsFixture.ClientB, null);
             using var clientScope = tenant.Push(() => TenantContext.ForClient(RlsFixture.ClientB));
             await using var clientDb = AppContext(tenant);
             var clientService = new ServiceTicketService(clientDb, TestAssignment.Create(clientDb));
