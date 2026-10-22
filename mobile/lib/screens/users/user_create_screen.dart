@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/city.dart';
 import '../../models/client.dart';
+import '../../models/client_location_access.dart';
 import '../../models/role_names.dart';
 import '../../services/api_client.dart';
 import '../../services/city_api.dart';
@@ -10,6 +11,7 @@ import '../../services/client_api.dart';
 import '../../services/user_api.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/phone_input.dart';
+import '../../widgets/client_location_access_picker.dart';
 import '../../widgets/department_city_picker.dart';
 
 /// Crear usuario — el backend genera la contraseña y la manda por correo
@@ -40,6 +42,8 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
   String? _cityId;
   String _roleName = RoleNames.tecnico;
   String? _clientId;
+  /// Acceso a sedes del usuario Cliente; se reinicia al cambiar rol o empresa.
+  ClientLocationAccess _locationAccess = ClientLocationAccess.all;
 
   @override
   void initState() {
@@ -84,7 +88,8 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
       isValidPhone(_phoneController.text, required: true) &&
       _addressController.text.trim().isNotEmpty &&
       _cityId != null &&
-      (_roleName != RoleNames.cliente || _clientId != null);
+      (_roleName != RoleNames.cliente ||
+          (_clientId != null && _locationAccess.isValid));
 
   Future<void> _showGeneratedPasswordDialog(String password) async {
     await showDialog<void>(
@@ -143,6 +148,10 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
         cityId: _cityId!,
         roleName: _roleName,
         clientId: _roleName == RoleNames.cliente ? _clientId : null,
+        // null = todas las sedes; solo se envía cuando se eligieron algunas.
+        allowedLocationIds: _roleName == RoleNames.cliente
+            ? _locationAccess.requestIds
+            : null,
       );
       if (mounted) await _showGeneratedPasswordDialog(result.generatedPassword);
       if (mounted) Navigator.of(context).pop(true);
@@ -238,6 +247,7 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
                   onChanged: (value) => setState(() {
                     _roleName = value ?? RoleNames.tecnico;
                     if (_roleName != RoleNames.cliente) _clientId = null;
+                    _locationAccess = ClientLocationAccess.all;
                   }),
                 ),
                 if (_roleName == RoleNames.cliente) ...[
@@ -253,8 +263,22 @@ class _UserCreateScreenState extends State<UserCreateScreen> {
                           child: Text(c.name, overflow: TextOverflow.ellipsis),
                         ),
                     ],
-                    onChanged: (value) => setState(() => _clientId = value),
+                    onChanged: (value) => setState(() {
+                      if (value != _clientId) {
+                        _locationAccess = ClientLocationAccess.all;
+                      }
+                      _clientId = value;
+                    }),
                   ),
+                  if (_clientId != null) ...[
+                    const SizedBox(height: 16),
+                    ClientLocationAccessPicker(
+                      clientId: _clientId!,
+                      value: _locationAccess,
+                      onChanged: (access) =>
+                          setState(() => _locationAccess = access),
+                    ),
+                  ],
                 ],
                 if (_roleName == RoleNames.tecnico)
                   const Padding(

@@ -18,6 +18,12 @@ class ManagedUser {
   final String? technicianId;
   final String createdAt;
 
+  /// Solo aplica a usuarios Cliente: true si el administrador limitó el acceso
+  /// a algunas sedes de su empresa. `allowedLocationIds` va vacío si no hay
+  /// restricción (= todas las sedes).
+  final bool restrictedToLocations;
+  final List<String> allowedLocationIds;
+
   ManagedUser({
     required this.id,
     required this.cedula,
@@ -33,6 +39,8 @@ class ManagedUser {
     required this.clientId,
     required this.technicianId,
     required this.createdAt,
+    this.restrictedToLocations = false,
+    this.allowedLocationIds = const [],
   });
 
   factory ManagedUser.fromJson(Map<String, dynamic> json) => ManagedUser(
@@ -50,6 +58,12 @@ class ManagedUser {
     clientId: json['clientId'] as String?,
     technicianId: json['technicianId'] as String?,
     createdAt: json['createdAt'] as String,
+    restrictedToLocations: json['restrictedToLocations'] as bool? ?? false,
+    allowedLocationIds:
+        (json['allowedLocationIds'] as List<dynamic>?)
+            ?.whereType<String>()
+            .toList() ??
+        const [],
   );
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/city.dart';
+import '../../models/client_location_access.dart';
 import '../../models/managed_user.dart';
 import '../../models/role_names.dart';
 import '../../services/api_client.dart';
@@ -12,6 +13,7 @@ import '../../state/user_detail_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/phone_input.dart';
 import '../../widgets/clay_icon_badge.dart';
+import '../../widgets/client_location_access_picker.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/department_city_picker.dart';
 import '../../widgets/status_chip.dart';
@@ -42,7 +44,14 @@ class UserDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => UserDetailState(ApiClient.instance, user),
+      create: (_) {
+        final state = UserDetailState(ApiClient.instance, user);
+        // Los nombres de sedes solo hacen falta si hay restricción que mostrar.
+        if (user.roleName == RoleNames.cliente && user.restrictedToLocations) {
+          state.loadLocationNames();
+        }
+        return state;
+      },
       child: Scaffold(
         appBar: AppBar(title: const Text('Usuario')),
         body: const _UserDetailBody(),
@@ -191,6 +200,80 @@ class _UserDetailBody extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  /// Hoja con el mismo control que al crear el usuario, precargado con las
+  /// sedes actuales. Al guardar llama a PUT /users/{id}/client-locations.
+  Future<void> _showLocationAccessSheet(
+    BuildContext context,
+    UserDetailState state,
+  ) async {
+    final initial = ClientLocationAccess.fromUser(state.user);
+    var access = initial;
+    final result = await showModalBottomSheet<ClientLocationAccess>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cambiar sedes de acceso',
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Surte efecto de inmediato en lo que este usuario puede ver y reportar.',
+                  style: TextStyle(color: AppColors.inkSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                ClientLocationAccessPicker(
+                  clientId: state.user.clientId!,
+                  value: access,
+                  onChanged: (next) => setSheetState(() => access = next),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: access.isValid && !access.sameAs(initial)
+                            ? () => Navigator.of(sheetContext).pop(access)
+                            : null,
+                        child: const Text('Guardar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (result == null || !context.mounted) return;
+    final error = await state.setClientLocations(result.requestIds);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Sedes de acceso actualizadas.')),
     );
   }
 
@@ -367,6 +450,31 @@ class _UserDetailBody extends StatelessWidget {
                   user.cityName!,
                   style: const TextStyle(color: AppColors.inkSecondary),
                 ),
+              if (clientLocationAccessLabel(user, state.locationNames)
+                  case final accessLabel?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(
+                          Icons.storefront_outlined,
+                          size: 16,
+                          color: AppColors.inkSecondary,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Acceso a sedes: $accessLabel',
+                          style: const TextStyle(color: AppColors.inkSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (user.mustChangePassword)
                 const Padding(
                   padding: EdgeInsets.only(top: 4),
@@ -433,6 +541,19 @@ class _UserDetailBody extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (user.roleName == RoleNames.cliente && user.clientId != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: state.busyWithAction
+                        ? null
+                        : () => _showLocationAccessSheet(context, state),
+                    icon: const Icon(Icons.storefront_outlined, size: 18),
+                    label: const Text('Cambiar sedes de acceso'),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,

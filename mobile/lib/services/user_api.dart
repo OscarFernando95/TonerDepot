@@ -34,7 +34,8 @@ class UserApi {
   /// se acepta una escrita a mano. Si `roleName == 'Tecnico'`, crea también
   /// el registro de Technician en el mismo paso (no hay que llamar aparte a
   /// technician_management_api). `clientId` obligatorio solo si roleName es
-  /// 'Cliente'.
+  /// 'Cliente'. `allowedLocationIds` solo con rol Cliente: null = todas las
+  /// sedes de su empresa; si se envía, mínimo 1 y todas de esa empresa.
   Future<UserWithGeneratedPassword> create({
     required String cedula,
     String? email,
@@ -44,6 +45,7 @@ class UserApi {
     required String cityId,
     required String roleName,
     String? clientId,
+    List<String>? allowedLocationIds,
   }) async {
     try {
       final response = await _client.dio.post(
@@ -57,6 +59,7 @@ class UserApi {
           'cityId': cityId,
           'roleName': roleName,
           'clientId': ?clientId,
+          'allowedLocationIds': ?allowedLocationIds,
         },
       );
       return UserWithGeneratedPassword.fromJson(
@@ -106,6 +109,25 @@ class UserApi {
       return (response.data as Map<String, dynamic>)['revoked'] as int;
     } catch (e, st) {
       debugPrint('UserApi.revokeSessions failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Cambia a qué sedes de su empresa accede un usuario Cliente (surte efecto
+  /// de inmediato). null = quitar la restricción (todas las sedes); una lista
+  /// vacía la rechaza el backend (400), y un usuario que no es Cliente, 409.
+  Future<ManagedUser> setClientLocations(
+    String id,
+    List<String>? allowedLocationIds,
+  ) async {
+    try {
+      final response = await _client.dio.put(
+        '/users/$id/client-locations',
+        data: {'allowedLocationIds': allowedLocationIds},
+      );
+      return ManagedUser.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('UserApi.setClientLocations failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
