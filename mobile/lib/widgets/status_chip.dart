@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 
 enum _StatusDomain {
   ticketOrOrder,
+  clientOrder,
   priority,
   assetLifecycle,
   contract,
@@ -22,6 +23,11 @@ enum _StatusDomain {
 class StatusChip extends StatelessWidget {
   const StatusChip({super.key, required this.value, this.isPriority = false})
     : _domain = _StatusDomain.ticketOrOrder;
+
+  /// Estado de una orden de mantenimiento redactado para el portal Cliente.
+  const StatusChip.clientOrder(this.value, {super.key})
+    : isPriority = false,
+      _domain = _StatusDomain.clientOrder;
 
   const StatusChip.priority(this.value, {super.key})
     : isPriority = true,
@@ -82,6 +88,9 @@ class StatusChip extends StatelessWidget {
       case _StatusDomain.ticketOrOrder:
         label =
             StatusLabels.ticket[value] ?? StatusLabels.order[value] ?? value;
+        color = StatusLabels.colorFor(value);
+      case _StatusDomain.clientOrder:
+        label = StatusLabels.clientOrder[value] ?? value;
         color = StatusLabels.colorFor(value);
       case _StatusDomain.activeState:
         label = value == 'true' ? 'Activo' : 'Inactivo';

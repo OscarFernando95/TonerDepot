@@ -38,15 +38,15 @@ class ClientPortalHomeScreen extends StatelessWidget {
         _ShortcutCard(
           icon: Icons.inventory_2_outlined,
           title: 'Mis activos',
-          subtitle: 'Equipos instalados en tus sedes',
+          subtitle: 'Equipos instalados y por instalar en tus sedes',
           onTap: () => context.push('/my-assets'),
         ),
         const SizedBox(height: 12),
         _ShortcutCard(
-          icon: Icons.assignment_outlined,
-          title: 'Mis contratos',
-          subtitle: 'Vigencia y equipos asociados',
-          onTap: () => context.push('/my-contracts'),
+          icon: Icons.build_outlined,
+          title: 'Mantenimientos',
+          subtitle: 'Mantenimientos programados de tus equipos',
+          onTap: () => context.push('/my-maintenance'),
         ),
       ],
     );

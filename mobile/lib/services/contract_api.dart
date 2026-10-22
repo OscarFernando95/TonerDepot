@@ -6,25 +6,10 @@ import 'api_client.dart';
 
 /// Espejo de frontend-web/src/api/contracts.ts. GET /contracts no tiene
 /// filtros server-side — igual que Activos, listCatalog pagina de verdad
-/// (page/pageSize explícitos) en vez de confiar en el default como hace
-/// listMine() para el portal Cliente.
+/// (page/pageSize explícitos). Solo Staff: el rol Cliente recibe 403.
 class ContractApi {
   ContractApi(this._client);
   final ApiClient _client;
-
-  Future<List<Contract>> listMine() async {
-    try {
-      final response = await _client.dio.get('/contracts');
-      final page = PagedResult<Contract>.fromJson(
-        response.data as Map<String, dynamic>,
-        Contract.fromJson,
-      );
-      return page.items;
-    } catch (e, st) {
-      debugPrint('ContractApi.listMine failed: $e\n$st');
-      throw ApiClient.translate(e);
-    }
-  }
 
   Future<PagedResult<Contract>> listCatalog({
     required int page,

@@ -40,6 +40,15 @@ class StatusLabels {
     'Cancelada': 'Cancelada',
   };
 
+  /// Mismos estados de la orden, redactados para el Cliente: ve "cuándo vienen", no el flujo interno.
+  static const Map<String, String> clientOrder = {
+    'Pendiente': 'Programada',
+    'Asignada': 'Técnico asignado',
+    'EnProceso': 'En curso',
+    'Completada': 'Completada',
+    'Cancelada': 'Cancelada',
+  };
+
   static const Map<String, String> priority = {
     'Baja': 'Baja',
     'Media': 'Media',

@@ -17,7 +17,7 @@ import '../screens/zones/zones_screen.dart';
 import '../screens/maintenance/maintenance_orders_list_screen.dart';
 import '../screens/maintenance/maintenance_schedules_list_screen.dart';
 import '../screens/portal/my_assets_screen.dart';
-import '../screens/portal/my_contracts_screen.dart';
+import '../screens/portal/my_maintenance_screen.dart';
 import '../screens/technicians/technicians_list_screen.dart';
 import '../screens/tickets/tickets_list_screen.dart';
 
@@ -102,13 +102,14 @@ final List<AppDestination> kAppDestinations = [
     roles: [RoleNames.cliente],
     builder: (context, state) => const MyAssetsScreen(),
   ),
+  // Solo lectura: las órdenes de mantenimiento de los equipos del cliente. El Cliente no ve contratos.
   AppDestination(
-    name: 'my-contracts',
-    path: '/my-contracts',
-    label: 'Mis contratos',
-    icon: Icons.assignment_outlined,
+    name: 'my-maintenance',
+    path: '/my-maintenance',
+    label: 'Mantenimientos',
+    icon: Icons.build_outlined,
     roles: [RoleNames.cliente],
-    builder: (context, state) => const MyContractsScreen(),
+    builder: (context, state) => const MyMaintenanceScreen(),
   ),
   AppDestination(
     name: 'maintenance-orders',
@@ -227,5 +228,5 @@ const Map<String, List<String>> kBottomNavByRole = {
     'clients',
   ],
   RoleNames.tecnico: ['dashboard', 'my-work', 'my-machines'],
-  RoleNames.cliente: ['dashboard', 'tickets', 'my-assets', 'my-contracts'],
+  RoleNames.cliente: ['dashboard', 'tickets', 'my-assets', 'my-maintenance'],
 };
