@@ -17,6 +17,12 @@ public class MeterReadingAssetDto
 
     public long? LastMeterReading { get; set; }
 
+    // Límite del modelo para seguir en alquiler y estado frente al contador (null | "Proxima" | "Superada").
+    public int? RentalRetirementPrintThreshold { get; set; }
+    public int RentalRetirementWarningPrints { get; set; }
+    public long? PrintsUntilRetirement { get; set; }
+    public string? RentalRetirementStatus { get; set; }
+
     // Último tóner entregado o cambiado en la máquina (con su contador) y cuántas unidades en los últimos 90 días.
     public DateTime? LastTonerAt { get; set; }
     public long? LastTonerCounter { get; set; }

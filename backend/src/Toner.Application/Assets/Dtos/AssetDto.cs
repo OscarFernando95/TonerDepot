@@ -16,6 +16,13 @@ public class AssetDto
     public string? CurrentClientName { get; set; }
     public string? CityName { get; set; }
     public long? LastMeterReading { get; set; }
+
+    // Fin de la vida útil en alquiler (límite del modelo vs. contador total). Informativo; el cliente no lo ve.
+    public int? RentalRetirementPrintThreshold { get; set; }
+    public int RentalRetirementWarningPrints { get; set; }
+    public long? PrintsUntilRetirement { get; set; }
+    // null | "Proxima" | "Superada" (ver RentalRetirement)
+    public string? RentalRetirementStatus { get; set; }
     public Guid? ActiveContractId { get; set; }
     public DateTime CreatedAt { get; set; }
 }

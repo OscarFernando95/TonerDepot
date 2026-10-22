@@ -148,6 +148,7 @@ public class AssetService : IAssetService
             foreach (var item in result.Items)
             {
                 item.ActiveContractId = null;
+                HideRetirement(item);
             }
         }
 
@@ -167,6 +168,7 @@ public class AssetService : IAssetService
         foreach (var item in items)
         {
             item.LastMeterReading = lastByAsset.TryGetValue(item.Id, out var value) ? value : null;
+            ApplyRetirement(item);
         }
     }
 
@@ -198,11 +200,13 @@ public class AssetService : IAssetService
         }
 
         asset.LastMeterReading = await GetLastMeterReadingAsync(id, cancellationToken);
+        ApplyRetirement(asset);
 
         // El cliente no ve nada de contratos: ni su existencia.
         if (requestingUser.IsClient)
         {
             asset.ActiveContractId = null;
+            HideRetirement(asset);
         }
 
         return asset;
@@ -655,7 +659,9 @@ public class AssetService : IAssetService
                 ClientName = a.CurrentClientLocation != null ? a.CurrentClientLocation.Client.Name : null,
                 ClientLocationName = a.CurrentClientLocation != null ? a.CurrentClientLocation.Name : null,
                 Area = a.Area,
-                CityName = a.CurrentClientLocation != null ? a.CurrentClientLocation.City.Name : null
+                CityName = a.CurrentClientLocation != null ? a.CurrentClientLocation.City.Name : null,
+                RentalRetirementPrintThreshold = a.AssetModel.RentalRetirementPrintThreshold,
+                RentalRetirementWarningPrints = a.AssetModel.RentalRetirementWarningPrints
             })
             // Desempate por AssetId: sin él, paginar por offset con ClientName repetido repite o salta filas.
             .OrderBy(a => a.ClientName).ThenBy(a => a.SerialNumber).ThenBy(a => a.AssetId)
@@ -677,6 +683,8 @@ public class AssetService : IAssetService
             foreach (var item in result.Items)
             {
                 item.LastMeterReading = lastByAsset.TryGetValue(item.AssetId, out var value) ? value : null;
+                (item.RentalRetirementStatus, item.PrintsUntilRetirement) =
+                    RentalRetirement.Evaluate(item.RentalRetirementPrintThreshold, item.RentalRetirementWarningPrints, item.LastMeterReading);
 
                 if (tonerByAsset.TryGetValue(item.AssetId, out var events))
                 {
@@ -695,7 +703,24 @@ public class AssetService : IAssetService
     {
         var dto = await Projected(_db).FirstAsync(a => a.Id == id, cancellationToken);
         dto.LastMeterReading = await GetLastMeterReadingAsync(id, cancellationToken);
+        ApplyRetirement(dto);
         return dto;
+    }
+
+    // Estado frente al límite de alquiler del modelo, con el contador ya adjunto. Que el cliente no lo vea se resuelve donde
+    // se arma su respuesta (ListAsync/GetByIdAsync): es información comercial interna.
+    private static void ApplyRetirement(AssetDto asset)
+    {
+        var (status, until) = RentalRetirement.Evaluate(asset.RentalRetirementPrintThreshold, asset.RentalRetirementWarningPrints, asset.LastMeterReading);
+        asset.RentalRetirementStatus = status;
+        asset.PrintsUntilRetirement = until;
+    }
+
+    private static void HideRetirement(AssetDto asset)
+    {
+        asset.RentalRetirementPrintThreshold = null;
+        asset.PrintsUntilRetirement = null;
+        asset.RentalRetirementStatus = null;
     }
 
     private Task<long?> GetLastMeterReadingAsync(Guid assetId, CancellationToken cancellationToken) =>
@@ -726,6 +751,8 @@ public class AssetService : IAssetService
             // A lo sumo un ContractAsset activo por activo (invariante que ya valida ContractAssetService.AddAsync),
             // así que este FirstOrDefault no depende de ningún orden — no hay ambigüedad de cuál "primero" elegir.
             ActiveContractId = a.ContractAssets.Where(ca => ca.EndDate == null).Select(ca => (Guid?)ca.ContractId).FirstOrDefault(),
+            RentalRetirementPrintThreshold = a.AssetModel.RentalRetirementPrintThreshold,
+            RentalRetirementWarningPrints = a.AssetModel.RentalRetirementWarningPrints,
             CreatedAt = a.CreatedAt
         });
 }

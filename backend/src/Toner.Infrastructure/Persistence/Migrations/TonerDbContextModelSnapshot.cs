@@ -127,6 +127,14 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int?>("RentalRetirementPrintThreshold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RentalRetirementWarningPrints")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(50000);
+
                     b.Property<int>("UnitsMonthsInterval")
                         .HasColumnType("integer");
 

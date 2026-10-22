@@ -22,5 +22,12 @@ public class AssetModel : BaseEntity
     // Cambio de insumos: puro contador.
     public int ConsumablesPrintThreshold { get; set; } = 60000;
 
+    // Fin de la vida útil en alquiler: contador total del equipo (la última lectura) en el que debe salir de alquiler y pasar
+    // a venta. null = el modelo no tiene límite definido. Es informativo: nada se bloquea ni se cambia solo.
+    public int? RentalRetirementPrintThreshold { get; set; }
+
+    // Cuántas impresiones antes del límite se empieza a avisar "próxima a salir de alquiler".
+    public int RentalRetirementWarningPrints { get; set; } = 50000;
+
     public ICollection<Asset> Assets { get; set; } = new List<Asset>();
 }
