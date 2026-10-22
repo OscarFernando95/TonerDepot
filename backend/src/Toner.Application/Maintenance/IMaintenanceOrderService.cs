@@ -34,5 +34,14 @@ public interface IMaintenanceOrderService
     // (CODE_QUALITY_AUDIT.md hallazgo #8).
     Task<MaintenanceOrder> PrepareCompleteAsync(Guid id, CompleteMaintenanceOrderRequest request, Guid completedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> CancelAsync(Guid id, CancellationToken cancellationToken = default);
+
+    // El técnico asignado fija o cambia cuándo hará el mantenimiento (solo orden Asignada, fecha futura). Queda registrado en el
+    // hilo, que el cliente ve para poder pedir un cambio.
+    Task<MaintenanceOrderDto> ScheduleAsync(Guid id, Guid technicianId, Guid authorUserId, DateTime plannedAtUtc, CancellationToken cancellationToken = default);
+
+    // Hilo de la orden. Mismo alcance que ver la orden: staff, el técnico asignado y el cliente (y sus sedes) dueño de ella.
+    Task<IReadOnlyList<MaintenanceOrderCommentDto>> ListCommentsAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
+    Task<MaintenanceOrderCommentDto> AddCommentAsync(RequestingUser requestingUser, Guid id, string body, CancellationToken cancellationToken = default);
+
     Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default);
 }

@@ -18,6 +18,14 @@ public class PushChangeInterceptorTests
         public List<(Guid[] TechnicianIds, PushMessage Message)> ToTechnicians { get; } = new();
         public List<PushMessage> ToStaff { get; } = new();
         public List<(Guid AssetId, PushMessage Message)> ToInstallers { get; } = new();
+        public List<(Guid OrderId, PushMessage Message)> ToOrderTechnician { get; } = new();
+
+        public Task NotifyOrderTechnicianAsync(Guid orderId, PushMessage message, CancellationToken cancellationToken = default)
+        {
+            ToOrderTechnician.Add((orderId, message));
+            _signal.Release();
+            return Task.CompletedTask;
+        }
 
         public Task NotifyInstallersAsync(Guid assetId, PushMessage message, CancellationToken cancellationToken = default)
         {
@@ -311,5 +319,73 @@ public class PushChangeInterceptorTests
 
         Assert.False(await notifier.WaitAsync(400));
         Assert.Empty(notifier.ToInstallers);
+    }
+
+    private static async Task<(string Db, MaintenanceOrder Order, User Client, User Tech)> SeedOrderAsync()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        using var arrange = TonerTestDb.CreateContext(dbName);
+        var model = TestEntities.AssetModel(TestEntities.AssetBrand());
+        var asset = TestEntities.Asset(model);
+        var schedule = TestEntities.MaintenanceSchedule(asset, new Contract { Id = Guid.NewGuid() });
+        var clientUser = TestEntities.User(TestEntities.Role(RoleNames.Cliente));
+        var techUser = TestEntities.User(TestEntities.Role(RoleNames.Tecnico));
+        var order = TestEntities.MaintenanceOrder(schedule, asset, MaintenanceOrderStatus.Asignada);
+        order.ClientId = Guid.NewGuid();
+        arrange.AddRange(model, asset, schedule, clientUser, techUser, order);
+        await arrange.SaveChangesAsync();
+        return (dbName, order, clientUser, techUser);
+    }
+
+    [Fact]
+    public async Task ComentarioDelCliente_AvisaAlTecnicoDeLaOrden_ConTipoOrderYSoloIds()
+    {
+        var (dbName, order, client, _) = await SeedOrderAsync();
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        db.Add(new MaintenanceOrderComment
+        {
+            MaintenanceOrderId = order.Id, ClientId = order.ClientId, AuthorUserId = client.Id,
+            AuthorRole = RoleNames.Cliente, Kind = OrderCommentKind.Comentario, Body = "Ese día no puedo"
+        });
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        var (orderId, message) = Assert.Single(notifier.ToOrderTechnician);
+        Assert.Equal(order.Id, orderId);
+        Assert.Equal("Comentario del cliente", message.Title);
+        Assert.Equivalent(new Dictionary<string, string>
+        {
+            ["type"] = "order", ["id"] = order.Id.ToString(), ["event"] = "commented"
+        }, message.Data, strict: true);
+        // El texto del cliente nunca viaja en el aviso.
+        Assert.DoesNotContain("Ese día", message.Title + message.Body);
+    }
+
+    [Fact]
+    public async Task LoQueEscribenElTecnicoOElStaff_OLasProgramaciones_NoAvisan()
+    {
+        var (dbName, order, _, tech) = await SeedOrderAsync();
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        db.Add(new MaintenanceOrderComment
+        {
+            MaintenanceOrderId = order.Id, ClientId = order.ClientId, AuthorUserId = tech.Id,
+            AuthorRole = RoleNames.Tecnico, Kind = OrderCommentKind.Comentario, Body = "Paso el jueves"
+        });
+        db.Add(new MaintenanceOrderComment
+        {
+            MaintenanceOrderId = order.Id, ClientId = order.ClientId, AuthorUserId = tech.Id,
+            AuthorRole = RoleNames.Tecnico, Kind = OrderCommentKind.Programacion, PlannedAt = DateTime.UtcNow.AddDays(3)
+        });
+        db.Add(new MaintenanceOrderComment
+        {
+            MaintenanceOrderId = order.Id, ClientId = order.ClientId, AuthorUserId = tech.Id,
+            AuthorRole = RoleNames.Coordinador, Kind = OrderCommentKind.Comentario, Body = "Ok"
+        });
+        await db.SaveChangesAsync();
+
+        Assert.False(await notifier.WaitAsync(400));
+        Assert.Empty(notifier.ToOrderTechnician);
     }
 }

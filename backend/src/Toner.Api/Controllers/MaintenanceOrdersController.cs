@@ -22,13 +22,16 @@ public class MaintenanceOrdersController : ControllerBase
     private readonly IValidator<AssignMaintenanceOrderRequest> _assignValidator;
     private readonly IValidator<CompleteMaintenanceOrderRequest> _completeValidator;
     private readonly IValidator<CreateManualMaintenanceOrderRequest> _createManualValidator;
+    private readonly IValidator<AddOrderCommentRequest> _commentValidator;
 
     public MaintenanceOrdersController(
         IMaintenanceOrderService orderService,
         IValidator<AssignMaintenanceOrderRequest> assignValidator,
         IValidator<CompleteMaintenanceOrderRequest> completeValidator,
-        IValidator<CreateManualMaintenanceOrderRequest> createManualValidator)
+        IValidator<CreateManualMaintenanceOrderRequest> createManualValidator,
+        IValidator<AddOrderCommentRequest> commentValidator)
     {
+        _commentValidator = commentValidator;
         _createManualValidator = createManualValidator;
         _orderService = orderService;
         _assignValidator = assignValidator;
@@ -52,6 +55,25 @@ public class MaintenanceOrdersController : ControllerBase
     public async Task<ActionResult<MaintenanceOrderDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _orderService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));
+    }
+
+    // Hilo de la orden: el cliente avisa si la fecha programada no le sirve, el técnico reprograma. Lo ve y escribe quien puede
+    // ver la orden (staff, el técnico asignado y el cliente dueño, dentro de sus sedes); el servicio hace cumplir ese alcance.
+    [HttpGet("{id:guid}/comments")]
+    [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
+    public async Task<ActionResult<IReadOnlyList<MaintenanceOrderCommentDto>>> ListComments(Guid id, CancellationToken cancellationToken)
+    {
+        return Ok(await _orderService.ListCommentsAsync(User.ToRequestingUser(), id, cancellationToken));
+    }
+
+    [HttpPost("{id:guid}/comments")]
+    [Authorize(Roles = RoleNames.StaffClientAndTechnicianRoles)]
+    public async Task<ActionResult<MaintenanceOrderCommentDto>> AddComment(Guid id, [FromBody] AddOrderCommentRequest request, CancellationToken cancellationToken)
+    {
+        await _commentValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var comment = await _orderService.AddCommentAsync(User.ToRequestingUser(), id, request.Body, cancellationToken);
+        return CreatedAtAction(nameof(ListComments), new { id }, comment);
     }
 
     // Mantenimiento a demanda de un equipo instalado, fuera de los umbrales del cronograma.

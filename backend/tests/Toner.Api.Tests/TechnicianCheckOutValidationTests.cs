@@ -43,7 +43,7 @@ public class TechnicianCheckOutValidationTests
     {
         var claims = new[] { new Claim(ClaimTypes.Role, RoleNames.Tecnico), new Claim("technician_id", Guid.NewGuid().ToString()) };
         return new TechnicianSelfServiceController(
-            service, null!, new CheckOutRequestValidator(), null!, null!, null!, null!, null!, null!)
+            service, null!, new CheckOutRequestValidator(), null!, null!, null!, null!, null!, null!, null!)
         {
             ControllerContext = new ControllerContext
             {

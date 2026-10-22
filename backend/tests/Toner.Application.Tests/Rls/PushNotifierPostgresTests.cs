@@ -321,6 +321,68 @@ public class PushNotifierPostgresTests
         }
     }
 
+    [PostgresFact]
+    public async Task ComentarioEnUnaOrden_AvisaAlTecnicoAsignado_ySiNoTieneAlStaff()
+    {
+        await _fixture.EnsureSeededAsync();
+        var marker = "PG-PUSHC-" + Guid.NewGuid().ToString("N")[..8];
+        var userIds = new List<Guid>();
+        Guid scheduleId = Guid.Empty;
+        var orderIds = new List<Guid>();
+        try
+        {
+            await using var owner = OwnerContext();
+            var techRole = await Rol(owner, RoleNames.Tecnico);
+            var adminRole = await Rol(owner, RoleNames.Administrador);
+            var techUser = TestEntities.User(techRole);
+            var tech = TestEntities.Technician(techUser);
+            var admin = TestEntities.User(adminRole);
+            owner.AddRange(techUser, tech, admin);
+            userIds.AddRange(new[] { techUser.Id, admin.Id });
+            owner.DeviceTokens.AddRange(
+                new DeviceToken { UserId = techUser.Id, Platform = PushPlatform.Android, Token = marker + "-tech" },
+                new DeviceToken { UserId = admin.Id, Platform = PushPlatform.Android, Token = marker + "-admin" });
+
+            var schedule = TestEntities.MaintenanceSchedule(new Asset { Id = RlsFixture.AssetOfClientA }, new Contract { Id = Guid.Parse("cccccccc-0000-0000-0000-000000000001") });
+            schedule.ClientId = RlsFixture.ClientA;
+            scheduleId = schedule.Id;
+            owner.MaintenanceSchedules.Add(schedule);
+            await owner.SaveChangesAsync();
+
+            // Una asignada al técnico y otra sin técnico (cada una con su propio cronograma: una sola abierta por cronograma).
+            var assigned = new MaintenanceOrder
+            {
+                MaintenanceScheduleId = schedule.Id, ClientId = RlsFixture.ClientA, AssetId = RlsFixture.AssetOfClientA,
+                Status = MaintenanceOrderStatus.Asignada, TechnicianId = tech.Id, ScheduledDate = DateTime.UtcNow, IncludesGeneral = true
+            };
+            orderIds.Add(assigned.Id);
+            owner.MaintenanceOrders.Add(assigned);
+            await owner.SaveChangesAsync();
+
+            var transport = new FakeTransport();
+            var notifier = new PushNotifier(new AppRoleFactory(new TenantContextAccessor()), new TenantContextAccessor(), transport, NullLogger<PushNotifier>.Instance);
+            await notifier.NotifyOrderTechnicianAsync(assigned.Id, Message);
+            Assert.Equal(new[] { marker + "-tech" }, transport.Sent.Select(t => t.Token).Where(t => t.StartsWith(marker)));
+
+            // La misma orden sin técnico: el aviso va al staff.
+            assigned.TechnicianId = null;
+            assigned.Status = MaintenanceOrderStatus.Pendiente;
+            await owner.SaveChangesAsync();
+            transport.Sent.Clear();
+            await notifier.NotifyOrderTechnicianAsync(assigned.Id, Message);
+            var sent = transport.Sent.Select(t => t.Token).Where(t => t.StartsWith(marker)).ToList();
+            Assert.Equal(new[] { marker + "-admin" }, sent);
+        }
+        finally
+        {
+            await using var cleanup = OwnerContext();
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"MaintenanceOrders\" WHERE \"MaintenanceScheduleId\" = {0}", scheduleId);
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"MaintenanceSchedules\" WHERE \"Id\" = {0}", scheduleId);
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"Technicians\" WHERE \"UserId\" = ANY({0})", userIds.ToArray());
+            await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"Users\" WHERE \"Id\" = ANY({0})", userIds.ToArray());
+        }
+    }
+
     private static async Task<Role> Rol(TonerDbContext db, string name)
     {
         var role = await db.Roles.FirstOrDefaultAsync(r => r.Name == name) ?? TestEntities.Role(name);

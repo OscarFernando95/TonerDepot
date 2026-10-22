@@ -55,6 +55,8 @@ public class ClientRoleSurfaceTests
             "ServiceTickets.Create", "ServiceTickets.GetById", "ServiceTickets.List",
             // Mantenimientos programados: solo lectura
             "MaintenanceOrders.GetById", "MaintenanceOrders.List",
+            // ...y el hilo de cada una: el cliente avisa si la fecha programada no le sirve
+            "MaintenanceOrders.AddComment", "MaintenanceOrders.ListComments",
         };
 
         Assert.Equal(expected.OrderBy(n => n, StringComparer.Ordinal), EndpointsOpenTo(RoleNames.Cliente));

@@ -6,6 +6,7 @@ using Toner.Application.Common.Dtos;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Maintenance.Dtos;
+using Toner.Domain.Common;
 using Toner.Domain.Entities;
 using Toner.Domain.Enums;
 
@@ -18,6 +19,9 @@ public class MaintenanceOrderService : IMaintenanceOrderService
     {
         MaintenanceOrderStatus.Pendiente, MaintenanceOrderStatus.Asignada
     };
+
+    // Tope de lectura del hilo: una orden no debería acercarse, pero la consulta no debe poder crecer sin límite.
+    private const int MaxCommentsPerOrder = 500;
 
     private readonly IApplicationDbContext _db;
     private readonly IMaintenanceScheduleEngine _engine;
@@ -216,6 +220,107 @@ public class MaintenanceOrderService : IMaintenanceOrderService
         return order;
     }
 
+    public async Task<MaintenanceOrderDto> ScheduleAsync(
+        Guid id, Guid technicianId, Guid authorUserId, DateTime plannedAtUtc, CancellationToken cancellationToken = default)
+    {
+        var order = await _db.MaintenanceOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
+            ?? throw new NotFoundException(nameof(MaintenanceOrder), id);
+
+        if (order.TechnicianId != technicianId)
+        {
+            throw new ForbiddenException("Esta orden no está asignada a ti.");
+        }
+
+        if (order.Status != MaintenanceOrderStatus.Asignada)
+        {
+            throw new ConflictException($"Solo se puede programar una orden asignada que aún no se inicia (estado actual: '{order.Status}').");
+        }
+
+        var planned = DateTime.SpecifyKind(plannedAtUtc.ToUniversalTime(), DateTimeKind.Utc);
+        var now = DateTime.UtcNow;
+        order.PlannedAt = planned;
+        order.LastCommentAt = now;
+
+        _db.MaintenanceOrderComments.Add(new MaintenanceOrderComment
+        {
+            MaintenanceOrderId = order.Id,
+            ClientId = order.ClientId,
+            AuthorUserId = authorUserId,
+            AuthorRole = RoleNames.Tecnico,
+            Kind = OrderCommentKind.Programacion,
+            PlannedAt = planned
+        });
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await ToDtoAsync(id, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MaintenanceOrderCommentDto>> ListCommentsAsync(
+        RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default)
+    {
+        // Mismo alcance que ver la orden (rol, empresa y sedes): lanza NotFound/Forbidden si no corresponde.
+        await GetByIdAsync(requestingUser, id, cancellationToken);
+
+        return await _db.MaintenanceOrderComments
+            .Where(c => c.MaintenanceOrderId == id)
+            .OrderBy(c => c.CreatedAt).ThenBy(c => c.Id)
+            .Take(MaxCommentsPerOrder)
+            .Select(c => new MaintenanceOrderCommentDto
+            {
+                Id = c.Id,
+                MaintenanceOrderId = c.MaintenanceOrderId,
+                Kind = c.Kind.ToString(),
+                Body = c.Body,
+                PlannedAt = c.PlannedAt,
+                AuthorUserId = c.AuthorUserId,
+                AuthorName = c.AuthorUser.FullName,
+                AuthorRole = c.AuthorRole,
+                CreatedAt = c.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<MaintenanceOrderCommentDto> AddCommentAsync(
+        RequestingUser requestingUser, Guid id, string body, CancellationToken cancellationToken = default)
+    {
+        await GetByIdAsync(requestingUser, id, cancellationToken);
+
+        var order = await _db.MaintenanceOrders.FirstAsync(o => o.Id == id, cancellationToken);
+        if (order.Status is MaintenanceOrderStatus.Completada or MaintenanceOrderStatus.Cancelada)
+        {
+            throw new ConflictException("La orden ya está cerrada: no admite más comentarios.");
+        }
+
+        var comment = new MaintenanceOrderComment
+        {
+            MaintenanceOrderId = order.Id,
+            ClientId = order.ClientId,
+            AuthorUserId = requestingUser.UserId,
+            AuthorRole = requestingUser.Role,
+            Kind = OrderCommentKind.Comentario,
+            Body = body.Trim()
+        };
+        _db.MaintenanceOrderComments.Add(comment);
+        // Tocar la orden en el mismo guardado dispara el aviso en vivo de "MaintenanceOrder" (cliente, técnico y staff).
+        order.LastCommentAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var authorName = await _db.Users.Where(u => u.Id == requestingUser.UserId).Select(u => u.FullName).FirstAsync(cancellationToken);
+        return new MaintenanceOrderCommentDto
+        {
+            Id = comment.Id,
+            MaintenanceOrderId = comment.MaintenanceOrderId,
+            Kind = comment.Kind.ToString(),
+            Body = comment.Body,
+            AuthorUserId = comment.AuthorUserId,
+            AuthorName = authorName,
+            AuthorRole = comment.AuthorRole,
+            CreatedAt = comment.CreatedAt
+        };
+    }
+
     public async Task<MaintenanceOrderDto> AssignAsync(Guid id, AssignMaintenanceOrderRequest request, Guid assignedByUserId, CancellationToken cancellationToken = default)
     {
         var order = await _db.MaintenanceOrders.FirstOrDefaultAsync(o => o.Id == id, cancellationToken)
@@ -228,6 +333,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
 
         order.TechnicianId = request.TechnicianId;
         order.Status = MaintenanceOrderStatus.Asignada;
+        order.PlannedAt = null; // el plan era del técnico anterior
 
         _db.AssignmentHistories.Add(new AssignmentHistory
         {
@@ -265,6 +371,7 @@ public class MaintenanceOrderService : IMaintenanceOrderService
 
         order.TechnicianId = technicianId;
         order.Status = MaintenanceOrderStatus.Asignada;
+        order.PlannedAt = null; // el plan era del técnico anterior
 
         _db.AssignmentHistories.Add(new AssignmentHistory
         {
@@ -412,6 +519,9 @@ public class MaintenanceOrderService : IMaintenanceOrderService
             IsManual = o.IsManual,
             Reason = o.Reason,
             ScheduledDate = o.ScheduledDate,
+            PlannedAt = o.PlannedAt,
+            LastCommentAt = o.LastCommentAt,
+            CommentCount = o.Comments.Count(),
             CompletedAt = o.CompletedAt,
             CreatedAt = o.CreatedAt
         });

@@ -38,6 +38,7 @@ public class TechnicianSelfServiceController : ControllerBase
     private readonly IServiceTicketService _serviceTicketService;
     private readonly IEvidenceService _evidenceService;
     private readonly ITechnicianHomeService _homeService;
+    private readonly IValidator<ScheduleMaintenanceOrderRequest> _scheduleValidator;
 
     public TechnicianSelfServiceController(
         ITechnicianCheckInService checkInService,
@@ -48,8 +49,10 @@ public class TechnicianSelfServiceController : ControllerBase
         IMaintenanceScheduleService maintenanceScheduleService,
         IServiceTicketService serviceTicketService,
         IEvidenceService evidenceService,
-        ITechnicianHomeService homeService)
+        ITechnicianHomeService homeService,
+        IValidator<ScheduleMaintenanceOrderRequest> scheduleValidator)
     {
+        _scheduleValidator = scheduleValidator;
         _homeService = homeService;
         _evidenceService = evidenceService;
         _checkInService = checkInService;
@@ -117,6 +120,16 @@ public class TechnicianSelfServiceController : ControllerBase
     public async Task<ActionResult<MaintenanceOrderDto>> ClaimMaintenanceOrder(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _maintenanceOrderService.ClaimAsync(id, CurrentTechnicianId, cancellationToken));
+    }
+
+    // Fija o cambia cuándo planea hacer el mantenimiento. El cliente lo ve y puede pedir un cambio en el hilo de comentarios.
+    [HttpPost("maintenance-orders/{id:guid}/schedule")]
+    public async Task<ActionResult<MaintenanceOrderDto>> ScheduleMaintenanceOrder(Guid id, [FromBody] ScheduleMaintenanceOrderRequest request, CancellationToken cancellationToken)
+    {
+        await _scheduleValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        return Ok(await _maintenanceOrderService.ScheduleAsync(id, CurrentTechnicianId, userId, request.PlannedAt, cancellationToken));
     }
 
     // Autoasignación: toma un ticket libre o asignado a otro técnico que aún no lo inició.
