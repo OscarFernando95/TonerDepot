@@ -312,4 +312,66 @@ public class PushChangeInterceptorTests
         Assert.False(await notifier.WaitAsync(400));
         Assert.Empty(notifier.ToInstallers);
     }
+
+    // MANT-4: lo que el técnico se asigna a sí mismo (inicia su mantenimiento o toma uno libre) queda en el historial con
+    // ese tipo en el mismo guardado; avisarle de lo que acaba de hacer él es ruido, pero el técnico anterior sí se entera.
+    private static async Task<(string Db, Guid ClientId)> SeedTechniciansAsync((ClientLocation Location, User Reporter, Technician TechA, Technician TechB, List<object> All) seed)
+    {
+        var db = Guid.NewGuid().ToString();
+        using var arrange = TonerTestDb.CreateContext(db);
+        arrange.AddRange(seed.All);
+        await arrange.SaveChangesAsync();
+        return (db, seed.Location.ClientId);
+    }
+
+    private static MaintenanceOrder OrderFor(Guid clientId, Guid technicianId) => new()
+    {
+        MaintenanceScheduleId = Guid.NewGuid(), AssetId = Guid.NewGuid(), ClientId = clientId, IsManual = true,
+        Status = MaintenanceOrderStatus.Asignada, TechnicianId = technicianId, ScheduledDate = DateTime.UtcNow, IncludesUnits = true
+    };
+
+    [Theory]
+    [InlineData(AssignmentType.IniciadaPorTecnico, false)]
+    [InlineData(AssignmentType.Automatica, true)]
+    [InlineData(AssignmentType.Manual, true)]
+    public async Task OrdenNuevaAsignada_SoloAvisaAlTecnico_SiNoSeLaAsignoElMismo(AssignmentType type, bool expectPush)
+    {
+        var seed = Seed();
+        var (dbName, clientId) = await SeedTechniciansAsync(seed);
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        var order = OrderFor(clientId, seed.TechA.Id);
+        db.Add(order);
+        db.Add(new AssignmentHistory { MaintenanceOrderId = order.Id, ClientId = clientId, TechnicianId = seed.TechA.Id, AssignmentType = type });
+        await db.SaveChangesAsync();
+
+        Assert.Equal(expectPush, await notifier.WaitAsync(400));
+        Assert.Equal(expectPush ? 1 : 0, notifier.ToTechnicians.Count);
+    }
+
+    [Fact]
+    public async Task TomarUnaOrdenDeOtroTecnico_NoAvisaAlQueLaToma_PeroSiAlQueLaPierde()
+    {
+        var seed = Seed();
+        var (dbName, clientId) = await SeedTechniciansAsync(seed);
+        var order = OrderFor(clientId, seed.TechA.Id);
+        using (var arrange = TonerTestDb.CreateContext(dbName))
+        {
+            arrange.Add(order);
+            await arrange.SaveChangesAsync();
+        }
+
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        var tracked = await db.MaintenanceOrders.SingleAsync(o => o.Id == order.Id);
+        tracked.TechnicianId = seed.TechB.Id;
+        db.Add(new AssignmentHistory { MaintenanceOrderId = order.Id, ClientId = clientId, TechnicianId = seed.TechB.Id, AssignmentType = AssignmentType.Reclamada });
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        var (techs, message) = Assert.Single(notifier.ToTechnicians);
+        Assert.Equal(new[] { seed.TechA.Id }, techs);
+        Assert.Equal("Cambio en tus asignaciones", message.Title);
+        Assert.False(await notifier.WaitAsync(300));
+    }
 }
