@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User } from '@element-plus/icons-vue'
+import { CircleCheck, CircleClose, EditPen, Key, OfficeBuilding, SwitchButton, User } from '@element-plus/icons-vue'
 import * as usersApi from '../../api/users'
 import * as clientsApi from '../../api/clients'
 import * as citiesApi from '../../api/cities'
@@ -263,16 +263,30 @@ useRealtimeUpdates(['User'], () => loadData(true))
           <el-tag :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? 'Activo' : 'Inactivo' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Acciones" width="440">
+      <el-table-column label="Acciones" width="230">
         <template #default="{ row }">
           <div class="user-actions">
-            <el-button link class="user-actions-toggle" @click="toggleStatus(row)">
-              {{ row.isActive ? 'Desactivar' : 'Activar' }}
-            </el-button>
-            <el-button link @click="resetPassword(row)">Restablecer contraseña</el-button>
-            <el-button link @click="revokeSessions(row)">Cerrar sesiones</el-button>
-            <el-button v-if="row.roleName === RoleNames.Cliente" link @click="openAccessDialog(row)">Sedes de acceso</el-button>
-            <el-button link @click="openEditDialog(row)">Editar</el-button>
+            <el-tooltip :content="row.isActive ? 'Desactivar usuario' : 'Activar usuario'" placement="top">
+              <el-button
+                link
+                :type="row.isActive ? 'danger' : 'success'"
+                :icon="row.isActive ? CircleClose : CircleCheck"
+                :aria-label="row.isActive ? 'Desactivar usuario' : 'Activar usuario'"
+                @click="toggleStatus(row)"
+              />
+            </el-tooltip>
+            <el-tooltip content="Restablecer contraseña" placement="top">
+              <el-button link :icon="Key" aria-label="Restablecer contraseña" @click="resetPassword(row)" />
+            </el-tooltip>
+            <el-tooltip content="Cerrar sesiones" placement="top">
+              <el-button link :icon="SwitchButton" aria-label="Cerrar sesiones" @click="revokeSessions(row)" />
+            </el-tooltip>
+            <el-tooltip v-if="row.roleName === RoleNames.Cliente" content="Sedes de acceso" placement="top">
+              <el-button link :icon="OfficeBuilding" aria-label="Sedes de acceso" @click="openAccessDialog(row)" />
+            </el-tooltip>
+            <el-tooltip content="Editar usuario" placement="top">
+              <el-button link type="primary" :icon="EditPen" aria-label="Editar usuario" @click="openEditDialog(row)" />
+            </el-tooltip>
           </div>
         </template>
       </el-table-column>
@@ -373,16 +387,14 @@ useRealtimeUpdates(['User'], () => loadData(true))
   gap: 0.75rem;
 }
 
+.user-actions :deep(.el-button) {
+  font-size: 1.15rem;
+}
+
 .user-actions :deep(.el-button + .el-button) {
   margin-left: 0;
 }
 
-/* Fixed width so "Restablecer contraseña" and "Editar" start at the same x
-   regardless of whether this row says "Activar" or "Desactivar". */
-.user-actions-toggle {
-  min-width: 66px;
-  justify-content: flex-start;
-}
 
 .muted {
   color: var(--el-text-color-placeholder);
