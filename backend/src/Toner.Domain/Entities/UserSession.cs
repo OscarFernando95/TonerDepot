@@ -14,6 +14,12 @@ public class UserSession : BaseEntity
     // "web" | "mobile" | "unknown" — lo declara el cliente con X-Client-Type; es informativo
     // (mensaje al usuario y auditoría), nunca una decisión de seguridad.
     public string ClientType { get; set; } = "unknown";
+    // SHA-256 (hex) del identificador de instalación del teléfono que declara la app (X-Device-Id). Existe para una sola
+    // cosa: que reinstalar la app en el MISMO teléfono reemplace su propia sesión en vez de quedar bloqueado por ella.
+    // Se guarda hasheado para que quien lea la tabla no pueda reutilizarlo. Es declarado por el cliente, así que nunca
+    // concede acceso por sí solo: solo se mira tras validar cédula y contraseña, y solo para cerrar una sesión del mismo
+    // técnico. Null en la web y en sesiones anteriores a esta columna.
+    public string? DeviceIdHash { get; set; }
     public string? IpAddress { get; set; }
     public string? UserAgent { get; set; }
 

@@ -41,6 +41,7 @@ using Toner.Application.Users;
 using Toner.Infrastructure.Auth;
 using Toner.Infrastructure.Email;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using Toner.Api.Health;
 using Toner.Api.RateLimiting;
 using Toner.Infrastructure.Health;
@@ -123,7 +124,7 @@ builder.Services.AddSingleton<RealtimeChangeInterceptor>();
 // Aviso inmediato al despachador del outbox de correos de contraseña (AUDIT.md H-19).
 builder.Services.AddSingleton<PasswordEmailOutboxKickInterceptor>();
 
-// Notificaciones push (FCM). Sin Firebase:CredentialsPath quedan apagadas (el transporte lo avisa en el log al arrancar).
+// Notificaciones push (FCM). Sin Firebase:CredentialsPath quedan apagadas (el transporte lo avisa en el log al arrancar, ver la resolución justo tras Build()).
 builder.Services.Configure<FirebaseSettings>(builder.Configuration.GetSection(FirebaseSettings.SectionName));
 builder.Services.AddSingleton<IPushTransport, FirebasePushTransport>();
 builder.Services.AddSingleton<IPushNotifier, PushNotifier>();
@@ -164,7 +165,9 @@ builder.Services.AddHealthChecks()
     .AddCheck<BlobStorageHealthCheck>("blob", tags: new[] { HealthEndpoints.ReadyTag })
     // Degraded y no Unhealthy: el correo de contraseña temporal se reintenta por Hangfire, así que un
     // SMTP caído no debe poner la app en 503.
-    .AddCheck<SmtpHealthCheck>("smtp", failureStatus: HealthStatus.Degraded, tags: new[] { HealthEndpoints.ReadyTag });
+    .AddCheck<SmtpHealthCheck>("smtp", failureStatus: HealthStatus.Degraded, tags: new[] { HealthEndpoints.ReadyTag })
+    // Degraded: sin push la API sirve igual, pero los técnicos dejan de enterarse de sus asignaciones.
+    .AddCheck<PushHealthCheck>("push", failureStatus: HealthStatus.Degraded, tags: new[] { HealthEndpoints.ReadyTag });
 
 // Caché in-memory para catálogos y el resumen del dashboard (CODE_QUALITY_AUDIT.md hallazgo #10).
 // Sin SizeLimit a propósito: lo que se cachea está acotado por construcción — una entrada para
@@ -327,6 +330,14 @@ if (app.Environment.IsProduction() && builder.Configuration["AllowedHosts"] == "
         "AllowedHosts está en '*' en producción. Fija el dominio real vía la variable de entorno " +
         "AllowedHosts para mitigar ataques de Host header.");
 }
+
+// El transporte push es singleton y se crea perezosamente (al primer aviso): se resuelve aquí para que, si Firebase
+// quedó apagado por credenciales ausentes o inválidas, el Warning/Error salga en el arranque y no en silencio.
+var pushTransport = app.Services.GetRequiredService<IPushTransport>();
+app.Logger.LogInformation("Notificaciones push (FCM): {Estado}", pushTransport.IsEnabled ? "activas" : "APAGADAS");
+// Fuera de desarrollo (o con Firebase:Required=true) no se arranca con el push apagado.
+PushStartupGuard.EnsureEnabled(
+    pushTransport, app.Services.GetRequiredService<IOptions<FirebaseSettings>>(), app.Environment.IsProduction());
 
 using (var scope = app.Services.CreateScope())
 {

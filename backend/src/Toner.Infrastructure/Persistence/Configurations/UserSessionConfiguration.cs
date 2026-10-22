@@ -15,6 +15,7 @@ public class UserSessionConfiguration : IEntityTypeConfiguration<UserSession>
         builder.ToTable("UserSessions");
 
         builder.Property(s => s.ClientType).IsRequired().HasMaxLength(20);
+        builder.Property(s => s.DeviceIdHash).HasMaxLength(64);
         builder.Property(s => s.IpAddress).HasMaxLength(64);
         builder.Property(s => s.UserAgent).HasMaxLength(300);
         builder.Property(s => s.RevokedReason).HasMaxLength(60);

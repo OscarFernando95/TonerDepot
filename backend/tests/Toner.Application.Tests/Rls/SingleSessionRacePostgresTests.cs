@@ -104,4 +104,59 @@ public class SingleSessionRacePostgresTests
             }
         }
     }
+
+    // El reemplazo revoca la sesión vieja e inserta la nueva en el MISMO SaveChanges, con el índice único parcial de la
+    // base vigilando que nunca haya dos vivas: solo contra Postgres se sabe que EF ordena bien el UPDATE antes del INSERT.
+    [PostgresFact]
+    public async Task ReinstalarEnElMismoTelefono_ReemplazaLaSesion_ContraElIndiceUnicoParcial()
+    {
+        await RlsFixture.EnsureRolesAsync();
+        Guid userId = Guid.Empty;
+        var cedula = "8" + Random.Shared.Next(100_000_000, 999_999_999);
+        try
+        {
+            await using (var owner = OwnerContext())
+            {
+                var role = await owner.Roles.FirstAsync(r => r.Name == RoleNames.Tecnico);
+                var user = TestEntities.User(role, cedula: cedula);
+                user.PasswordHash = Hasher.Hash("Password123!");
+                owner.Add(user);
+                await owner.SaveChangesAsync();
+                userId = user.Id;
+            }
+
+            var login = new LoginRequest { Cedula = cedula, Password = "Password123!" };
+            await using (var first = AppContext())
+            {
+                Assert.True((await Auth(first).LoginAsync(login, clientType: "mobile", deviceId: "pg-device-1")).Succeeded);
+            }
+
+            await using (var reinstall = AppContext())
+            {
+                Assert.True((await Auth(reinstall).LoginAsync(login, clientType: "mobile", deviceId: "pg-device-1")).Succeeded);
+            }
+
+            await using (var otherPhone = AppContext())
+            {
+                await Assert.ThrowsAsync<ConflictException>(() =>
+                    Auth(otherPhone).LoginAsync(login, clientType: "mobile", deviceId: "pg-device-2"));
+            }
+
+            await using var check = OwnerContext();
+            var sessions = await check.UserSessions.Where(s => s.UserId == userId).OrderBy(s => s.IssuedAt).ToListAsync();
+            Assert.Equal(2, sessions.Count);
+            Assert.NotNull(sessions[0].RevokedAt);
+            Assert.Equal(SessionService.ReplacedBySameDevice, sessions[0].RevokedReason);
+            Assert.Null(sessions[1].RevokedAt);
+        }
+        finally
+        {
+            if (userId != Guid.Empty)
+            {
+                await using var cleanup = OwnerContext();
+                await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"UserSessions\" WHERE \"UserId\" = {0}", userId);
+                await cleanup.Database.ExecuteSqlRawAsync("DELETE FROM \"Users\" WHERE \"Id\" = {0}", userId);
+            }
+        }
+    }
 }

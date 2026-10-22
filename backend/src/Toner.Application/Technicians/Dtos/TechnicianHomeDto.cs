@@ -27,11 +27,11 @@ public class TechnicianHomeDto
 
 public class HomeJobDto
 {
-    // Ticket | Orden
+    // Ticket | Orden | Instalación
     public string Kind { get; set; } = string.Empty;
     public Guid Id { get; set; }
     public string Title { get; set; } = string.Empty;
-    // Qué pasa (descripción del ticket, recortada); vacío en las órdenes.
+    // Qué pasa (descripción del ticket, recortada; en las instalaciones, la serie del equipo); vacío en las órdenes.
     public string? Summary { get; set; }
     public string? ClientName { get; set; }
     public string? LocationName { get; set; }

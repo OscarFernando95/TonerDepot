@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -26,10 +28,11 @@ public class SessionService : ISessionService
 
     public async Task<UserSession> StartAsync(
         User user, Guid sessionId, DateTime expiresAtUtc, string? clientType, string? ipAddress, string? userAgent,
-        CancellationToken cancellationToken = default)
+        string? deviceId = null, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var isTechnician = user.Role.Name == RoleNames.Tecnico;
+        var deviceIdHash = HashDeviceId(deviceId);
 
         if (isTechnician)
         {
@@ -46,7 +49,17 @@ public class SessionService : ISessionService
             }
 
             var active = open.FirstOrDefault(s => s.ExpiresAt > now);
-            if (active is not null)
+            if (active is not null && deviceIdHash is not null && active.DeviceIdHash == deviceIdHash)
+            {
+                // El mismo teléfono (reinstaló la app y perdió su token): la sesión vieja ya no la puede usar nadie más
+                // que este dispositivo, así que se reemplaza. Quedó en la tabla como auditoría, revocada.
+                active.RevokedAt = now;
+                active.RevokedReason = ReplacedBySameDevice;
+                _logger.LogInformation(
+                    "Sesión {SessionId} del técnico {UserId} reemplazada por un nuevo login desde el mismo dispositivo ({ClientType}); IP {ClientIp}",
+                    active.Id, user.Id, active.ClientType, ipAddress ?? "desconocida");
+            }
+            else if (active is not null)
             {
                 _logger.LogWarning(
                     "Login rechazado por sesión activa: técnico {UserId} ya tiene la sesión {SessionId} ({ClientType}) abierta desde {ActiveIp}; intento desde {ClientIp}",
@@ -64,6 +77,7 @@ public class SessionService : ISessionService
             ClientType = Normalize(clientType),
             IpAddress = Truncate(ipAddress, 64),
             UserAgent = Truncate(userAgent, 300),
+            DeviceIdHash = deviceIdHash,
             IssuedAt = now,
             LastSeenAt = now,
             ExpiresAt = expiresAtUtc,
@@ -73,6 +87,19 @@ public class SessionService : ISessionService
 
         _db.UserSessions.Add(session);
         return session;
+    }
+
+    public const string ReplacedBySameDevice = "Reemplazada: mismo dispositivo";
+
+    // Hash del identificador de instalación (ver UserSession.DeviceIdHash). Vacío o absurdamente largo = no se usa.
+    private static string? HashDeviceId(string? deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId) || deviceId.Length > 128)
+        {
+            return null;
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(deviceId.Trim()))).ToLowerInvariant();
     }
 
     public async Task RevokeAsync(Guid sessionId, Guid userId, string reason, CancellationToken cancellationToken = default)

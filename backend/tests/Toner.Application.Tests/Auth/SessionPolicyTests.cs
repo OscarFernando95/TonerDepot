@@ -41,11 +41,11 @@ public class SessionPolicyTests
         return (dbName, user.Id);
     }
 
-    private static async Task<LoginResult> LoginAsync(string dbName, string cedula, string clientType = "web")
+    private static async Task<LoginResult> LoginAsync(string dbName, string cedula, string clientType = "web", string? deviceId = null)
     {
         using var db = TonerTestDb.CreateContext(dbName);
         return await BuildAuth(db).LoginAsync(
-            new LoginRequest { Cedula = cedula, Password = Password }, "10.0.0.1", clientType: clientType, userAgent: "test-agent");
+            new LoginRequest { Cedula = cedula, Password = Password }, "10.0.0.1", clientType: clientType, userAgent: "test-agent", deviceId: deviceId);
     }
 
     [Fact]
@@ -77,6 +77,64 @@ public class SessionPolicyTests
         using var db = TonerTestDb.CreateContext(dbName);
         var session = await db.UserSessions.SingleAsync();
         Assert.Null(session.RevokedAt);
+    }
+
+    [Fact]
+    public async Task Tecnico_ReinstalaLaAppEnElMismoTelefono_ReemplazaSuSesionYQuedaLaAuditoria()
+    {
+        var (dbName, _) = await SeedUserAsync(RoleNames.Tecnico, "1010");
+        await LoginAsync(dbName, "1010", "mobile", deviceId: "android-id-abc");
+
+        var result = await LoginAsync(dbName, "1010", "mobile", deviceId: "android-id-abc");
+
+        Assert.True(result.Succeeded);
+        using var db = TonerTestDb.CreateContext(dbName);
+        var sessions = await db.UserSessions.OrderBy(s => s.IssuedAt).ToListAsync();
+        Assert.Equal(2, sessions.Count);
+        Assert.Equal(SessionService.ReplacedBySameDevice, sessions[0].RevokedReason);
+        Assert.NotNull(sessions[0].RevokedAt);
+        Assert.Null(sessions[1].RevokedAt);
+        // El identificador nunca se guarda en claro.
+        Assert.DoesNotContain("android-id-abc", sessions[1].DeviceIdHash);
+        Assert.Equal(64, sessions[1].DeviceIdHash!.Length);
+    }
+
+    [Fact]
+    public async Task Tecnico_OtroTelefono_SigueBloqueadoPorLaSesionActiva()
+    {
+        var (dbName, _) = await SeedUserAsync(RoleNames.Tecnico, "1011");
+        await LoginAsync(dbName, "1011", "mobile", deviceId: "android-id-abc");
+
+        await Assert.ThrowsAsync<ConflictException>(() => LoginAsync(dbName, "1011", "mobile", deviceId: "android-id-otro"));
+
+        using var db = TonerTestDb.CreateContext(dbName);
+        Assert.Null((await db.UserSessions.SingleAsync()).RevokedAt);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Tecnico_SinIdentificadorDeDispositivo_NuncaReemplazaLaSesion(string? deviceId)
+    {
+        var (dbName, _) = await SeedUserAsync(RoleNames.Tecnico, "1012");
+        await LoginAsync(dbName, "1012", "mobile", deviceId: deviceId);
+
+        // Ni la web ni una app sin id pueden aprovechar el reemplazo: dos sesiones "sin dispositivo" no son el mismo.
+        await Assert.ThrowsAsync<ConflictException>(() => LoginAsync(dbName, "1012", "mobile", deviceId: deviceId));
+        await Assert.ThrowsAsync<ConflictException>(() => LoginAsync(dbName, "1012", "web"));
+    }
+
+    [Fact]
+    public async Task Tecnico_UnIdentificadorExageradamenteLargo_SeIgnora()
+    {
+        var (dbName, _) = await SeedUserAsync(RoleNames.Tecnico, "1013");
+        var huge = new string('x', 500);
+        await LoginAsync(dbName, "1013", "mobile", deviceId: huge);
+
+        await Assert.ThrowsAsync<ConflictException>(() => LoginAsync(dbName, "1013", "mobile", deviceId: huge));
+        using var db = TonerTestDb.CreateContext(dbName);
+        Assert.Null((await db.UserSessions.SingleAsync()).DeviceIdHash);
     }
 
     [Fact]

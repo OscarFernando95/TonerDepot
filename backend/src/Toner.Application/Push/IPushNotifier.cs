@@ -1,8 +1,10 @@
 namespace Toner.Application.Push;
 
-// Notificación push. Lo visible (Title/Body) es genérico a propósito: puede mostrarse con la pantalla bloqueada y con
-// la sesión cerrada, así que nunca lleva nombres de clientes, direcciones ni datos del servicio. Data lleva SOLO
-// identificadores; la app consulta el detalle por la API cuando el usuario la abre (y con su sesión).
+// Notificación push. Quien la construye pone un Title/Body genérico y en Data SOLO identificadores (type, id, event); el
+// notificador completa el Body con el resumen operativo del servicio (cliente y ciudad, criticidad, equipo y área) justo
+// antes de enviar. Ese resumen puede verse en la pantalla de bloqueo, así que nunca lleva direcciones, contactos ni
+// descripciones, y se envía con visibilidad "privada" de Android (los teléfonos configurados para ocultar el contenido
+// sensible lo ocultan). El detalle completo se consulta por la API con la sesión del usuario cuando abre la notificación.
 public sealed record PushMessage(string Title, string Body, IReadOnlyDictionary<string, string> Data);
 
 public interface IPushNotifier
@@ -12,4 +14,8 @@ public interface IPushNotifier
 
     // A todo el staff activo (Administrador y Coordinador).
     Task NotifyStaffAsync(PushMessage message, CancellationToken cancellationToken = default);
+
+    // Una instalación pendiente no se asigna: la puede tomar cualquier técnico que cubra el municipio de su sede. Se
+    // avisa a esos técnicos (los mismos que la ven en su lista de instalaciones pendientes).
+    Task NotifyInstallersAsync(Guid assetId, PushMessage message, CancellationToken cancellationToken = default);
 }

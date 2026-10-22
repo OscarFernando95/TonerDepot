@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Calendar;
+using Toner.Application.Common;
 using Toner.Application.Common.Exceptions;
 using Toner.Application.Common.Interfaces;
 using Toner.Application.Technicians.Dtos;
@@ -114,6 +115,32 @@ public class TechnicianHomeService : ITechnicianHomeService
             })
             .ToListAsync(cancellationToken);
 
+        // Instalaciones pendientes que este técnico puede tomar: las de los municipios que cubre, salvo las que otro
+        // técnico ya tiene en curso (misma regla que su lista de instalaciones pendientes). La que él mismo tiene en
+        // curso sí entra, marcada InProgress, igual que un ticket u orden iniciados.
+        var coveredCityIds = await _db.CoveredCityIds(technicianId).ToListAsync(cancellationToken);
+        var installations = coveredCityIds.Count == 0
+            ? new List<InstallationRow>()
+            : await _db.Assets
+                .Where(a => a.LifecycleStatus == AssetLifecycleStatus.PendienteInstalacion
+                    && a.CurrentClientLocation != null
+                    && coveredCityIds.Contains(a.CurrentClientLocation.CityId)
+                    && !_db.TimeLogs.Any(tl => tl.AssetId == a.Id && tl.EndTime == null && tl.TechnicianId != technicianId))
+                .Select(a => new InstallationRow(
+                    a.Id,
+                    a.AssetModel.AssetBrand.Name + " " + a.AssetModel.Name,
+                    a.SerialNumber,
+                    a.CurrentClientLocation!.Client.Name,
+                    a.CurrentClientLocation.Name,
+                    a.CurrentClientLocation.City.Name,
+                    a.CurrentClientLocation.Address,
+                    a.CurrentClientLocation.Latitude,
+                    a.CurrentClientLocation.Longitude,
+                    _db.TimeLogs.Any(tl => tl.AssetId == a.Id && tl.EndTime == null && tl.TechnicianId == technicianId),
+                    // Desde cuándo espera: el último paso a "pendiente de instalar" (la creación, si no hubo registro).
+                    a.StatusLogs.Where(l => l.NewStatus == AssetLifecycleStatus.PendienteInstalacion).Max(l => (DateTime?)l.ChangedAt) ?? a.CreatedAt))
+                .ToListAsync(cancellationToken);
+
         var jobs = tickets.Select(t => new HomeJobDto
             {
                 Kind = "Ticket", Id = t.Id, Title = t.Title, Summary = t.Description.Length > 140 ? t.Description[..140] + "…" : t.Description, ClientName = t.ClientName, LocationName = t.LocationName,
@@ -125,6 +152,13 @@ public class TechnicianHomeService : ITechnicianHomeService
                 Kind = "Orden", Id = o.Id, Title = o.Title, ClientName = o.ClientName, LocationName = o.LocationName,
                 CityName = o.CityName, Address = o.Address, Latitude = o.Latitude, Longitude = o.Longitude,
                 Priority = nameof(ServiceTicketPriority.Media), Status = o.Status.ToString(), InProgress = o.Status == MaintenanceOrderStatus.EnProceso, Since = o.CreatedAt
+            }))
+            .Concat(installations.Select(i => new HomeJobDto
+            {
+                Kind = "Instalación", Id = i.Id, Title = i.Title, Summary = $"Instalación pendiente · serie {i.SerialNumber}", ClientName = i.ClientName,
+                LocationName = i.LocationName, CityName = i.CityName, Address = i.Address, Latitude = i.Latitude, Longitude = i.Longitude,
+                // Sin criticidad propia (como las órdenes): se ordena como Media y la app no muestra la etiqueta.
+                Priority = nameof(ServiceTicketPriority.Media), Status = i.InProgress ? "EnProceso" : "Pendiente", InProgress = i.InProgress, Since = i.Since
             }));
 
         // En curso primero, luego por prioridad (Crítica → Baja) y, a igual prioridad, lo más antiguo.
@@ -135,6 +169,10 @@ public class TechnicianHomeService : ITechnicianHomeService
             .Take(AgendaSize)
             .ToList();
     }
+
+    private sealed record InstallationRow(
+        Guid Id, string Title, string SerialNumber, string ClientName, string LocationName, string CityName, string? Address,
+        double? Latitude, double? Longitude, bool InProgress, DateTime Since);
 
     private async Task LoadActiveVisitAsync(Guid technicianId, TechnicianHomeDto home, CancellationToken cancellationToken)
     {
@@ -150,12 +188,15 @@ public class TechnicianHomeService : ITechnicianHomeService
 
         home.ActiveVisitStartedAt = open.StartTime;
 
-        // La visita en curso aparece también en la agenda (en curso primero); si es una instalación no tiene ticket/orden.
+        // La visita en curso aparece también en la agenda (en curso primero). Una instalación cuya sede ya no cubre el
+        // técnico queda fuera de la agenda: ahí se arma aparte.
         home.ActiveVisit = open.ServiceTicketId.HasValue
             ? home.Agenda.FirstOrDefault(j => j.Kind == "Ticket" && j.Id == open.ServiceTicketId.Value)
             : open.MaintenanceOrderId.HasValue
                 ? home.Agenda.FirstOrDefault(j => j.Kind == "Orden" && j.Id == open.MaintenanceOrderId.Value)
-                : null;
+                : open.AssetId.HasValue
+                    ? home.Agenda.FirstOrDefault(j => j.Kind == "Instalación" && j.Id == open.AssetId.Value)
+                    : null;
 
         if (home.ActiveVisit is null && open.AssetId.HasValue)
         {
