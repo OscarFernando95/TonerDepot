@@ -4,6 +4,7 @@ import type {
   AssignmentHistoryDto,
   CompleteMaintenanceOrderRequest,
   CreateManualMaintenanceOrderRequest,
+  MaintenanceOrderCommentDto,
   MaintenanceOrderDto
 } from './types'
 
@@ -47,4 +48,16 @@ export function cancelMaintenanceOrder(id: string) {
 
 export function getMaintenanceOrderAssignmentHistory(id: string) {
   return getList<AssignmentHistoryDto>(`/maintenance-orders/${id}/assignment-history`)
+}
+
+// Hilo de comentarios y programaciones de la orden, en orden cronológico. Lo leen staff, el técnico asignado y el
+// cliente dueño del equipo. El servidor devuelve un arreglo plano (el hilo de una orden es corto y acotado), no
+// un PagedResult, por eso no pasa por getList.
+export function listOrderComments(id: string) {
+  return http.get<MaintenanceOrderCommentDto[]>(`/maintenance-orders/${id}/comments`)
+}
+
+// 409 si la orden ya está Completada o Cancelada (hilo cerrado, solo lectura).
+export function addOrderComment(id: string, body: string) {
+  return http.post<MaintenanceOrderCommentDto>(`/maintenance-orders/${id}/comments`, { body })
 }

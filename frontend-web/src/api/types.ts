@@ -455,7 +455,29 @@ export interface MaintenanceOrderDto {
   isSelfStarted: boolean
   reason: string | null
   scheduledDate: string
+  // Cuándo planea hacerlo el técnico asignado (ISO UTC); null mientras no haya programado una fecha.
+  plannedAt: string | null
+  // Última entrada del hilo de comentarios/programación y cuántas hay (el hilo se pide aparte).
+  lastCommentAt: string | null
+  commentCount: number
   completedAt: string | null
+  createdAt: string
+}
+
+export type MaintenanceCommentKind = 'Comentario' | 'Programacion'
+export type MaintenanceCommentAuthorRole = 'Cliente' | 'Tecnico' | 'Administrador' | 'Coordinador'
+
+// Entrada del hilo compartido entre cliente, técnico y staff. 'Programacion' es el evento "el técnico fijó la fecha".
+export interface MaintenanceOrderCommentDto {
+  id: string
+  maintenanceOrderId: string
+  kind: MaintenanceCommentKind
+  body: string
+  // Solo en 'Programacion'.
+  plannedAt: string | null
+  authorUserId: string
+  authorName: string
+  authorRole: MaintenanceCommentAuthorRole
   createdAt: string
 }
 

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ordersApi from '../../api/maintenanceOrders'
+import { formatPlannedAt } from '../../composables/useMaintenanceSchedule'
 import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto } from '../../api/types'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { usePagedList } from '../../composables/usePagedList'
@@ -155,6 +156,14 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
       </el-table-column>
       <el-table-column prop="scheduledDate" label="Programada" width="150">
         <template #default="{ row }">{{ new Date(row.scheduledDate).toLocaleDateString() }}</template>
+      </el-table-column>
+      <el-table-column label="Visita" width="160">
+        <template #default="{ row }">
+          {{ row.plannedAt ? formatPlannedAt(row.plannedAt) : '—' }}
+          <el-tag v-if="row.commentCount > 0" size="small" type="info" effect="plain" :title="`${row.commentCount} mensajes`">
+            {{ row.commentCount }}
+          </el-tag>
+        </template>
       </el-table-column>
       <el-table-column prop="status" label="Estado" width="130">
         <template #default="{ row }">

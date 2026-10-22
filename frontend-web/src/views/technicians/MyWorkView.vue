@@ -8,6 +8,10 @@ import * as ticketsApi from '../../api/tickets'
 import * as ordersApi from '../../api/maintenanceOrders'
 import { ServiceTicketStatusLabels, type ServiceTicketDto } from '../../api/types'
 import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto, type MaintenanceScheduleDto } from '../../api/types'
+import MaintenanceOrderThreadDialog from '../../components/maintenance/MaintenanceOrderThreadDialog.vue'
+import MaintenanceScheduleDialog from '../../components/maintenance/MaintenanceScheduleDialog.vue'
+import { canScheduleOrder, formatPlannedAt } from '../../composables/useMaintenanceSchedule'
+import { orderHasNewComments } from '../../composables/useMaintenanceThread'
 import PhotoPicker from '../../components/technicians/PhotoPicker.vue'
 import VisitPartsPicker from '../../components/inventory/VisitPartsPicker.vue'
 import { getCurrentPosition } from '../../composables/useGeolocation'
@@ -312,6 +316,23 @@ async function cancelStartedOrder(order: MaintenanceOrderDto) {
     cancelingOrder.value = null
   }
 }
+
+// Programación y conversación con el cliente: el técnico fija cuándo hará la visita y puede responderle al cliente.
+const scheduleOrder = ref<MaintenanceOrderDto | null>(null)
+const scheduleVisible = ref(false)
+function openSchedule(order: MaintenanceOrderDto) {
+  scheduleOrder.value = order
+  scheduleVisible.value = true
+}
+
+const threadOrderId = ref<string | null>(null)
+const threadVisible = ref(false)
+function openThread(order: MaintenanceOrderDto) {
+  threadOrderId.value = order.id
+  threadVisible.value = true
+}
+// Estado de la orden abierta en el diálogo: sale de la lista recargada, para que pase a solo lectura si cambia.
+const threadStatus = computed(() => orders.value.find((o) => o.id === threadOrderId.value)?.status ?? '')
 
 async function claimOrderRow(order: MaintenanceOrderDto) {
   claiming.value = order.id
@@ -623,6 +644,24 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
                   <el-tag size="small">{{ MaintenanceOrderStatusLabels[row.status] ?? row.status }}</el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="Programado" width="170">
+                <template #default="{ row }">
+                  <span v-if="row.plannedAt" class="planned-at">{{ formatPlannedAt(row.plannedAt) }}</span>
+                  <span v-else class="muted">Sin programar</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="Cliente" width="290">
+                <template #default="{ row }">
+                  <el-button v-if="canScheduleOrder(row)" class="tap-btn" @click="openSchedule(row)">
+                    {{ row.plannedAt ? 'Reprogramar' : 'Programar' }}
+                  </el-button>
+                  <el-badge :is-dot="orderHasNewComments(row)" class="thread-badge">
+                    <el-button class="tap-btn" @click="openThread(row)">
+                      Comentarios<template v-if="row.commentCount > 0"> ({{ row.commentCount }})</template>
+                    </el-button>
+                  </el-badge>
+                </template>
+              </el-table-column>
               <el-table-column label="" width="230">
                 <template #default="{ row }">
                   <el-button v-if="canCancelStarted(row)" class="tap-btn" :loading="cancelingOrder === row.id" @click="cancelStartedOrder(row)">
@@ -762,6 +801,16 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
         <el-button type="primary" :disabled="!photoDialogFile" @click="closePhotoDialog(photoDialogFile)">Hacer check-in</el-button>
       </template>
     </el-dialog>
+
+    <MaintenanceScheduleDialog v-model="scheduleVisible" :order="scheduleOrder" @scheduled="loadAll(true)" />
+    <MaintenanceOrderThreadDialog
+      v-model="threadVisible"
+      :order-id="threadOrderId"
+      :order-status="threadStatus"
+      :read-only="threadStatus === 'EnProceso'"
+      title="Conversación con el cliente"
+      @sent="loadAll(true)"
+    />
   </div>
 </template>
 
@@ -778,6 +827,15 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Techni
   color: var(--el-text-color-secondary);
   font-size: 0.85rem;
   margin: 0 0 1rem;
+}
+
+.planned-at {
+  color: var(--flap-ink);
+  font-weight: 600;
+}
+
+.thread-badge {
+  margin-left: 0.5rem;
 }
 
 .muted {

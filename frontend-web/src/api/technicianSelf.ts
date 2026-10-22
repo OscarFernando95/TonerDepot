@@ -193,3 +193,9 @@ export function startMaintenance(request: CreateManualMaintenanceOrderRequest) {
 export function cancelStartedMaintenance(orderId: string) {
   return http.post<MaintenanceOrderDto>(`/technicians/me/maintenance-orders/${orderId}/cancel`)
 }
+
+// El técnico asignado fija (o cambia, volviendo a llamarlo) cuándo hará el mantenimiento. `plannedAt` es ISO UTC; el
+// servidor exige orden Asignada (sin iniciar), fecha futura y a no más de 365 días.
+export function scheduleMaintenanceOrder(orderId: string, plannedAtIso: string) {
+  return http.post<MaintenanceOrderDto>(`/technicians/me/maintenance-orders/${orderId}/schedule`, { plannedAt: plannedAtIso })
+}
