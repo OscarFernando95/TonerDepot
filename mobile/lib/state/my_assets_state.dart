@@ -25,7 +25,26 @@ class MyAssetsState extends ChangeNotifier {
 
   bool loading = false;
   String? error;
+
+  /// Equipos que el cliente ya tiene en sus sedes (todo lo que no es una instalación pendiente).
   List<Asset> assets = [];
+
+  /// Equipos que un técnico todavía tiene que instalar.
+  List<Asset> pendingInstallations = [];
+
+  /// Separa por estado lo que devuelve GET /assets: para el cliente incluye los equipos pendientes de instalar en sus sedes.
+  static ({List<Asset> installed, List<Asset> pending}) partition(
+    Iterable<Asset> all,
+  ) => (
+    installed: all
+        .where((a) => a.lifecycleStatus != 'PendienteInstalacion')
+        .toList(),
+    pending: all
+        .where((a) => a.lifecycleStatus == 'PendienteInstalacion')
+        .toList(),
+  );
+
+  bool get isEmpty => assets.isEmpty && pendingInstallations.isEmpty;
 
   Future<void> load({bool silent = false}) async {
     if (!silent) {
@@ -34,7 +53,9 @@ class MyAssetsState extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      assets = await _api.listMine();
+      final split = partition(await _api.listMine());
+      assets = split.installed;
+      pendingInstallations = split.pending;
     } catch (e, st) {
       debugPrint('MyAssetsState.load failed: $e\n$st');
       if (!silent) {

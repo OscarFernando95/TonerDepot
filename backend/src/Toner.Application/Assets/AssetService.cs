@@ -137,6 +137,14 @@ public class AssetService : IAssetService
 
         await AttachLastMeterReadingsAsync(result.Items, cancellationToken);
 
+        if (requestingUser.IsClient)
+        {
+            foreach (var item in result.Items)
+            {
+                item.ActiveContractId = null;
+            }
+        }
+
         return result;
     }
 
@@ -178,6 +186,12 @@ public class AssetService : IAssetService
         }
 
         asset.LastMeterReading = await GetLastMeterReadingAsync(id, cancellationToken);
+
+        // El cliente no ve nada de contratos: ni su existencia.
+        if (requestingUser.IsClient)
+        {
+            asset.ActiveContractId = null;
+        }
 
         return asset;
     }

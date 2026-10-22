@@ -10,6 +10,7 @@ public record RequestingUser(Guid UserId, string Role, Guid? ClientId, Guid? Tec
 {
     public bool IsStaff => Role is RoleNames.Administrador or RoleNames.Coordinador;
     public bool IsTechnician => Role is RoleNames.Tecnico;
+    public bool IsClient => Role is RoleNames.Cliente;
 
     // Usar en vez de comparar contra ClientId directamente en un filtro/chequeo (SECURITY_AUDIT.md
     // hallazgo #20). Antes, un ClientId nulo en un usuario que debería tenerlo (rol Cliente mal

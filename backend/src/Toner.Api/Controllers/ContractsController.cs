@@ -35,14 +35,14 @@ public class ContractsController : ControllerBase
     }
 
     [HttpGet]
-    [Authorize(Roles = RoleNames.StaffAndClientRoles)]
+    [Authorize(Roles = RoleNames.StaffRoles)]
     public async Task<ActionResult<PagedResult<ContractDto>>> List([FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
         return Ok(await _contractService.ListAsync(User.ToRequestingUser(), page, pageSize, cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
-    [Authorize(Roles = RoleNames.StaffAndClientRoles)]
+    [Authorize(Roles = RoleNames.StaffRoles)]
     public async Task<ActionResult<ContractDto>> GetById(Guid id, CancellationToken cancellationToken)
     {
         return Ok(await _contractService.GetByIdAsync(User.ToRequestingUser(), id, cancellationToken));

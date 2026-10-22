@@ -142,8 +142,18 @@ public class ServiceTicketService : IServiceTicketService
         }
 
         // Desempate por Id: sin él, paginar por offset con CreatedAt repetido puede repetir o saltarse filas.
-        return await ProjectedFrom(query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id))
+        var result = await ProjectedFrom(query.OrderByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id))
             .ToOffsetPageAsync(page, pageSize, cancellationToken);
+
+        if (requestingUser.IsClient)
+        {
+            foreach (var item in result.Items)
+            {
+                item.AssetUnderContract = false;
+            }
+        }
+
+        return result;
     }
 
     public async Task<PagedResult<ServiceTicketDto>> ListForLinkedMachinesAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default)
@@ -201,6 +211,12 @@ public class ServiceTicketService : IServiceTicketService
         if (!requestingUser.IsStaff && !requestingUser.IsTechnician && ticket.ClientId != requestingUser.RequireClientId())
         {
             throw new ForbiddenException("No puedes ver un ticket que no pertenece a tu cliente.");
+        }
+
+        // El cliente no ve nada de contratos: ni si el equipo está bajo uno.
+        if (requestingUser.IsClient)
+        {
+            ticket.AssetUnderContract = false;
         }
 
         // Notas internas del técnico: solo para staff y el técnico asignado, nunca para el cliente. Se

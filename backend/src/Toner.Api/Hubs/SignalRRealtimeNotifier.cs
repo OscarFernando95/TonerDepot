@@ -51,7 +51,7 @@ public class SignalRRealtimeNotifier : IRealtimeNotifier
 public static class RealtimeAudience
 {
     // Quién se entera de cada cambio. El staff ve todo; un técnico solo lo suyo; un cliente solo lo de su empresa.
-    // Cosas internas (visitas, técnicos, evidencia, cronogramas, usuarios, festivos) nunca van a un cliente.
+    // Cosas internas (visitas, técnicos, evidencia, cronogramas, usuarios, festivos) y todo lo de contratos nunca van a un cliente.
     public static List<string> GroupsFor(EntityChange change)
     {
         var groups = new List<string> { RealtimeGroups.Staff };
@@ -66,7 +66,7 @@ public static class RealtimeAudience
             groups.Add(RealtimeGroups.AllTechnicians);
         }
 
-        var clientVisible = change.Entity is "Ticket" or "MaintenanceOrder" or "Asset" or "Contract" or "Client" or "MeterReading";
+        var clientVisible = change.Entity is "Ticket" or "MaintenanceOrder" or "Asset" or "Client" or "MeterReading";
         if (clientVisible && change.ClientId is { } clientId && clientId != Guid.Empty)
         {
             groups.Add(RealtimeGroups.Client(clientId));

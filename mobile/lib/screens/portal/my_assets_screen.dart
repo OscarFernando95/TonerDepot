@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/asset.dart';
 import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/my_assets_state.dart';
@@ -32,10 +33,10 @@ class _MyAssetsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<MyAssetsState>(
       builder: (context, state, _) {
-        if (state.loading && state.assets.isEmpty) {
+        if (state.loading && state.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (state.error != null && state.assets.isEmpty) {
+        if (state.error != null && state.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -47,79 +48,173 @@ class _MyAssetsBody extends StatelessWidget {
             ),
           );
         }
-        if (state.assets.isEmpty) {
+        if (state.isEmpty) {
           return const PlaceholderScreen(
             title: 'Sin activos',
             message: 'Todavía no tienes equipos instalados.',
           );
         }
+        final pending = state.pendingInstallations;
+        final installed = state.assets;
         return RefreshIndicator(
           onRefresh: state.load,
-          child: ListView.builder(
+          child: ListView(
             padding: const EdgeInsets.all(16),
-            itemCount: state.assets.length,
-            itemBuilder: (context, index) {
-              final asset = state.assets[index];
-              return ClayCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        // Mismo ícono/color que _AssetItem en
-                        // assets_list_screen.dart (vista de Staff).
-                        ClayIconBadge(
-                          icon: Icons.print_outlined,
-                          color: StatusLabels.assetLifecycleColor(
-                            asset.lifecycleStatus,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '${asset.assetBrandName} ${asset.model}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                        StatusChip.assetLifecycle(asset.lifecycleStatus),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Serie: ${asset.serialNumber}',
-                      style: const TextStyle(color: AppColors.inkSecondary),
-                    ),
-                    if (asset.currentClientLocationName != null)
-                      Text(
-                        '${asset.currentClientLocationName}${asset.cityName != null ? ' — ${asset.cityName}' : ''}',
-                        style: const TextStyle(color: AppColors.inkSecondary),
-                      ),
-                    if (asset.area != null)
-                      Text(
-                        'Área: ${asset.area}',
-                        style: const TextStyle(
-                          color: AppColors.inkSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    if (asset.lastMeterReading != null)
-                      Text(
-                        'Último contador: ${asset.lastMeterReading}',
-                        style: const TextStyle(
-                          color: AppColors.inkSecondary,
-                          fontSize: 12,
-                        ).merge(AppTextStyles.tabularNumber),
-                      ),
-                  ],
-                ),
-              );
-            },
+            children: [
+              // Sin pendientes no se muestra la sección.
+              if (pending.isNotEmpty) ...[
+                const _SectionTitle('Instalaciones pendientes'),
+                for (final asset in pending) _PendingAssetCard(asset: asset),
+                const SizedBox(height: 8),
+              ],
+              if (installed.isNotEmpty) ...[
+                if (pending.isNotEmpty)
+                  const _SectionTitle('Equipos instalados'),
+                for (final asset in installed)
+                  _InstalledAssetCard(asset: asset),
+              ],
+            ],
           ),
         );
       },
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          color: AppColors.inkSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+/// Equipo que todavía no está instalado: el cliente solo necesita saber qué es, dónde irá y que viene un técnico.
+class _PendingAssetCard extends StatelessWidget {
+  const _PendingAssetCard({required this.asset});
+
+  final Asset asset;
+
+  @override
+  Widget build(BuildContext context) {
+    final location = asset.currentClientLocationName;
+    return ClayCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ClayIconBadge(
+                icon: Icons.schedule_outlined,
+                color: StatusLabels.assetLifecycleColor(asset.lifecycleStatus),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${asset.assetBrandName} ${asset.model}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              StatusChip.assetLifecycle(asset.lifecycleStatus),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Serie: ${asset.serialNumber}',
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
+          if (location != null)
+            Text(
+              '$location${asset.cityName != null ? ' — ${asset.cityName}' : ''}',
+              style: const TextStyle(color: AppColors.inkSecondary),
+            ),
+          const SizedBox(height: 6),
+          const Text(
+            'Un técnico instalará este equipo próximamente',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InstalledAssetCard extends StatelessWidget {
+  const _InstalledAssetCard({required this.asset});
+
+  final Asset asset;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClayCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Mismo ícono/color que _AssetItem en
+              // assets_list_screen.dart (vista de Staff).
+              ClayIconBadge(
+                icon: Icons.print_outlined,
+                color: StatusLabels.assetLifecycleColor(asset.lifecycleStatus),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${asset.assetBrandName} ${asset.model}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              StatusChip.assetLifecycle(asset.lifecycleStatus),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Serie: ${asset.serialNumber}',
+            style: const TextStyle(color: AppColors.inkSecondary),
+          ),
+          if (asset.currentClientLocationName != null)
+            Text(
+              '${asset.currentClientLocationName}${asset.cityName != null ? ' — ${asset.cityName}' : ''}',
+              style: const TextStyle(color: AppColors.inkSecondary),
+            ),
+          if (asset.area != null)
+            Text(
+              'Área: ${asset.area}',
+              style: const TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
+              ),
+            ),
+          if (asset.lastMeterReading != null)
+            Text(
+              'Último contador: ${asset.lastMeterReading}',
+              style: const TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
+              ).merge(AppTextStyles.tabularNumber),
+            ),
+        ],
+      ),
     );
   }
 }
