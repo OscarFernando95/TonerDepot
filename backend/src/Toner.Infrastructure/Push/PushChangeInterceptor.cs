@@ -92,6 +92,8 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
         var events = _pending.GetOrCreateValue(context);
         events.Clear();
 
+        var selfAssigned = SelfAssignedIds(context);
+
         foreach (var entry in context.ChangeTracker.Entries())
         {
             if (entry.State is not (EntityState.Added or EntityState.Modified))
@@ -105,13 +107,15 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
                     CaptureAssignment(events, entry, "ticket", ticket.Id, ticket.TechnicianId,
                         nameof(ServiceTicket.TechnicianId), nameof(ServiceTicket.Status),
                         isCancelled: ticket.Status == ServiceTicketStatus.Cancelado,
-                        becameUnassigned: ticket.Status == ServiceTicketStatus.SinAsignar);
+                        becameUnassigned: ticket.Status == ServiceTicketStatus.SinAsignar,
+                        selfAssigned: selfAssigned.Contains(ticket.Id));
                     break;
                 case MaintenanceOrder order:
                     CaptureAssignment(events, entry, "order", order.Id, order.TechnicianId,
                         nameof(MaintenanceOrder.TechnicianId), nameof(MaintenanceOrder.Status),
                         isCancelled: order.Status == MaintenanceOrderStatus.Cancelada,
-                        becameUnassigned: false);
+                        becameUnassigned: false,
+                        selfAssigned: selfAssigned.Contains(order.Id));
                     break;
                 case Asset asset:
                     CaptureInstallation(events, entry, asset);
@@ -123,6 +127,27 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
                     break;
             }
         }
+    }
+
+    // Tickets y órdenes que, en ESTE guardado, el propio técnico se asignó él mismo (tomó uno libre o inició su
+    // mantenimiento): quedan registrados en el historial con ese tipo. Avisarle de lo que acaba de hacer es ruido.
+    private static HashSet<Guid> SelfAssignedIds(DbContext context)
+    {
+        var ids = new HashSet<Guid>();
+        foreach (var entry in context.ChangeTracker.Entries<AssignmentHistory>())
+        {
+            if (entry.State == EntityState.Added
+                && entry.Entity.AssignmentType is AssignmentType.IniciadaPorTecnico or AssignmentType.Reclamada)
+            {
+                var id = entry.Entity.MaintenanceOrderId ?? entry.Entity.ServiceTicketId;
+                if (id.HasValue)
+                {
+                    ids.Add(id.Value);
+                }
+            }
+        }
+
+        return ids;
     }
 
     // Un equipo que pasa a PendienteInstalacion (o nace así) queda disponible para los técnicos de su zona.
@@ -144,7 +169,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
 
     private static void CaptureAssignment(
         List<PushEvent> events, EntityEntry entry, string kind, Guid id, Guid? technicianId,
-        string technicianProperty, string statusProperty, bool isCancelled, bool becameUnassigned)
+        string technicianProperty, string statusProperty, bool isCancelled, bool becameUnassigned, bool selfAssigned)
     {
         var added = entry.State == EntityState.Added;
         var technician = entry.Property(technicianProperty);
@@ -152,7 +177,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
         var statusChanged = !added && entry.Property(statusProperty).IsModified
             && !Equals(entry.Property(statusProperty).OriginalValue, entry.Property(statusProperty).CurrentValue);
 
-        if (technicianId.HasValue && (added || technicianChanged))
+        if (technicianId.HasValue && (added || technicianChanged) && !selfAssigned)
         {
             events.Add(new(kind, id, EventAssigned, technicianId));
         }

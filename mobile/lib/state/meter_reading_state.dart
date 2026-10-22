@@ -5,6 +5,7 @@ import '../services/api_client.dart';
 import '../services/inventory_api.dart';
 import '../services/realtime_service.dart';
 import '../services/meter_reading_api.dart';
+import '../services/technician_api.dart';
 
 class CityGroup {
   CityGroup(this.city, this.assets);
@@ -45,6 +46,7 @@ class MeterCityGroup {
 class MeterReadingState extends ChangeNotifier {
   MeterReadingState(ApiClient client)
     : _api = MeterReadingApi(client),
+      _technicianApi = TechnicianApi(client),
       inventoryApi = InventoryApi(client) {
     // Cambios hechos desde otro usuario/dispositivo (o un resync tras reconexión): recarga silenciosa.
     // "TechnicianAsset" es el aviso que emite el backend cuando un admin vincula/desvincula un activo
@@ -64,6 +66,7 @@ class MeterReadingState extends ChangeNotifier {
   }
 
   final MeterReadingApi _api;
+  final TechnicianApi _technicianApi;
 
   /// Registro e historial de tóner por máquina (lo usa el formulario "Tóner" de cada tarjeta).
   final InventoryApi inventoryApi;
@@ -266,6 +269,37 @@ class MeterReadingState extends ChangeNotifier {
       return e is ApiException
           ? e.message
           : 'No se pudo registrar el contador.';
+    } finally {
+      saving = false;
+      notifyListeners();
+    }
+  }
+
+  /// El técnico inicia por su cuenta un mantenimiento del equipo. Devuelve null si salió bien, o un mensaje de error
+  /// (alcance, horario, orden ya abierta... — los valida el servidor y trae el texto listo para mostrar).
+  Future<String?> startMaintenance(
+    MeterReadingAsset asset, {
+    required bool includesGeneral,
+    required bool includesUnits,
+    required bool includesConsumables,
+    String? reason,
+  }) async {
+    saving = true;
+    notifyListeners();
+    try {
+      await _technicianApi.startMaintenance(
+        assetId: asset.assetId,
+        includesGeneral: includesGeneral,
+        includesUnits: includesUnits,
+        includesConsumables: includesConsumables,
+        reason: reason,
+      );
+      return null;
+    } catch (e, st) {
+      debugPrint('MeterReadingState.startMaintenance failed: $e\n$st');
+      return e is ApiException
+          ? e.message
+          : 'No se pudo iniciar el mantenimiento.';
     } finally {
       saving = false;
       notifyListeners();

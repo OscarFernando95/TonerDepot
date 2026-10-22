@@ -53,7 +53,10 @@ public class MaintenanceOrdersPagingPostgresTests
                     owner.MaintenanceOrders.Add(new MaintenanceOrder
                     {
                         MaintenanceScheduleId = schedule.Id, ClientId = RlsFixture.ClientA, AssetId = RlsFixture.AssetOfClientA,
-                        Status = i % 5 == 0 ? MaintenanceOrderStatus.Completada : MaintenanceOrderStatus.Pendiente,
+                        // Solo una puede estar abierta por cronograma (índice único parcial, MANT-1): el resto, ya cerradas.
+                        Status = i % 5 == 0 ? MaintenanceOrderStatus.Completada
+                            : i == 1 ? MaintenanceOrderStatus.Pendiente
+                            : MaintenanceOrderStatus.Cancelada,
                         ScheduledDate = sameInstant, CreatedAt = sameInstant
                     });
                 }
@@ -69,9 +72,12 @@ public class MaintenanceOrdersPagingPostgresTests
 
             // Cuenta las órdenes sembradas por esta prueba usando el estado, que sí distingue 46 vs 184.
             var completed = await service.ListAsync(coordinator, 1, 200, new MaintenanceOrderListFilter(Status: "Completada", ClientId: RlsFixture.ClientA));
+            var cancelled = await service.ListAsync(coordinator, 1, 200, new MaintenanceOrderListFilter(Status: "Cancelada", ClientId: RlsFixture.ClientA));
             var pending = await service.ListAsync(coordinator, 1, 200, new MaintenanceOrderListFilter(Status: "Pendiente", ClientId: RlsFixture.ClientA));
             Assert.True(completed.Items.All(o => o.Status == "Completada"));
-            Assert.True(pending.TotalCount >= Total - Total / 5);
+            Assert.True(pending.Items.All(o => o.Status == "Pendiente"));
+            Assert.True(pending.TotalCount >= 1);
+            Assert.True(cancelled.TotalCount >= Total - Total / 5 - 1);
             Assert.True(completed.TotalCount >= Total / 5);
 
             var first = await service.ListAsync(coordinator, 1, 200, onlyMine);

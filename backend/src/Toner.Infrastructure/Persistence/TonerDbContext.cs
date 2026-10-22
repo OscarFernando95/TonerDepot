@@ -115,6 +115,8 @@ public class TonerDbContext : DbContext, IApplicationDbContext
     {
         [TimeLogConfiguration.OpenByTechnicianIndexName] = "Ya tienes una visita en curso. Haz check-out antes de iniciar otra.",
         [TimeLogConfiguration.OpenByAssetIndexName] = "Otro técnico ya está atendiendo esta instalación.",
+        [MaintenanceOrderConfiguration.OpenByScheduleIndexName] =
+            "Este activo ya tiene una orden de mantenimiento abierta. Actualiza y revisa antes de pedir otra.",
         // Dos logins simultáneos del mismo técnico: el índice único parcial deja pasar solo a uno (AUDIT.md H-40).
         [UserSessionConfiguration.SingleActiveSessionIndexName] =
             "Ya tienes una sesión activa en otro dispositivo. Ciérrala allí primero, o pide a un administrador que la cierre."

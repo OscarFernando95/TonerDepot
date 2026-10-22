@@ -4,15 +4,20 @@ import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { usePagedList } from '../../composables/usePagedList'
 import * as citiesApi from '../../api/cities'
 import * as clientsApi from '../../api/clients'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as meterReadingsApi from '../../api/meterReadings'
+import * as technicianSelfApi from '../../api/technicianSelf'
 import type { CityDto, ClientDto, MeterReadingAssetDto } from '../../api/types'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
 import RentalRetirementTag from '../../components/assets/RentalRetirementTag.vue'
+import MaintenanceChoiceDialog from '../../components/maintenance/MaintenanceChoiceDialog.vue'
+import type { MaintenanceChoice } from '../../composables/useMaintenanceChoice'
 import { useAuthStore } from '../../stores/auth'
 import { RoleNames } from '../../api/types'
 
 const auth = useAuthStore()
+const router = useRouter()
 // Para el técnico esta misma pantalla es "Mis máquinas": las que tiene vinculadas, con su contador y su tóner.
 const isTechnician = computed(() => auth.hasRole(RoleNames.Tecnico))
 
@@ -93,6 +98,36 @@ const tonerDialogRef = ref<InstanceType<typeof TonerDialog> | null>(null)
 
 function openToner(asset: MeterReadingAssetDto) {
   tonerDialogRef.value?.open({ id: asset.assetId, label: `${asset.assetBrandName} ${asset.model} — ${asset.serialNumber}` })
+}
+
+// Mantenimiento a demanda por iniciativa del técnico: elige qué va a hacer, el servidor crea la orden ya asignada a él
+// y la atiende desde "Mi trabajo" (check-in con foto, check-out con contador, que reinicia el cronograma).
+const maintenanceDialogVisible = ref(false)
+const startingMaintenance = ref(false)
+const maintenanceAsset = ref<MeterReadingAssetDto | null>(null)
+const maintenanceSubtitle = computed(() =>
+  maintenanceAsset.value ? `${maintenanceAsset.value.assetBrandName} ${maintenanceAsset.value.model} — ${maintenanceAsset.value.serialNumber}` : ''
+)
+
+function openMaintenanceDialog(asset: MeterReadingAssetDto) {
+  maintenanceAsset.value = asset
+  maintenanceDialogVisible.value = true
+}
+
+async function startMaintenance(choice: MaintenanceChoice) {
+  if (!maintenanceAsset.value) return
+  startingMaintenance.value = true
+  try {
+    await technicianSelfApi.startMaintenance({ assetId: maintenanceAsset.value.assetId, ...choice })
+    maintenanceDialogVisible.value = false
+    ElMessage.success('Mantenimiento listo. Haz el check-in en Mi trabajo.')
+    router.push({ name: 'my-work' })
+  } catch (err: any) {
+    console.error('No se pudo iniciar el mantenimiento:', err)
+    ElMessage.error(err.response?.data?.title ?? 'No se pudo iniciar el mantenimiento.')
+  } finally {
+    startingMaintenance.value = false
+  }
 }
 
 function openRegisterDialog(asset: MeterReadingAssetDto) {
@@ -195,10 +230,12 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       <el-table-column label="Último tóner" min-width="220">
         <template #default="{ row }">{{ lastTonerLabel(row) }}</template>
       </el-table-column>
-      <el-table-column label="" width="250">
+      <el-table-column label="" :width="isTechnician ? 380 : 250">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="openRegisterDialog(row)">Registrar contador</el-button>
           <el-button size="small" @click="openToner(row)">Tóner</el-button>
+          <!-- Solo el técnico: el staff pide el mantenimiento desde el detalle del activo. -->
+          <el-button v-if="isTechnician" size="small" @click="openMaintenanceDialog(row)">Mantenimiento</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -240,6 +277,15 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       </template>
     </el-dialog>
   </div>
+  <MaintenanceChoiceDialog
+    v-model="maintenanceDialogVisible"
+    title="Iniciar mantenimiento"
+    confirm-label="Iniciar"
+    :subtitle="maintenanceSubtitle"
+    hint="Marca lo que vas a hacer. Al cerrar la visita, el cronograma del equipo reinicia solo eso."
+    :loading="startingMaintenance"
+    @confirm="startMaintenance"
+  />
   <TonerDialog ref="tonerDialogRef" @saved="loadAll()" />
 </template>
 

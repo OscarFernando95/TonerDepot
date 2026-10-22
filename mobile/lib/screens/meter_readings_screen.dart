@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../models/meter_reading_asset.dart';
@@ -13,6 +14,7 @@ import '../widgets/clay_segmented_control.dart';
 import '../widgets/clay_surface.dart';
 import '../widgets/list_filter_dropdown.dart';
 import '../widgets/rental_retirement_badge.dart';
+import '../widgets/maintenance_choice_dialog.dart';
 import '../widgets/toner_sheet.dart';
 
 /// Técnico ve dos pestañas propias de la app, sin equivalente en la web:
@@ -175,6 +177,47 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(error ?? 'Contador registrado.')));
     }
+  }
+
+  /// Mantenimiento a demanda por iniciativa del técnico: elige qué va a hacer, el servidor crea la orden ya asignada
+  /// a él y la atiende desde "Mi trabajo" (check-in con foto, check-out con contador, que reinicia el cronograma).
+  Future<void> _startMaintenance(MeterReadingAsset asset) async {
+    final choice = await showMaintenanceChoiceDialog(
+      context,
+      title: 'Iniciar mantenimiento',
+      description:
+          '${asset.assetBrandName} ${asset.model} · Serie ${asset.serialNumber}\n\n'
+          'Marca lo que vas a hacer. Al cerrar la visita, el cronograma del '
+          'equipo reinicia solo eso.',
+      confirmLabel: 'Iniciar',
+    );
+    if (choice == null) return;
+
+    await waitForDialogExit();
+    if (!mounted) return;
+
+    final error = await context.read<MeterReadingState>().startMaintenance(
+      asset,
+      includesGeneral: choice.general,
+      includesUnits: choice.units,
+      includesConsumables: choice.consumables,
+      reason: choice.reason,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          error ?? 'Mantenimiento listo. Haz el check-in en Mi trabajo.',
+        ),
+        duration: const Duration(seconds: 6),
+        action: error != null
+            ? null
+            : SnackBarAction(
+                label: 'Ir a Mi trabajo',
+                onPressed: () => context.goNamed('my-work'),
+              ),
+      ),
+    );
   }
 
   /// Registro de tóner: solo sobre las máquinas vinculadas al técnico (el servidor rechaza las demás).
@@ -359,6 +402,14 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                     OutlinedButton(
                       onPressed: () => _openTonerSheet(asset),
                       child: const Text('Tóner'),
+                    ),
+                  ],
+                  // Solo el técnico: Administrador/Coordinador piden el mantenimiento desde el detalle del activo.
+                  if (!_isStaff) ...[
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: () => _startMaintenance(asset),
+                      child: const Text('Mantenimiento'),
                     ),
                   ],
                 ],
