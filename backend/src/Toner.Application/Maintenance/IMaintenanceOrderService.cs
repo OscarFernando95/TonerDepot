@@ -19,6 +19,10 @@ public interface IMaintenanceOrderService
     // Mantenimiento a demanda de un equipo instalado: crea la orden y la asigna por el mismo motor que las
     // programadas (si no hay técnico disponible queda Pendiente y el job la recoge).
     Task<MaintenanceOrderDto> CreateManualAsync(CreateManualMaintenanceOrderRequest request, Guid requestedByUserId, CancellationToken cancellationToken = default);
+
+    // Igual que CreateManualAsync pero SIN asignar ni guardar: deja la orden Pendiente y trackeada para que el caller
+    // decida quién la toma y la persista en su propio SaveChangesAsync (mismo patrón que PrepareCompleteAsync).
+    Task<MaintenanceOrder> PrepareManualAsync(CreateManualMaintenanceOrderRequest request, Guid requestedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> AssignAsync(Guid id, AssignMaintenanceOrderRequest request, Guid assignedByUserId, CancellationToken cancellationToken = default);
 
     // El propio técnico se autoasigna una orden Pendiente o asignada a otro técnico que aún no la
@@ -34,5 +38,8 @@ public interface IMaintenanceOrderService
     // (CODE_QUALITY_AUDIT.md hallazgo #8).
     Task<MaintenanceOrder> PrepareCompleteAsync(Guid id, CompleteMaintenanceOrderRequest request, Guid completedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> CancelAsync(Guid id, CancellationToken cancellationToken = default);
+
+    // El técnico cancela un mantenimiento que inició él mismo y que aún no empezó (Asignada, sin check-in).
+    Task<MaintenanceOrderDto> CancelSelfStartedAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default);
     Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default);
 }
