@@ -36,6 +36,13 @@ void main() {
     );
   });
 
+  test('instalación disponible abre Mi trabajo, donde viven las pendientes', () {
+    expect(
+      pushTargetPath({'type': 'installation', 'id': id, 'event': 'available'}),
+      '/my-work',
+    );
+  });
+
   test('un payload raro no navega a ninguna parte', () {
     expect(pushTargetPath({}), isNull);
     expect(

@@ -67,7 +67,8 @@ public sealed class FirebasePushTransport : IPushTransport
             Android = new AndroidConfig
             {
                 Priority = Priority.High,
-                Notification = new AndroidNotification { ChannelId = AndroidChannelId }
+                // Private: el contenido incluye cliente y ciudad; con "ocultar contenido sensible" en el teléfono no se ve bloqueado.
+                Notification = new AndroidNotification { ChannelId = AndroidChannelId, Visibility = NotificationVisibility.PRIVATE }
             },
             Apns = new ApnsConfig { Aps = new Aps { Sound = "default" } }
         }).ToList();

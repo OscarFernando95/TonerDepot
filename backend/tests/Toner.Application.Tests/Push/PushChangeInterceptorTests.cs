@@ -17,6 +17,14 @@ public class PushChangeInterceptorTests
         private readonly SemaphoreSlim _signal = new(0);
         public List<(Guid[] TechnicianIds, PushMessage Message)> ToTechnicians { get; } = new();
         public List<PushMessage> ToStaff { get; } = new();
+        public List<(Guid AssetId, PushMessage Message)> ToInstallers { get; } = new();
+
+        public Task NotifyInstallersAsync(Guid assetId, PushMessage message, CancellationToken cancellationToken = default)
+        {
+            ToInstallers.Add((assetId, message));
+            _signal.Release();
+            return Task.CompletedTask;
+        }
 
         public Task NotifyTechniciansAsync(IReadOnlyCollection<Guid> technicianIds, PushMessage message, CancellationToken cancellationToken = default)
         {
@@ -233,5 +241,75 @@ public class PushChangeInterceptorTests
 
         using var check = TonerTestDb.CreateContext(dbName);
         Assert.True(await check.ServiceTickets.AnyAsync(t => t.Id == ticket.Id));
+    }
+
+    private static async Task<(string Db, Guid AssetId)> SeedAsset(AssetLifecycleStatus status)
+    {
+        var db = Guid.NewGuid().ToString();
+        using var arrange = TonerTestDb.CreateContext(db);
+        var model = TestEntities.AssetModel(TestEntities.AssetBrand());
+        var asset = TestEntities.Asset(model, status);
+        arrange.AddRange(model, asset);
+        await arrange.SaveChangesAsync();
+        return (db, asset.Id);
+    }
+
+    [Fact]
+    public async Task EquipoQuePasaAPendienteDeInstalar_AvisaALosInstaladoresDeLaZona_SinTecnicoNiStaff()
+    {
+        var (dbName, assetId) = await SeedAsset(AssetLifecycleStatus.EnBodega);
+
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        (await db.Assets.SingleAsync(a => a.Id == assetId)).LifecycleStatus = AssetLifecycleStatus.PendienteInstalacion;
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        var (id, message) = Assert.Single(notifier.ToInstallers);
+        Assert.Equal(assetId, id);
+        Assert.Equal("Instalación disponible", message.Title);
+        Assert.Equivalent(new Dictionary<string, string>
+        {
+            ["type"] = "installation", ["id"] = assetId.ToString(), ["event"] = "available"
+        }, message.Data, strict: true);
+        Assert.Empty(notifier.ToTechnicians);
+        Assert.Empty(notifier.ToStaff);
+    }
+
+    [Fact]
+    public async Task EquipoNuevoYaPendienteDeInstalar_TambienAvisa()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var model = TestEntities.AssetModel(TestEntities.AssetBrand());
+        using (var arrange = TonerTestDb.CreateContext(dbName))
+        {
+            arrange.Add(model);
+            await arrange.SaveChangesAsync();
+        }
+
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        db.Add(TestEntities.Asset(model, AssetLifecycleStatus.PendienteInstalacion));
+        await db.SaveChangesAsync();
+
+        Assert.True(await notifier.WaitAsync());
+        Assert.Single(notifier.ToInstallers);
+    }
+
+    [Fact]
+    public async Task CambiosDeEquipoQueNoLoDejanPendienteDeInstalar_NoAvisan()
+    {
+        var (dbName, assetId) = await SeedAsset(AssetLifecycleStatus.PendienteInstalacion);
+
+        var notifier = new FakePushNotifier();
+        using var db = Ctx(dbName, notifier);
+        var asset = await db.Assets.SingleAsync(a => a.Id == assetId);
+        asset.SerialNumber = "OTRO-SERIAL"; // ya estaba pendiente: no es un cambio de estado
+        await db.SaveChangesAsync();
+        asset.LifecycleStatus = AssetLifecycleStatus.Instalado; // sale de pendiente: tampoco
+        await db.SaveChangesAsync();
+
+        Assert.False(await notifier.WaitAsync(400));
+        Assert.Empty(notifier.ToInstallers);
     }
 }

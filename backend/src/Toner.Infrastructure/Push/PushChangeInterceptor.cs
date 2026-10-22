@@ -15,9 +15,11 @@ namespace Toner.Infrastructure.Push;
 //
 // Avisos:
 //   - Al técnico: le asignan un ticket/orden, se lo quitan (reasignación) o se cancela uno que tenía.
+//   - A los técnicos de la zona: un equipo queda pendiente de instalar (lista abierta, nadie lo tiene asignado).
 //   - Al staff: un ticket queda sin asignar (el motor no encontró técnico disponible).
 //
-// Lo visible es genérico (puede verse con la pantalla bloqueada y la sesión cerrada) y los datos van solo con ids.
+// Aquí el mensaje es genérico y los datos van solo con ids; PushNotifier le agrega el resumen operativo (cliente y
+// ciudad, criticidad, equipo y área) al enviar — ver IPushNotifier y PushDetail.
 // Publicar nunca puede hacer fallar ni demorar el guardado: va en segundo plano y sus errores solo se registran.
 public sealed class PushChangeInterceptor : SaveChangesInterceptor
 {
@@ -25,6 +27,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
     public const string EventRemoved = "removed";
     public const string EventCancelled = "cancelled";
     public const string EventUnassigned = "unassigned";
+    public const string EventAvailable = "available";
 
     // Se resuelve al publicar y no al construir: el notificador depende de la fábrica de DbContext, y la fábrica
     // construye sus opciones con este interceptor — resolverlo en el constructor sería una dependencia circular
@@ -39,7 +42,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
         _logger = logger;
     }
 
-    // Kind: "ticket" | "order". TechnicianId es null para los avisos al staff.
+    // Kind: "ticket" | "order" | "installation". TechnicianId es null para los avisos al staff y para las instalaciones.
     private sealed record PushEvent(string Kind, Guid EntityId, string Event, Guid? TechnicianId);
 
     public override InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
@@ -107,7 +110,27 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
                         isCancelled: order.Status == MaintenanceOrderStatus.Cancelada,
                         becameUnassigned: false);
                     break;
+                case Asset asset:
+                    CaptureInstallation(events, entry, asset);
+                    break;
             }
+        }
+    }
+
+    // Un equipo que pasa a PendienteInstalacion (o nace así) queda disponible para los técnicos de su zona.
+    private static void CaptureInstallation(List<PushEvent> events, EntityEntry entry, Asset asset)
+    {
+        if (asset.LifecycleStatus != AssetLifecycleStatus.PendienteInstalacion)
+        {
+            return;
+        }
+
+        var status = entry.Property(nameof(Asset.LifecycleStatus));
+        var becamePending = entry.State == EntityState.Added
+            || (status.IsModified && !Equals(status.OriginalValue, status.CurrentValue));
+        if (becamePending)
+        {
+            events.Add(new("installation", asset.Id, EventAvailable, null));
         }
     }
 
@@ -178,6 +201,10 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
                     {
                         await notifier.NotifyTechniciansAsync(new[] { e.TechnicianId.Value }, message);
                     }
+                    else if (e.Kind == "installation")
+                    {
+                        await notifier.NotifyInstallersAsync(e.EntityId, message);
+                    }
                     else
                     {
                         await notifier.NotifyStaffAsync(message);
@@ -207,6 +234,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
             (_, EventRemoved) => ("Cambio en tus asignaciones", "Un servicio que tenías ya no está a tu cargo."),
             (_, EventCancelled) => ("Servicio cancelado", "Un servicio asignado a ti fue cancelado."),
             (_, EventUnassigned) => ("Ticket sin asignar", "Hay un ticket esperando técnico."),
+            ("installation", EventAvailable) => ("Instalación disponible", "Hay un equipo pendiente de instalar en tu zona."),
             _ => ("Toner", "Tienes novedades.")
         };
 

@@ -15,14 +15,16 @@ final _uuidPattern = RegExp(
   r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
 );
 
-/// A qué pantalla lleva tocar una notificación. El payload trae solo identificadores (type: ticket | order,
-/// id, event: assigned | removed | cancelled | unassigned); el detalle se pide a la API con la sesión del usuario.
-/// Devuelve null si el payload no es reconocible (no se navega a nada).
+/// A qué pantalla lleva tocar una notificación. El payload trae solo identificadores (type: ticket | order |
+/// installation, id, event: assigned | removed | cancelled | unassigned | available); el detalle se pide a la API con
+/// la sesión del usuario. Devuelve null si el payload no es reconocible (no se navega a nada).
 String? pushTargetPath(Map<String, dynamic> data) {
   final type = data['type']?.toString();
   final id = data['id']?.toString();
   final event = data['event']?.toString();
-  if (type != 'ticket' && type != 'order') return null;
+  if (type != 'ticket' && type != 'order' && type != 'installation') return null;
+  // Las instalaciones pendientes no tienen pantalla de detalle propia: viven en la lista de Mi trabajo.
+  if (type == 'installation') return '/my-work';
   // Un servicio que ya no es mío (reasignado o cancelado): la pantalla útil es mi trabajo, no su detalle.
   if (event == 'removed' || event == 'cancelled') return '/my-work';
   if (id == null || !_uuidPattern.hasMatch(id)) return null;
@@ -139,13 +141,17 @@ class PushService {
         id: message.hashCode,
         title: notification.title,
         body: notification.body,
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             kPushChannelId,
             'Asignaciones',
             channelDescription: 'Servicios y órdenes asignados a ti',
             importance: Importance.high,
             priority: Priority.high,
+            // El cuerpo trae varias líneas (cliente y ciudad, criticidad, equipo): que se pueda desplegar completo.
+            styleInformation: BigTextStyleInformation(notification.body ?? ''),
+            // Igual que el push del servidor: con "ocultar contenido sensible" no se ve en la pantalla de bloqueo.
+            visibility: NotificationVisibility.private,
           ),
         ),
         payload: jsonEncode(message.data),
