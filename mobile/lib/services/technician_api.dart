@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/inventory.dart';
+import '../models/maintenance_order.dart';
 import '../models/paged_result.dart';
 import '../models/pending_installation.dart';
 import '../models/service_ticket.dart';
@@ -154,6 +155,47 @@ class TechnicianApi {
       return page.items;
     } catch (e, st) {
       debugPrint('TechnicianApi.listMachineTickets failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Inicia por su cuenta un mantenimiento a demanda de un equipo de su zona (o vinculado a él): la orden nace
+  /// asignada a él y se atiende con el check-in de siempre. El servidor valida alcance, horario y que el equipo
+  /// no tenga ya una orden abierta.
+  Future<MaintenanceOrder> startMaintenance({
+    required String assetId,
+    required bool includesGeneral,
+    required bool includesUnits,
+    required bool includesConsumables,
+    String? reason,
+  }) async {
+    try {
+      final response = await _client.dio.post(
+        '/technicians/me/maintenance-orders',
+        data: {
+          'assetId': assetId,
+          'includesGeneral': includesGeneral,
+          'includesUnits': includesUnits,
+          'includesConsumables': includesConsumables,
+          'reason': ?reason,
+        },
+      );
+      return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('TechnicianApi.startMaintenance failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Se arrepiente de un mantenimiento que inició él mismo y todavía no empezó (sin check-in).
+  Future<MaintenanceOrder> cancelStartedMaintenance(String orderId) async {
+    try {
+      final response = await _client.dio.post(
+        '/technicians/me/maintenance-orders/$orderId/cancel',
+      );
+      return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('TechnicianApi.cancelStartedMaintenance failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }
