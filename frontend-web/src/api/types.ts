@@ -40,6 +40,10 @@ export interface UserDto {
   mustChangePassword: boolean
   clientId: string | null
   technicianId: string | null
+  // Solo usuarios Cliente: si el administrador limitó el acceso a algunas sedes de su empresa.
+  // allowedLocationIds viene vacío cuando no hay restricción (ve todas las sedes).
+  restrictedToLocations: boolean
+  allowedLocationIds: string[]
   createdAt: string
 }
 
@@ -58,6 +62,8 @@ export interface CreateUserRequest {
   cityId: string
   roleName: RoleName
   clientId?: string | null
+  // Solo con roleName='Cliente'. null/ausente = todas las sedes de su empresa; si se envía, mínimo 1.
+  allowedLocationIds?: string[] | null
 }
 
 // Rol y cliente no son editables acá — ver comentario en UpdateUserRequest.cs del backend.

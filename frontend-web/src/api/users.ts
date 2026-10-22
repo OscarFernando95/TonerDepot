@@ -25,3 +25,8 @@ export function revokeUserSessions(id: string) {
 export function resetUserPassword(id: string) {
   return http.post<UserWithGeneratedPasswordDto>(`/users/${id}/reset-password`)
 }
+
+// null = quitar la restricción (el usuario Cliente vuelve a ver todas las sedes de su empresa).
+export function setUserClientLocations(id: string, allowedLocationIds: string[] | null) {
+  return http.put<UserDto>(`/users/${id}/client-locations`, { allowedLocationIds })
+}
