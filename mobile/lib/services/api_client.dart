@@ -1,4 +1,6 @@
+import 'package:android_id/android_id.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../config/app_config.dart';
@@ -48,11 +50,17 @@ class ApiClient {
     _dio.interceptors.clear();
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
+        onRequest: (options, handler) async {
           // Informativo para la auditoría y el mensaje de sesión única (nunca una decisión de seguridad).
           options.headers['X-Client-Type'] = 'mobile';
           if (_token != null) {
             options.headers['Authorization'] = 'Bearer $_token';
+          }
+          // Solo en el login: permite que reinstalar la app en este mismo teléfono reemplace su propia sesión en vez de
+          // quedar bloqueado por ella (el servidor lo guarda hasheado y solo lo compara tras validar la contraseña).
+          if (options.path.endsWith('/auth/login')) {
+            final deviceId = await _deviceId();
+            if (deviceId != null) options.headers['X-Device-Id'] = deviceId;
           }
           handler.next(options);
         },
@@ -64,6 +72,22 @@ class ApiClient {
         },
       ),
     );
+  }
+
+  String? _cachedDeviceId;
+  bool _deviceIdRead = false;
+
+  /// ANDROID_ID: identifica al teléfono y sobrevive a reinstalar la app (cambia solo con un restablecimiento de fábrica o
+  /// si el APK se firma con otra clave). Null fuera de Android o si no se puede leer: el login sigue como siempre.
+  Future<String?> _deviceId() async {
+    if (_deviceIdRead) return _cachedDeviceId;
+    _deviceIdRead = true;
+    try {
+      _cachedDeviceId = await const AndroidId().getId();
+    } catch (e, st) {
+      debugPrint('ApiClient: no se pudo leer el id del dispositivo: $e\n$st');
+    }
+    return _cachedDeviceId;
   }
 
   Future<String> get baseUrl async => _dio.options.baseUrl;

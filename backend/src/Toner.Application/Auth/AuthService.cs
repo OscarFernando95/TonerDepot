@@ -46,7 +46,7 @@ public class AuthService : IAuthService
         _sessions = sessions;
     }
 
-    public async Task<LoginResult> LoginAsync(LoginRequest request, string? ipAddress = null, CancellationToken cancellationToken = default, string? clientType = null, string? userAgent = null)
+    public async Task<LoginResult> LoginAsync(LoginRequest request, string? ipAddress = null, CancellationToken cancellationToken = default, string? clientType = null, string? userAgent = null, string? deviceId = null)
     {
         var cedula = request.Cedula.Trim();
 
@@ -141,7 +141,7 @@ public class AuthService : IAuthService
 
         // Puede lanzar ConflictException (técnico con sesión activa — gana la primera). El contador de
         // intentos fallidos ya se limpió arriba: la contraseña era correcta.
-        await _sessions.StartAsync(user!, sessionId, expiresAtUtc, clientType, ipAddress, userAgent, cancellationToken);
+        await _sessions.StartAsync(user!, sessionId, expiresAtUtc, clientType, ipAddress, userAgent, deviceId, cancellationToken);
 
         // Si dos logins simultáneos del mismo técnico pasaron el chequeo a la vez, el índice único parcial deja
         // pasar solo a uno; TonerDbContext traduce la violación al mensaje de sesión activa (AUDIT.md H-40).

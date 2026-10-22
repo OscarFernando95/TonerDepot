@@ -39,7 +39,8 @@ public class AuthController : ControllerBase
         var result = await _authService.LoginAsync(
             request, ClientIpAddress, cancellationToken,
             clientType: Request.Headers["X-Client-Type"].FirstOrDefault(),
-            userAgent: Request.Headers.UserAgent.ToString());
+            userAgent: Request.Headers.UserAgent.ToString(),
+            deviceId: Request.Headers["X-Device-Id"].FirstOrDefault());
         if (!result.Succeeded)
         {
             return Unauthorized(new { title = "Cédula o contraseña incorrectos." });
