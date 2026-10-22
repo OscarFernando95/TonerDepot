@@ -49,6 +49,8 @@ class HomeJob {
     since: DateTime.parse(json['since'] as String).toUtc(),
   );
 
+  bool get isInstallation => kind == 'Instalación';
+
   /// "Cliente — Sede · Ciudad", omitiendo lo que falte.
   String get placeLabel {
     final parts = <String>[

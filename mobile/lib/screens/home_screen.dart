@@ -298,16 +298,19 @@ class _NextJobCard extends StatelessWidget {
             children: [
               const _SectionTitle('Siguiente trabajo'),
               const Spacer(),
-              _PriorityTag(job.priority),
+              // Una instalación no tiene criticidad: la etiqueta "Media" sería inventada.
+              if (!job.isInstallation) _PriorityTag(job.priority),
             ],
           ),
           const SizedBox(height: 10),
           Row(
             children: [
               ClayIconBadge(
-                icon: job.kind == 'Orden'
-                    ? Icons.build_outlined
-                    : Icons.confirmation_number_outlined,
+                icon: switch (job.kind) {
+                  'Orden' => Icons.build_outlined,
+                  'Instalación' => Icons.move_to_inbox_outlined,
+                  _ => Icons.confirmation_number_outlined,
+                },
                 color: _priorityColor(job.priority),
               ),
               const SizedBox(width: 10),
@@ -550,7 +553,7 @@ class _AgendaRow extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     Text(
-                      job.placeLabel,
+                      '${job.kind} · ${job.placeLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

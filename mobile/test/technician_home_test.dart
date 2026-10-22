@@ -24,6 +24,14 @@ Map<String, dynamic> job(
 };
 
 void main() {
+  test('una instalación en la agenda se reconoce y no es ticket ni orden', () {
+    final install = HomeJob.fromJson(job('i', kind: 'Instalación'));
+
+    expect(install.isInstallation, isTrue);
+    expect(HomeJob.fromJson(job('t')).isInstallation, isFalse);
+    expect(HomeJob.fromJson(job('o', kind: 'Orden')).isInstallation, isFalse);
+  });
+
   group('TechnicianHome.fromJson', () {
     test('lee todos los campos', () {
       final home = TechnicianHome.fromJson({

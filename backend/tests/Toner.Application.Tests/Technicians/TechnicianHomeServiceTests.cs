@@ -4,6 +4,7 @@ using Toner.Application.Tests.TestSupport;
 using Toner.Domain.Common;
 using Toner.Domain.Entities;
 using Toner.Domain.Enums;
+using Toner.Infrastructure.Persistence;
 
 namespace Toner.Application.Tests.Technicians;
 
@@ -145,6 +146,77 @@ public class TechnicianHomeServiceTests
 
         Assert.Equal(ticket.Id, home.ActiveVisit!.Id);
         Assert.Equal(started, home.ActiveVisitStartedAt);
+    }
+
+    private static async Task MakeAssetPendingAsync(string dbName, Action<TonerDbContext>? extra = null)
+    {
+        using var db = TonerTestDb.CreateContext(dbName);
+        var asset = await db.Assets.SingleAsync();
+        asset.LifecycleStatus = AssetLifecycleStatus.PendienteInstalacion;
+        extra?.Invoke(db);
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Agenda_IncluyeLasInstalacionesPendientesDeSuZona_SinCriticidadYSoloParaQuienLasCubre()
+    {
+        var s = await SeedAsync();
+        await MakeAssetPendingAsync(s.DbName);
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var job = Assert.Single((await Service(db).GetAsync(s.TechnicianId)).Agenda);
+
+        Assert.Equal("Instalación", job.Kind);
+        Assert.Equal(s.AssetId, job.Id);
+        Assert.Equal("Ricoh MP 2555", job.Title);
+        Assert.Contains("serie", job.Summary);
+        Assert.Equal("Electrohuila", job.ClientName);
+        Assert.Equal("Sede Sur", job.LocationName);
+        Assert.Equal("Pitalito", job.CityName);
+        Assert.Equal("Pendiente", job.Status);
+        Assert.False(job.InProgress);
+
+        // El otro técnico no cubre esa zona: no la ve.
+        Assert.Empty((await Service(db).GetAsync(s.OtherTechnicianId)).Agenda);
+    }
+
+    [Fact]
+    public async Task Agenda_UnaInstalacionYaInstalada_NoAparece()
+    {
+        var s = await SeedAsync(); // el equipo del seed está Instalado
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+
+        Assert.Empty((await Service(db).GetAsync(s.TechnicianId)).Agenda);
+    }
+
+    [Fact]
+    public async Task Agenda_UnaInstalacionQueOtroTecnicoTieneEnCurso_NoAparece()
+    {
+        var s = await SeedAsync();
+        await MakeAssetPendingAsync(s.DbName, db =>
+            db.Add(new TimeLog { TechnicianId = s.OtherTechnicianId, AssetId = s.AssetId, StartTime = DateTime.UtcNow.AddMinutes(-5) }));
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+
+        Assert.Empty((await Service(db).GetAsync(s.TechnicianId)).Agenda);
+    }
+
+    [Fact]
+    public async Task Agenda_MiInstalacionEnCurso_VaPrimero_YEsLaVisitaActiva()
+    {
+        var s = await SeedAsync();
+        var ticket = await AddTicketAsync(s, s.TechnicianId, ServiceTicketStatus.Asignado, ServiceTicketPriority.Critica, DateTime.UtcNow.AddHours(-1));
+        await MakeAssetPendingAsync(s.DbName, db =>
+            db.Add(new TimeLog { TechnicianId = s.TechnicianId, AssetId = s.AssetId, StartTime = DateTime.UtcNow.AddMinutes(-10) }));
+
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        var home = await Service(db).GetAsync(s.TechnicianId);
+
+        Assert.Equal(new[] { "Instalación", "Ticket" }, home.Agenda.Select(j => j.Kind));
+        Assert.True(home.Agenda[0].InProgress);
+        Assert.Equal(s.AssetId, home.ActiveVisit!.Id);
+        Assert.Equal(ticket.Id, home.Agenda[1].Id);
     }
 
     [Fact]

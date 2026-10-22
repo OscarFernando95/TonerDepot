@@ -137,7 +137,7 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Zone',
         <section v-else-if="nextJob" class="panel focus">
           <div class="panel-title">
             Siguiente trabajo
-            <el-tag :type="priorityType(nextJob.priority)" size="small" effect="plain">{{ priorityLabel(nextJob.priority) }}</el-tag>
+            <el-tag v-if="nextJob.kind !== 'Instalación'" :type="priorityType(nextJob.priority)" size="small" effect="plain">{{ priorityLabel(nextJob.priority) }}</el-tag>
           </div>
           <h2>{{ nextJob.title }}</h2>
           <p v-if="nextJob.summary">{{ nextJob.summary }}</p>
@@ -167,9 +167,9 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit', 'Technician', 'Zone',
             <span class="bar" :class="job.priority" aria-hidden="true" />
             <span class="agenda-main">
               <strong>{{ job.title }}</strong>
-              <span class="muted small">{{ placeLabel(job) }}</span>
+              <span class="muted small">{{ job.kind }} · {{ placeLabel(job) }}</span>
             </span>
-            <el-tag :type="priorityType(job.priority)" size="small" effect="plain">{{ priorityLabel(job.priority) }}</el-tag>
+            <el-tag v-if="job.kind !== 'Instalación'" :type="priorityType(job.priority)" size="small" effect="plain">{{ priorityLabel(job.priority) }}</el-tag>
             <span class="muted small">{{ ageLabel(job.since) }}</span>
           </li>
         </ul>
