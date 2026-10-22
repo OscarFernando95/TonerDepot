@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:firebase_core/firebase_core.dart';
@@ -34,6 +35,8 @@ class PushService {
   PushService._();
   static final PushService instance = PushService._();
 
+  final _local = FlutterLocalNotificationsPlugin();
+  Future<void>? _initFuture;
   bool _initialized = false;
   String? _lastRegistered;
 
@@ -41,19 +44,36 @@ class PushService {
 
   /// [onOpen] recibe la ruta a abrir cuando el usuario toca una notificación (con la app en segundo plano o
   /// cerrada). Quien lo recibe decide si ya hay sesión o si espera al login.
-  Future<void> init({required void Function(String path) onOpen}) async {
-    if (!supported || _initialized) return;
+  Future<void> init({required void Function(String path) onOpen}) {
+    if (!supported) return Future.value();
+    // Una sola inicialización, y registerToken la espera: si la sesión se restaura antes de que Firebase termine
+    // de arrancar, el token no debe quedarse sin registrar hasta el próximo login.
+    return _initFuture ??= _init(onOpen);
+  }
+
+  Future<void> _init(void Function(String path) onOpen) async {
     try {
       await Firebase.initializeApp();
-      _initialized = true;
 
-      final local = FlutterLocalNotificationsPlugin();
-      await local.initialize(
+      // Tocar una notificación que la app misma mostró (llegó con la app abierta): el payload es el `data` del push.
+      await _local.initialize(
         settings: const InitializationSettings(
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         ),
+        onDidReceiveNotificationResponse: (response) {
+          final raw = response.payload;
+          if (raw == null) return;
+          try {
+            final path = pushTargetPath(
+              Map<String, dynamic>.from(jsonDecode(raw) as Map),
+            );
+            if (path != null) onOpen(path);
+          } catch (e, st) {
+            debugPrint('PushService: payload de notificación ilegible: $e\n$st');
+          }
+        },
       );
-      await local
+      await _local
           .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin
           >()
@@ -65,6 +85,9 @@ class PushService {
               importance: Importance.high,
             ),
           );
+
+      // Android no muestra por sí solo un push que llega con la app en primer plano: se muestra aquí, en el mismo canal.
+      FirebaseMessaging.onMessage.listen(_showForeground);
 
       void open(RemoteMessage message) {
         final path = pushTargetPath(message.data);
@@ -80,6 +103,7 @@ class PushService {
         _lastRegistered = null;
         registerToken(token: token);
       });
+      _initialized = true;
     } catch (e, st) {
       debugPrint('PushService.init failed: $e\n$st');
     }
@@ -87,7 +111,9 @@ class PushService {
 
   /// Pide el permiso (Android 13+) y registra el token del dispositivo para el usuario con sesión. Es idempotente.
   Future<void> registerToken({String? token}) async {
-    if (!supported || !_initialized) return;
+    if (!supported) return;
+    await _initFuture;
+    if (!_initialized) return;
     try {
       final messaging = FirebaseMessaging.instance;
       await messaging.requestPermission();
@@ -102,6 +128,30 @@ class PushService {
     } catch (e, st) {
       // Sin push la app sigue funcionando (el tiempo real cubre la app abierta): solo se registra el error.
       debugPrint('PushService.registerToken failed: $e\n$st');
+    }
+  }
+
+  Future<void> _showForeground(RemoteMessage message) async {
+    final notification = message.notification;
+    if (notification == null) return;
+    try {
+      await _local.show(
+        id: message.hashCode,
+        title: notification.title,
+        body: notification.body,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            kPushChannelId,
+            'Asignaciones',
+            channelDescription: 'Servicios y órdenes asignados a ti',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+        ),
+        payload: jsonEncode(message.data),
+      );
+    } catch (e, st) {
+      debugPrint('PushService: no se pudo mostrar la notificación: $e\n$st');
     }
   }
 }
