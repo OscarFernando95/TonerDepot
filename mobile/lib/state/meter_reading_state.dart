@@ -283,6 +283,7 @@ class MeterReadingState extends ChangeNotifier {
     required bool includesUnits,
     required bool includesConsumables,
     String? reason,
+    DateTime? plannedAt,
   }) async {
     saving = true;
     notifyListeners();
@@ -293,6 +294,7 @@ class MeterReadingState extends ChangeNotifier {
         includesUnits: includesUnits,
         includesConsumables: includesConsumables,
         reason: reason,
+        plannedAt: plannedAt,
       );
       return null;
     } catch (e, st) {

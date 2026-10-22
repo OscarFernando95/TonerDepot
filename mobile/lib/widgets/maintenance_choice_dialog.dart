@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/maintenance_thread_text.dart';
+import '../theme/app_theme.dart';
+import 'maintenance_schedule_picker.dart';
+
 /// Espera a que termine la animación de salida de un diálogo recién cerrado.
 ///
 /// Navigator.pop() resuelve el Future de showDialog ANTES de que la transición
@@ -17,32 +21,39 @@ Future<void> waitForDialogExit() => Future<void>.delayed(_dialogExitDuration);
 const _dialogExitDuration = Duration(milliseconds: 300);
 
 /// Qué se va a hacer en un mantenimiento a demanda: cualquier combinación no
-/// vacía de general, unidades e insumos, más el motivo opcional.
+/// vacía de general, unidades e insumos, más el motivo opcional y, solo para el técnico que inicia el suyo, la
+/// fecha en que lo hará.
 class MaintenanceChoice {
   const MaintenanceChoice({
     required this.general,
     required this.units,
     required this.consumables,
     this.reason,
+    this.plannedAt,
   });
 
   final bool general;
   final bool units;
   final bool consumables;
   final String? reason;
+
+  /// Instante local elegido para hacerlo; null = "ahora" (comportamiento de siempre).
+  final DateTime? plannedAt;
 }
 
 /// Diálogo para elegir el tipo de mantenimiento — lo usan el staff al pedirlo
 /// (AssetDetailScreen) y el técnico al iniciarlo por su cuenta
 /// (MeterReadingsScreen). Devuelve null si cancela. El botón de confirmar
 /// queda deshabilitado mientras no haya al menos un tipo marcado (el servidor
-/// valida lo mismo).
+/// valida lo mismo). Con [allowSchedule] (técnico iniciando el suyo) añade "¿Cuándo lo harás?": ahora, o
+/// programarlo para otra fecha con [pickMaintenanceSchedule].
 Future<MaintenanceChoice?> showMaintenanceChoiceDialog(
   BuildContext context, {
   required String title,
   required String confirmLabel,
   String? description,
   bool initialGeneral = false,
+  bool allowSchedule = false,
 }) => showDialog<MaintenanceChoice>(
   context: context,
   builder: (_) => _MaintenanceChoiceDialog(
@@ -50,6 +61,7 @@ Future<MaintenanceChoice?> showMaintenanceChoiceDialog(
     confirmLabel: confirmLabel,
     description: description,
     initialGeneral: initialGeneral,
+    allowSchedule: allowSchedule,
   ),
 );
 
@@ -63,12 +75,14 @@ class _MaintenanceChoiceDialog extends StatefulWidget {
     required this.confirmLabel,
     required this.description,
     required this.initialGeneral,
+    required this.allowSchedule,
   });
 
   final String title;
   final String confirmLabel;
   final String? description;
   final bool initialGeneral;
+  final bool allowSchedule;
 
   @override
   State<_MaintenanceChoiceDialog> createState() =>
@@ -79,6 +93,9 @@ class _MaintenanceChoiceDialogState extends State<_MaintenanceChoiceDialog> {
   late bool _general = widget.initialGeneral;
   bool _units = false;
   bool _consumables = false;
+
+  /// null = "Ahora".
+  DateTime? _plannedAt;
   final _reasonController = TextEditingController();
 
   @override
@@ -95,8 +112,18 @@ class _MaintenanceChoiceDialogState extends State<_MaintenanceChoiceDialog> {
         units: _units,
         consumables: _consumables,
         reason: reason.isEmpty ? null : reason,
+        plannedAt: _plannedAt,
       ),
     );
+  }
+
+  void _chooseNow() => setState(() => _plannedAt = null);
+
+  /// Abre el selector de día y hora; si el técnico cancela o la fecha no sirve, queda lo que había.
+  Future<void> _chooseLater() async {
+    final picked = await pickMaintenanceSchedule(context, current: _plannedAt);
+    if (picked == null || !mounted) return;
+    setState(() => _plannedAt = picked);
   }
 
   @override
@@ -131,6 +158,28 @@ class _MaintenanceChoiceDialogState extends State<_MaintenanceChoiceDialog> {
               title: const Text('Cambio de insumos'),
               contentPadding: EdgeInsets.zero,
             ),
+            if (widget.allowSchedule) ...[
+              const SizedBox(height: 4),
+              Text(
+                '¿Cuándo lo harás?',
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              _WhenOption(
+                label: 'Ahora',
+                selected: _plannedAt == null,
+                onTap: _chooseNow,
+              ),
+              _WhenOption(
+                label: 'Programarlo para otra fecha',
+                detail: _plannedAt == null
+                    ? null
+                    : '${formatDateTimeEsCo(_plannedAt!)} · Cambiar',
+                selected: _plannedAt != null,
+                onTap: _chooseLater,
+              ),
+              const SizedBox(height: 8),
+            ],
             TextField(
               controller: _reasonController,
               maxLength: 500,
@@ -148,9 +197,75 @@ class _MaintenanceChoiceDialogState extends State<_MaintenanceChoiceDialog> {
         ),
         FilledButton(
           onPressed: (_general || _units || _consumables) ? _confirm : null,
-          child: Text(widget.confirmLabel),
+          child: Text(
+            startMaintenanceConfirmLabel(
+              _plannedAt,
+              defaultLabel: widget.confirmLabel,
+            ),
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// Opción excluyente "Ahora" / "Programarlo para otra fecha" (>= 48 dp de alto).
+class _WhenOption extends StatelessWidget {
+  const _WhenOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.detail,
+  });
+
+  final String label;
+  final String? detail;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      button: true,
+      label: detail == null ? label : '$label, $detail',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                color: selected ? AppColors.signalBlue : AppColors.inkSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(label),
+                    if (detail != null)
+                      Text(
+                        detail!,
+                        style: const TextStyle(
+                          color: AppColors.signalBlue,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

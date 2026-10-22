@@ -138,3 +138,42 @@ String? validatePlannedAt(DateTime chosen, {DateTime? now}) {
 
 /// ISO 8601 UTC para el cuerpo de POST …/schedule.
 String plannedAtToUtcIso(DateTime local) => local.toUtc().toIso8601String();
+
+/// Texto del botón de confirmar al iniciar un mantenimiento propio: el de siempre, o "Programar mantenimiento" si el
+/// técnico eligió otra fecha.
+String startMaintenanceConfirmLabel(
+  DateTime? plannedAt, {
+  required String defaultLabel,
+}) => plannedAt == null ? defaultLabel : 'Programar mantenimiento';
+
+/// Mensaje al terminar de iniciar (o programar) un mantenimiento propio.
+String startMaintenanceDoneMessage(DateTime? plannedAt, {DateTime? now}) =>
+    plannedAt == null
+    ? 'Mantenimiento listo. Haz el check-in en Mi trabajo.'
+    : 'Mantenimiento programado para ${formatDateTimeEsCo(plannedAt, now: now)}. '
+          'El cliente verá la fecha.';
+
+/// Campo opcional `plannedAt` del cuerpo de POST /technicians/me/maintenance-orders: ISO UTC, o null (no se envía)
+/// cuando el mantenimiento arranca ahora.
+String? startMaintenancePlannedAtField(DateTime? plannedAt) =>
+    plannedAt == null ? null : plannedAtToUtcIso(plannedAt);
+
+/// Cuerpo de POST /technicians/me/maintenance-orders. `reason` y `plannedAt` solo viajan si hay valor.
+Map<String, Object> startMaintenanceBody({
+  required String assetId,
+  required bool includesGeneral,
+  required bool includesUnits,
+  required bool includesConsumables,
+  String? reason,
+  DateTime? plannedAt,
+}) {
+  final plannedIso = startMaintenancePlannedAtField(plannedAt);
+  return {
+    'assetId': assetId,
+    'includesGeneral': includesGeneral,
+    'includesUnits': includesUnits,
+    'includesConsumables': includesConsumables,
+    'reason': ?reason,
+    'plannedAt': ?plannedIso,
+  };
+}

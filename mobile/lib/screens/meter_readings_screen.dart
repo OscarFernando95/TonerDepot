@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/maintenance_thread_text.dart';
 import '../models/meter_reading_asset.dart';
 import '../models/role_names.dart';
 import '../state/auth_state.dart';
@@ -190,6 +191,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
           'Marca lo que vas a hacer. Al cerrar la visita, el cronograma del '
           'equipo reinicia solo eso.',
       confirmLabel: 'Iniciar',
+      allowSchedule: true,
     );
     if (choice == null) return;
 
@@ -202,13 +204,12 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
       includesUnits: choice.units,
       includesConsumables: choice.consumables,
       reason: choice.reason,
+      plannedAt: choice.plannedAt,
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          error ?? 'Mantenimiento listo. Haz el check-in en Mi trabajo.',
-        ),
+        content: Text(error ?? startMaintenanceDoneMessage(choice.plannedAt)),
         duration: const Duration(seconds: 6),
         action: error != null
             ? null
