@@ -8,6 +8,7 @@ import { ElMessage } from 'element-plus'
 import * as meterReadingsApi from '../../api/meterReadings'
 import type { CityDto, ClientDto, MeterReadingAssetDto } from '../../api/types'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
+import RentalRetirementTag from '../../components/assets/RentalRetirementTag.vue'
 import { useAuthStore } from '../../stores/auth'
 import { RoleNames } from '../../api/types'
 
@@ -185,8 +186,11 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       <el-table-column prop="cityName" label="Ciudad" width="140">
         <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="lastMeterReading" label="Último contador" width="140">
-        <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
+      <el-table-column prop="lastMeterReading" label="Último contador" width="210">
+        <template #default="{ row }">
+          {{ row.lastMeterReading ?? '—' }}
+          <RentalRetirementTag :subject="row" />
+        </template>
       </el-table-column>
       <el-table-column label="Último tóner" min-width="220">
         <template #default="{ row }">{{ lastTonerLabel(row) }}</template>

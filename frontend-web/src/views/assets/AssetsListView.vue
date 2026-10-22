@@ -21,6 +21,9 @@ import {
   type ClientDto
 } from '../../api/types'
 import { useStatusTag } from '../../composables/useStatusTag'
+import { DEFAULT_WARNING_PRINTS, validateRentalRetirement } from '../../composables/useRentalRetirement'
+import RentalRetirementFields from '../../components/assets/RentalRetirementFields.vue'
+import RentalRetirementTag from '../../components/assets/RentalRetirementTag.vue'
 
 const router = useRouter()
 
@@ -94,7 +97,9 @@ const quickModelForm = reactive({
   generalMonthsInterval: 6,
   unitsPrintThreshold: 30000,
   unitsMonthsInterval: 6,
-  consumablesPrintThreshold: 60000
+  consumablesPrintThreshold: 60000,
+  rentalRetirementPrintThreshold: null as number | null,
+  rentalRetirementWarningPrints: DEFAULT_WARNING_PRINTS
 })
 
 function openQuickModelDialog() {
@@ -104,11 +109,18 @@ function openQuickModelDialog() {
   quickModelForm.unitsPrintThreshold = 30000
   quickModelForm.unitsMonthsInterval = 6
   quickModelForm.consumablesPrintThreshold = 60000
+  quickModelForm.rentalRetirementPrintThreshold = null
+  quickModelForm.rentalRetirementWarningPrints = DEFAULT_WARNING_PRINTS
   quickModelDialogVisible.value = true
 }
 
 async function saveQuickModel() {
   if (!form.assetBrandId) return
+  const invalid = validateRentalRetirement(quickModelForm.rentalRetirementPrintThreshold, quickModelForm.rentalRetirementWarningPrints)
+  if (invalid) {
+    ElMessage.warning(invalid)
+    return
+  }
   savingQuickModel.value = true
   try {
     const { data } = await assetModelsApi.createAssetModel(form.assetBrandId, { ...quickModelForm })
@@ -117,6 +129,7 @@ async function saveQuickModel() {
     await loadModelsForBrand(form.assetBrandId)
     form.assetModelId = data.id
   } catch (err: any) {
+    console.error('AssetsListView.saveQuickModel failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo crear el modelo.')
   } finally {
     savingQuickModel.value = false
@@ -274,8 +287,11 @@ useRealtimeUpdates(['Asset', 'Client'], () => loadAssets())
       <el-table-column prop="cityName" label="Ciudad" width="140">
         <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="lastMeterReading" label="Última lectura" width="130">
-        <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
+      <el-table-column prop="lastMeterReading" label="Última lectura" width="210">
+        <template #default="{ row }">
+          {{ row.lastMeterReading ?? '—' }}
+          <RentalRetirementTag :subject="row" />
+        </template>
       </el-table-column>
     </el-table>
 
@@ -365,6 +381,10 @@ useRealtimeUpdates(['Asset', 'Client'], () => loadAssets())
           <el-form-item label="Cambio de insumos — impresiones">
             <el-input-number v-model="quickModelForm.consumablesPrintThreshold" :min="1" style="width: 100%" />
           </el-form-item>
+          <RentalRetirementFields
+            v-model:threshold="quickModelForm.rentalRetirementPrintThreshold"
+            v-model:warning-prints="quickModelForm.rentalRetirementWarningPrints"
+          />
         </div>
       </el-form>
       <template #footer>

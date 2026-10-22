@@ -218,8 +218,13 @@ export interface AssetModelDto {
   unitsPrintThreshold: number
   unitsMonthsInterval: number
   consumablesPrintThreshold: number
+  // Límite de impresiones (contador total del equipo) al que sale de alquiler y pasa a venta; null = sin límite.
+  rentalRetirementPrintThreshold: number | null
+  // Se avisa (solo informativo) cuando faltan estas impresiones o menos. Por defecto 50.000.
+  rentalRetirementWarningPrints: number
 }
 
+// El update es reemplazo completo: ambos campos de retiro se reenvían siempre.
 export interface CreateAssetModelRequest {
   name: string
   generalPrintThreshold: number
@@ -227,11 +232,25 @@ export interface CreateAssetModelRequest {
   unitsPrintThreshold: number
   unitsMonthsInterval: number
   consumablesPrintThreshold: number
+  rentalRetirementPrintThreshold: number | null
+  rentalRetirementWarningPrints: number
 }
 
 export type UpdateAssetModelRequest = CreateAssetModelRequest
 
-export interface AssetDto {
+// Estado informativo del retiro de alquiler de un equipo; null = sin límite, sin lecturas o rol Cliente.
+export type RentalRetirementStatus = 'Proxima' | 'Superada'
+
+// Campos de retiro de alquiler que comparten AssetDto y MeterReadingAssetDto. Al rol Cliente siempre llegan null.
+export interface RentalRetirementInfoFields {
+  rentalRetirementPrintThreshold: number | null
+  rentalRetirementWarningPrints: number | null
+  // Impresiones que faltan; negativo = cuánto se pasó. null si no hay límite o lecturas.
+  printsUntilRetirement: number | null
+  rentalRetirementStatus: RentalRetirementStatus | null
+}
+
+export interface AssetDto extends RentalRetirementInfoFields {
   id: string
   assetModelId: string
   assetBrandName: string
@@ -446,7 +465,7 @@ export interface CreateManualMaintenanceOrderRequest {
   reason?: string | null
 }
 
-export interface MeterReadingAssetDto {
+export interface MeterReadingAssetDto extends RentalRetirementInfoFields {
   assetId: string
   assetBrandName: string
   model: string

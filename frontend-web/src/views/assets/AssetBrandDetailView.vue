@@ -8,6 +8,8 @@ import * as assetModelsApi from '../../api/assetModels'
 import * as inventoryApi from '../../api/inventory'
 import type { AssetBrandDto, AssetModelDto } from '../../api/types'
 import type { InventoryItemDto, ModelKitItemDto } from '../../api/inventory'
+import RentalRetirementFields from '../../components/assets/RentalRetirementFields.vue'
+import { DEFAULT_WARNING_PRINTS, validateRentalRetirement } from '../../composables/useRentalRetirement'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,7 +31,9 @@ const form = reactive({
   generalMonthsInterval: 6,
   unitsPrintThreshold: 30000,
   unitsMonthsInterval: 6,
-  consumablesPrintThreshold: 60000
+  consumablesPrintThreshold: 60000,
+  rentalRetirementPrintThreshold: null as number | null,
+  rentalRetirementWarningPrints: DEFAULT_WARNING_PRINTS
 })
 
 async function loadAll() {
@@ -50,11 +54,14 @@ async function loadAll() {
           generalMonthsInterval: m.generalMonthsInterval,
           unitsPrintThreshold: m.unitsPrintThreshold,
           unitsMonthsInterval: m.unitsMonthsInterval,
-          consumablesPrintThreshold: m.consumablesPrintThreshold
+          consumablesPrintThreshold: m.consumablesPrintThreshold,
+          rentalRetirementPrintThreshold: m.rentalRetirementPrintThreshold,
+          rentalRetirementWarningPrints: m.rentalRetirementWarningPrints
         }
       ])
     )
   } catch (err: any) {
+    console.error('AssetBrandDetailView.loadAll failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo cargar la marca.')
   } finally {
     loading.value = false
@@ -68,10 +75,17 @@ function openCreateDialog() {
   form.unitsPrintThreshold = 30000
   form.unitsMonthsInterval = 6
   form.consumablesPrintThreshold = 60000
+  form.rentalRetirementPrintThreshold = null
+  form.rentalRetirementWarningPrints = DEFAULT_WARNING_PRINTS
   dialogVisible.value = true
 }
 
 async function handleCreate() {
+  const invalid = validateRentalRetirement(form.rentalRetirementPrintThreshold, form.rentalRetirementWarningPrints)
+  if (invalid) {
+    ElMessage.warning(invalid)
+    return
+  }
   saving.value = true
   try {
     await assetModelsApi.createAssetModel(brandId, { ...form })
@@ -79,6 +93,7 @@ async function handleCreate() {
     dialogVisible.value = false
     await loadAll()
   } catch (err: any) {
+    console.error('AssetBrandDetailView.handleCreate failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo crear el modelo.')
   } finally {
     saving.value = false
@@ -88,12 +103,18 @@ async function handleCreate() {
 async function saveModel(modelId: string) {
   const edited = editableModels.value[modelId]
   if (!edited) return
+  const invalid = validateRentalRetirement(edited.rentalRetirementPrintThreshold, edited.rentalRetirementWarningPrints)
+  if (invalid) {
+    ElMessage.warning(invalid)
+    return
+  }
   savingModelId.value = modelId
   try {
     await assetModelsApi.updateAssetModel(brandId, modelId, { ...edited })
     ElMessage.success('Modelo actualizado.')
     await loadAll()
   } catch (err: any) {
+    console.error('AssetBrandDetailView.saveModel failed', err)
     ElMessage.error(err.response?.data?.title ?? 'No se pudo actualizar el modelo.')
   } finally {
     savingModelId.value = null
@@ -270,7 +291,8 @@ onMounted(async () => {
       </div>
       <p class="hint">
         Modelos de esta marca y sus umbrales de mantenimiento (impresiones y/o meses). Son constantes por
-        modelo, editables a demanda.
+        modelo, editables a demanda. "Salir de alquiler" es el contador total al que el equipo pasa a venta; solo
+        genera avisos, no bloquea nada.
       </p>
 
       <div class="section-actions">
@@ -306,6 +328,34 @@ onMounted(async () => {
         <el-table-column label="Insumos — impresiones" width="150">
           <template #default="{ row }">
             <el-input-number v-model="editableModels[row.id].consumablesPrintThreshold" :min="1" style="width: 100%" />
+          </template>
+        </el-table-column>
+        <el-table-column width="170">
+          <template #header>
+            <el-tooltip content="Contador total del equipo; es informativo. Vacío = sin límite." placement="top">
+              <span>Salir de alquiler — impresiones</span>
+            </el-tooltip>
+          </template>
+          <template #default="{ row }">
+            <el-input-number
+              v-model="editableModels[row.id].rentalRetirementPrintThreshold"
+              :min="1"
+              :precision="0"
+              :value-on-clear="null"
+              placeholder="Sin límite"
+              style="width: 100%"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="Avisar cuando falten" width="150">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="editableModels[row.id].rentalRetirementWarningPrints"
+              :min="1"
+              :precision="0"
+              :value-on-clear="DEFAULT_WARNING_PRINTS"
+              style="width: 100%"
+            />
           </template>
         </el-table-column>
         <el-table-column label="" width="190">
@@ -418,6 +468,10 @@ onMounted(async () => {
           <el-form-item label="Cambio de insumos — impresiones">
             <el-input-number v-model="form.consumablesPrintThreshold" :min="1" style="width: 100%" />
           </el-form-item>
+          <RentalRetirementFields
+            v-model:threshold="form.rentalRetirementPrintThreshold"
+            v-model:warning-prints="form.rentalRetirementWarningPrints"
+          />
         </div>
       </el-form>
       <template #footer>

@@ -24,6 +24,7 @@ import {
   type MeterReadingDto
 } from '../../api/types'
 import { useStatusTag } from '../../composables/useStatusTag'
+import { rentalRetirementDisplay } from '../../composables/useRentalRetirement'
 
 const route = useRoute()
 const router = useRouter()
@@ -236,6 +237,9 @@ async function saveReading() {
   }
 }
 
+// Aviso informativo de retiro de alquiler; null (no se muestra) sin límite, sin lecturas o rol Cliente.
+const retirement = computed(() => rentalRetirementDisplay(asset.value))
+
 onMounted(loadAll)
 useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity !== 'Asset' || e.action === 'resync' || e.id === assetId) loadAll(true) })
 </script>
@@ -252,6 +256,16 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
         Ubicado en <strong>{{ asset.currentClientName }} — {{ asset.currentClientLocationName }}</strong>
         <span v-if="asset.area"> ({{ asset.area }})</span>
       </p>
+
+      <el-alert
+        v-if="retirement"
+        class="retirement-alert"
+        :type="retirement.tagType === 'danger' ? 'error' : 'warning'"
+        :title="retirement.label"
+        :description="retirement.detail || undefined"
+        :closable="false"
+        show-icon
+      />
 
       <el-card class="section-card">
         <template #header>Datos del activo</template>
@@ -439,6 +453,10 @@ useRealtimeUpdates(['Asset', 'MeterReading', 'Contract'], (e) => { if (e.entity 
 .location-line {
   color: var(--el-text-color-secondary);
   margin: 0 0 1rem;
+}
+
+.retirement-alert {
+  margin-bottom: 1.5rem;
 }
 
 .last-reading-hint {
