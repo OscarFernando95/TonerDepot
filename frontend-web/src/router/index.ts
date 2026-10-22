@@ -147,9 +147,9 @@ const router = createRouter({
           meta: { roles: [RoleNames.Cliente] }
         },
         {
-          path: 'my-contracts',
-          name: 'my-contracts',
-          component: () => import('../views/portal/MyContractsView.vue'),
+          path: 'my-maintenance',
+          name: 'my-maintenance',
+          component: () => import('../views/portal/MyMaintenanceView.vue'),
           meta: { roles: [RoleNames.Cliente] }
         },
         {
