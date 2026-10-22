@@ -1,3 +1,5 @@
+import 'rental_retirement.dart';
+
 /// Espejo de MeterReadingAssetDto (frontend-web/src/api/types.ts) — un
 /// equipo instalado, con la última lectura de contador conocida.
 class MeterReadingAsset {
@@ -20,6 +22,12 @@ class MeterReadingAsset {
   /// Unidades de tóner registradas en los últimos 90 días (0 si ninguna).
   final int tonerUnitsLast90Days;
 
+  /// Salida de alquiler por modelo (solo informativo); ver rental_retirement.dart.
+  final int? rentalRetirementPrintThreshold;
+  final int? rentalRetirementWarningPrints;
+  final int? printsUntilRetirement;
+  final String? rentalRetirementStatus;
+
   MeterReadingAsset({
     required this.assetId,
     required this.assetBrandName,
@@ -34,7 +42,18 @@ class MeterReadingAsset {
     this.lastTonerAt,
     this.lastTonerCounter,
     this.tonerUnitsLast90Days = 0,
+    this.rentalRetirementPrintThreshold,
+    this.rentalRetirementWarningPrints,
+    this.printsUntilRetirement,
+    this.rentalRetirementStatus,
   });
+
+  /// Aviso de salida de alquiler a pintar; null = no mostrar nada.
+  RentalRetirementAlert? get rentalRetirementAlert =>
+      RentalRetirementAlert.from(
+        status: rentalRetirementStatus,
+        printsUntilRetirement: printsUntilRetirement,
+      );
 
   /// Línea de "último tóner" de la tarjeta: 'Último tóner: 28/09/2026 · contador 12345 · 2 en 90 días' o
   /// 'Sin tóner registrado'. Las partes que falten (contador) se omiten.
@@ -67,5 +86,13 @@ class MeterReadingAsset {
         lastTonerCounter: (json['lastTonerCounter'] as num?)?.toInt(),
         tonerUnitsLast90Days:
             (json['tonerUnitsLast90Days'] as num?)?.toInt() ?? 0,
+        rentalRetirementPrintThreshold: parseNullableInt(
+          json['rentalRetirementPrintThreshold'],
+        ),
+        rentalRetirementWarningPrints: parseNullableInt(
+          json['rentalRetirementWarningPrints'],
+        ),
+        printsUntilRetirement: parseNullableInt(json['printsUntilRetirement']),
+        rentalRetirementStatus: json['rentalRetirementStatus'] as String?,
       );
 }

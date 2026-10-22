@@ -18,6 +18,7 @@ import '../../state/auth_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/rental_retirement_badge.dart';
 import '../../widgets/status_chip.dart';
 
 /// Espera a que termine la animación de salida de un diálogo recién cerrado.
@@ -660,6 +661,10 @@ class _AssetDetailBody extends StatelessWidget {
                         style: const TextStyle(color: AppColors.inkSecondary)
                             .merge(AppTextStyles.tabularNumber),
                       ),
+                    if (asset.rentalRetirementAlert != null) ...[
+                      const SizedBox(height: 8),
+                      RentalRetirementBadge(alert: asset.rentalRetirementAlert),
+                    ],
                     const SizedBox(height: 12),
                     Row(
                       children: [

@@ -1,3 +1,5 @@
+import 'rental_retirement.dart';
+
 /// Espejo de AssetDto (backend/src/Toner.Application/Assets/Dtos/AssetDto.cs)
 /// — mismo shape para el portal de Cliente (solo lectura) y el catálogo de
 /// Staff; el catálogo simplemente usa además assetModelId/currentClientId
@@ -20,6 +22,13 @@ class Asset {
   final String? activeContractId;
   final String createdAt;
 
+  /// Salida de alquiler por modelo (solo informativo). El rol Cliente nunca
+  /// los recibe (null). `rentalRetirementStatus`: null | 'Proxima' | 'Superada'.
+  final int? rentalRetirementPrintThreshold;
+  final int? rentalRetirementWarningPrints;
+  final int? printsUntilRetirement;
+  final String? rentalRetirementStatus;
+
   Asset({
     required this.id,
     required this.assetModelId,
@@ -37,7 +46,18 @@ class Asset {
     required this.lastMeterReading,
     required this.activeContractId,
     required this.createdAt,
+    this.rentalRetirementPrintThreshold,
+    this.rentalRetirementWarningPrints,
+    this.printsUntilRetirement,
+    this.rentalRetirementStatus,
   });
+
+  /// Aviso de salida de alquiler a pintar; null = no mostrar nada.
+  RentalRetirementAlert? get rentalRetirementAlert =>
+      RentalRetirementAlert.from(
+        status: rentalRetirementStatus,
+        printsUntilRetirement: printsUntilRetirement,
+      );
 
   /// Espejo de AssetAllowedTransitions en frontend-web/src/api/types.ts —
   /// PendienteInstalacion nunca se elige a mano (el backend la alcanza solo).
@@ -66,5 +86,13 @@ class Asset {
     lastMeterReading: json['lastMeterReading'] as int?,
     activeContractId: json['activeContractId'] as String?,
     createdAt: json['createdAt'] as String,
+    rentalRetirementPrintThreshold: parseNullableInt(
+      json['rentalRetirementPrintThreshold'],
+    ),
+    rentalRetirementWarningPrints: parseNullableInt(
+      json['rentalRetirementWarningPrints'],
+    ),
+    printsUntilRetirement: parseNullableInt(json['printsUntilRetirement']),
+    rentalRetirementStatus: json['rentalRetirementStatus'] as String?,
   );
 }

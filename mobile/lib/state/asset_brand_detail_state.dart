@@ -40,6 +40,8 @@ class AssetBrandDetailState extends ChangeNotifier {
     required int unitsPrintThreshold,
     required int unitsMonthsInterval,
     required int consumablesPrintThreshold,
+    required int? rentalRetirementPrintThreshold,
+    required int rentalRetirementWarningPrints,
   }) => _runAction(() async {
     final created = await _api.create(
       brandId,
@@ -49,6 +51,8 @@ class AssetBrandDetailState extends ChangeNotifier {
       unitsPrintThreshold: unitsPrintThreshold,
       unitsMonthsInterval: unitsMonthsInterval,
       consumablesPrintThreshold: consumablesPrintThreshold,
+      rentalRetirementPrintThreshold: rentalRetirementPrintThreshold,
+      rentalRetirementWarningPrints: rentalRetirementWarningPrints,
     );
     models = [...models, created];
   });
@@ -61,6 +65,8 @@ class AssetBrandDetailState extends ChangeNotifier {
     required int unitsPrintThreshold,
     required int unitsMonthsInterval,
     required int consumablesPrintThreshold,
+    required int? rentalRetirementPrintThreshold,
+    required int rentalRetirementWarningPrints,
   }) => _runAction(() async {
     final updated = await _api.update(
       brandId,
@@ -71,6 +77,8 @@ class AssetBrandDetailState extends ChangeNotifier {
       unitsPrintThreshold: unitsPrintThreshold,
       unitsMonthsInterval: unitsMonthsInterval,
       consumablesPrintThreshold: consumablesPrintThreshold,
+      rentalRetirementPrintThreshold: rentalRetirementPrintThreshold,
+      rentalRetirementWarningPrints: rentalRetirementWarningPrints,
     );
     models = [for (final m in models) m.id == modelId ? updated : m];
   });

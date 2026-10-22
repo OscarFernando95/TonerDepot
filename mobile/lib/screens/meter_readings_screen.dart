@@ -12,6 +12,7 @@ import '../widgets/clay_date_field.dart';
 import '../widgets/clay_segmented_control.dart';
 import '../widgets/clay_surface.dart';
 import '../widgets/list_filter_dropdown.dart';
+import '../widgets/rental_retirement_badge.dart';
 import '../widgets/toner_sheet.dart';
 
 /// Técnico ve dos pestañas propias de la app, sin equivalente en la web:
@@ -96,6 +97,12 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                             ).merge(AppTextStyles.tabularNumber),
                           ),
                         ),
+                      if (asset.rentalRetirementAlert != null) ...[
+                        const SizedBox(height: 8),
+                        RentalRetirementBadge(
+                          alert: asset.rentalRetirementAlert,
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: counterController,
@@ -325,6 +332,10 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                       fontSize: 12,
                     ).merge(AppTextStyles.tabularNumber),
                   ),
+                  if (asset.rentalRetirementAlert != null) ...[
+                    const SizedBox(height: 6),
+                    RentalRetirementBadge(alert: asset.rentalRetirementAlert),
+                  ],
                 ],
               ),
             ),
