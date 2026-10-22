@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/maintenance_order.dart';
+import '../../models/maintenance_thread_text.dart';
 import '../../models/status_labels.dart';
 import '../../services/api_client.dart';
 import '../../state/my_maintenance_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
+import '../../widgets/maintenance_order_thread.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
@@ -124,6 +126,7 @@ class _MaintenanceCard extends StatelessWidget {
     ].whereType<String>().join(' · ');
     final includes = order.includesLabels;
     final done = order.status == 'Completada';
+    final plannedLabel = clientPlannedLabel(order);
     return ClayCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,9 +159,39 @@ class _MaintenanceCard extends StatelessWidget {
             Text(place, style: const TextStyle(color: AppColors.inkSecondary)),
           const SizedBox(height: 6),
           Text(
-            'Fecha programada: ${MaintenanceOrder.formatScheduledDate(order.scheduledDate)}',
+            'Fecha objetivo: ${MaintenanceOrder.formatScheduledDate(order.scheduledDate)}',
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
+          if (plannedLabel != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                children: [
+                  Icon(
+                    order.plannedAt != null
+                        ? Icons.event_available_outlined
+                        : Icons.event_busy_outlined,
+                    size: 16,
+                    color: order.plannedAt != null
+                        ? AppColors.signalBlue
+                        : AppColors.inkSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      plannedLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: order.plannedAt != null
+                            ? AppColors.signalBlue
+                            : AppColors.inkSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (done && order.completedAt != null)
             Text(
               'Realizada: ${MaintenanceOrder.formatScheduledDate(order.completedAt!)}',
@@ -183,6 +216,23 @@ class _MaintenanceCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => MaintenanceOrderThreadSheet.show(
+                context,
+                orderId: order.id,
+                title: '${order.assetBrandName} ${order.assetModel}',
+                readOnly: order.isThreadReadOnly,
+                helpText: order.isOpen
+                    ? 'Si la fecha no te sirve, cuéntanos y reprogramamos.'
+                    : null,
+              ),
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: Text(commentsButtonLabel(order.commentCount)),
+            ),
+          ),
         ],
       ),
     );

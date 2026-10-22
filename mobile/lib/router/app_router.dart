@@ -35,7 +35,8 @@ const _defaultAuthenticatedPath = '/dashboard';
 /// entrada de roles acá para que el guard no las deje abiertas a cualquiera.
 const _extraRouteRoles = {
   'ticket-detail': RoleNames.staffAndClientRoles,
-  'maintenance-order-detail': RoleNames.staffRoles,
+  // El Técnico llega aquí desde el push de "Comentario del cliente" (event=commented).
+  'maintenance-order-detail': RoleNames.staffAndTechnicianRoles,
   'maintenance-schedule-detail': RoleNames.staffRoles,
   'technician-zones': RoleNames.staffRoles,
   'technician-schedule': RoleNames.staffRoles,

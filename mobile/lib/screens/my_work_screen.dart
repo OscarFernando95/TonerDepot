@@ -13,6 +13,8 @@ import '../widgets/checkout_sheet.dart';
 import '../widgets/clay_surface.dart';
 import '../widgets/installation_card.dart';
 import '../widgets/maintenance_choice_dialog.dart';
+import '../widgets/maintenance_order_thread.dart';
+import '../widgets/maintenance_schedule_picker.dart';
 import '../widgets/order_card.dart';
 import '../widgets/ticket_card.dart';
 
@@ -106,6 +108,34 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
     setState(() => _actingOnId = null);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(error ?? 'Mantenimiento cancelado.')),
+    );
+  }
+
+  /// Día y hora del mantenimiento: se elige en hora local y se manda como ISO UTC (ver MyWorkState.scheduleOrder).
+  Future<void> _handleSchedule(MaintenanceOrder order) async {
+    final chosen = await pickMaintenanceSchedule(
+      context,
+      current: order.plannedAt,
+    );
+    if (chosen == null || !mounted) return;
+    final error = await _state.scheduleOrder(order, chosen);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Mantenimiento programado.')),
+    );
+  }
+
+  /// Con la visita en curso (EnProceso) el hilo queda de solo lectura para el técnico.
+  void _handleOpenThread(MaintenanceOrder order) {
+    final inProgress = order.status == 'EnProceso';
+    MaintenanceOrderThreadSheet.show(
+      context,
+      orderId: order.id,
+      title: '${order.assetBrandName} ${order.assetModel}',
+      readOnly: order.isThreadReadOnly || inProgress,
+      readOnlyNote: inProgress
+          ? 'La visita ya está en curso: el hilo es de solo lectura.'
+          : null,
     );
   }
 
@@ -255,6 +285,8 @@ class _MyWorkScreenState extends State<MyWorkScreen> {
                     o.id,
                   ),
                   onCancel: () => _handleCancelStarted(o),
+                  onSchedule: () => _handleSchedule(o),
+                  onOpenThread: () => _handleOpenThread(o),
                 ),
               ),
               const SizedBox(height: 16),

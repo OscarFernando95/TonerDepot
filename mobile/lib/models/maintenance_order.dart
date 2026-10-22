@@ -24,6 +24,15 @@ class MaintenanceOrder {
   final String? completedAt;
   final String createdAt;
 
+  /// Cuándo (instante UTC) el técnico asignado dice que hará el mantenimiento; null mientras nadie lo programó.
+  final DateTime? plannedAt;
+
+  /// Último comentario del hilo compartido (cliente, técnico y staff); null si no hay.
+  final DateTime? lastCommentAt;
+
+  /// Cuántas entradas tiene el hilo (comentarios y programaciones).
+  final int commentCount;
+
   MaintenanceOrder({
     required this.id,
     required this.maintenanceScheduleId,
@@ -45,6 +54,9 @@ class MaintenanceOrder {
     required this.scheduledDate,
     required this.completedAt,
     required this.createdAt,
+    this.plannedAt,
+    this.lastCommentAt,
+    this.commentCount = 0,
   });
 
   /// La web solo habilita asignar/completar/cancelar en estos dos estados
@@ -85,6 +97,31 @@ class MaintenanceOrder {
   /// El técnico puede arrepentirse antes del check-in (POST /technicians/me/maintenance-orders/{id}/cancel).
   bool get canCancelByTechnician => isSelfStarted && status == 'Asignada';
 
+  /// El técnico asignado programa (o reprograma) la fecha solo mientras la orden sigue Asignada, sin check-in.
+  bool get canScheduleByTechnician => status == 'Asignada';
+
+  /// El hilo de comentarios se cierra cuando la orden termina (el servidor responde 409 al comentar).
+  bool get isThreadReadOnly => !isOpen;
+
+  /// Instante del servidor (ISO con o sin 'Z') como DateTime UTC; null si falta o no se puede interpretar.
+  static DateTime? parseInstant(Object? raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return null;
+    // Sin 'Z' ni offset el servidor igual manda UTC: se interpreta así, no como hora local del teléfono.
+    return parsed.isUtc
+        ? parsed
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+          );
+  }
+
   factory MaintenanceOrder.fromJson(Map<String, dynamic> json) =>
       MaintenanceOrder(
         id: json['id'] as String,
@@ -107,5 +144,8 @@ class MaintenanceOrder {
         scheduledDate: json['scheduledDate'] as String,
         completedAt: json['completedAt'] as String?,
         createdAt: json['createdAt'] as String,
+        plannedAt: parseInstant(json['plannedAt']),
+        lastCommentAt: parseInstant(json['lastCommentAt']),
+        commentCount: (json['commentCount'] as num?)?.toInt() ?? 0,
       );
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/assignment_history.dart';
+import '../../models/maintenance_order.dart';
+import '../../models/maintenance_thread_text.dart';
 import '../../models/role_names.dart';
 import '../../models/status_labels.dart';
 import '../../models/technician.dart';
@@ -13,6 +15,8 @@ import '../../widgets/clay_date_field.dart';
 import '../../widgets/clay_icon_badge.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/evidence_gallery.dart';
+import '../../widgets/maintenance_order_thread.dart';
+import '../../widgets/maintenance_schedule_picker.dart';
 import '../../widgets/status_chip.dart';
 
 /// Detalle de orden de mantenimiento — Coordinador/Administrador. Espejo de
@@ -187,6 +191,39 @@ class _OrderDetailBody extends StatelessWidget {
     }
   }
 
+  Future<void> _handleSchedule(
+    BuildContext context,
+    MaintenanceOrderDetailState state,
+    MaintenanceOrder order,
+  ) async {
+    final chosen = await pickMaintenanceSchedule(
+      context,
+      current: order.plannedAt,
+    );
+    if (chosen == null || !context.mounted) return;
+    final error = await state.schedule(chosen);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error ?? 'Mantenimiento programado.')),
+      );
+    }
+  }
+
+  void _openThread(BuildContext context, MaintenanceOrder order) {
+    // El Técnico con la visita en curso solo lee; el Staff puede comentar mientras la orden siga abierta.
+    final techInProgress = !context.read<MaintenanceOrderDetailState>().isStaff &&
+        order.status == 'EnProceso';
+    MaintenanceOrderThreadSheet.show(
+      context,
+      orderId: order.id,
+      title: '${order.assetBrandName} ${order.assetModel}',
+      readOnly: order.isThreadReadOnly || techInProgress,
+      readOnlyNote: techInProgress
+          ? 'La visita ya está en curso: el hilo es de solo lectura.'
+          : null,
+    );
+  }
+
   Future<void> _showCancelConfirm(
     BuildContext context,
     MaintenanceOrderDetailState state,
@@ -277,8 +314,12 @@ class _OrderDetailBody extends StatelessWidget {
                       ),
                     const SizedBox(height: 12),
                     _InfoRow(
-                      label: 'Programada',
+                      label: 'Fecha objetivo',
                       value: order.scheduledDate.split('T').first,
+                    ),
+                    _InfoRow(
+                      label: 'Visita',
+                      value: plannedLabelForStaff(order),
                     ),
                     if (order.technicianName != null)
                       _InfoRow(label: 'Técnico', value: order.technicianName!),
@@ -309,7 +350,31 @@ class _OrderDetailBody extends StatelessWidget {
                   ],
                 ),
               ),
-              if (order.canManage) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  if (!state.isStaff && order.canScheduleByTechnician) ...[
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: state.busyWithAction
+                            ? null
+                            : () => _handleSchedule(context, state, order),
+                        icon: const Icon(Icons.event_outlined, size: 18),
+                        label: Text(scheduleButtonLabel(order)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openThread(context, order),
+                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                      label: Text(commentsButtonLabel(order.commentCount)),
+                    ),
+                  ),
+                ],
+              ),
+              if (state.isStaff && order.canManage) ...[
                 const SizedBox(height: 16),
                 Row(
                   children: [

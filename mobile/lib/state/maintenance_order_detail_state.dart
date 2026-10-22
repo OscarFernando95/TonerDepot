@@ -55,14 +55,16 @@ class MaintenanceOrderDetailState extends ChangeNotifier {
       notifyListeners();
     }
     try {
+      // El listado de técnicos y el historial de asignación son solo de Staff: un Técnico que llega aquí desde
+      // el push de "Comentario del cliente" recibiría 403 y no vería ni la orden.
       final results = await Future.wait([
         _orderApi.getById(orderId),
-        _technicianApi.list(),
+        if (isStaff) _technicianApi.list(),
         if (isStaff) _orderApi.getAssignmentHistory(orderId),
       ]);
       order = results[0] as MaintenanceOrder;
-      technicians = results[1] as List<Technician>;
       if (isStaff) {
+        technicians = results[1] as List<Technician>;
         assignmentHistory = results[2] as List<AssignmentHistory>;
       }
     } catch (e, st) {
@@ -98,6 +100,12 @@ class MaintenanceOrderDetailState extends ChangeNotifier {
           readingDate: readingDate,
         );
       });
+
+  /// Solo el Técnico asignado (orden Asignada): programa o reprograma la fecha. [plannedAt] es la hora local
+  /// elegida; viaja como ISO UTC.
+  Future<String?> schedule(DateTime plannedAt) => _runAction(() async {
+    order = await _orderApi.schedule(orderId, plannedAt);
+  });
 
   Future<String?> cancel() =>
       _runAction(() async => order = await _orderApi.cancel(orderId));
