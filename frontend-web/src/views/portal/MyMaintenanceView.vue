@@ -6,6 +6,8 @@ import { MaintenanceOrderStatusLabels, type MaintenanceOrderDto } from '../../ap
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { usePagedList } from '../../composables/usePagedList'
 import { useStatusTag } from '../../composables/useStatusTag'
+import { plannedAtLabel } from '../../composables/useMaintenanceSchedule'
+import MaintenanceOrderThreadDialog from '../../components/maintenance/MaintenanceOrderThreadDialog.vue'
 import {
   formatPlace,
   formatScheduledDate,
@@ -48,6 +50,16 @@ function clearFilters() {
 
 const { tagType: statusTagType } = useStatusTag('maintenanceOrder')
 
+// Hilo con el técnico y el equipo: el cliente ve la fecha que programó el técnico y puede pedir que la cambien.
+const threadOrder = ref<MaintenanceOrderDto | null>(null)
+const threadVisible = ref(false)
+function openThread(order: MaintenanceOrderDto) {
+  threadOrder.value = order
+  threadVisible.value = true
+}
+// Estado de la orden abierta en el diálogo: se toma de la lista recargada, no de la copia con la que se abrió.
+const threadStatus = computed(() => orders.value.find((o) => o.id === threadOrder.value?.id)?.status ?? threadOrder.value?.status ?? '')
+
 // Se actualiza sola cuando el equipo técnico programa, asigna o completa un mantenimiento (o tras un corte de red).
 useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
 </script>
@@ -83,8 +95,13 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
           <el-tag :type="statusTagType(row.status)" size="small">{{ maintenanceStatusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Programado para" width="150">
+      <el-table-column label="Fecha objetivo" width="130">
         <template #default="{ row }">{{ formatScheduledDate(row.scheduledDate) }}</template>
+      </el-table-column>
+      <el-table-column label="Visita" min-width="190">
+        <template #default="{ row }">
+          <span :class="row.plannedAt ? 'planned' : 'planned-none'">{{ plannedAtLabel(row.plannedAt, row.status) }}</span>
+        </template>
       </el-table-column>
       <el-table-column label="Técnico" width="160">
         <template #default="{ row }">{{ row.technicianName ?? 'Por asignar' }}</template>
@@ -94,6 +111,13 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
           <span class="includes">
             <el-tag v-for="label in maintenanceIncludesLabels(row)" :key="label" size="small" type="info">{{ label }}</el-tag>
           </span>
+        </template>
+      </el-table-column>
+      <el-table-column label="" width="150">
+        <template #default="{ row }">
+          <el-button class="tap-btn" @click="openThread(row)">
+            Comentarios<template v-if="row.commentCount > 0"> ({{ row.commentCount }})</template>
+          </el-button>
         </template>
       </el-table-column>
       <template #empty>
@@ -106,6 +130,15 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
         </p>
       </template>
     </el-table>
+
+    <MaintenanceOrderThreadDialog
+      v-model="threadVisible"
+      :order-id="threadOrder?.id ?? null"
+      :order-status="threadStatus"
+      title="Comentarios del mantenimiento"
+      help-text="Si la fecha no te sirve, cuéntanos y reprogramamos."
+      @sent="loadOrders"
+    />
 
     <el-pagination
       v-if="total > PAGE_SIZE"
@@ -154,6 +187,19 @@ useRealtimeUpdates(['MaintenanceOrder'], () => loadOrders())
 .cell-sub {
   color: var(--el-text-color-secondary);
   font-size: var(--text-sm);
+}
+
+.planned {
+  color: var(--flap-ink);
+  font-weight: 600;
+}
+
+.planned-none {
+  color: var(--el-text-color-secondary);
+}
+
+.tap-btn {
+  min-height: 40px;
 }
 
 .includes {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/asset_brand.dart';
 import '../../models/asset_model.dart';
+import '../../models/rental_retirement.dart';
 import '../../services/api_client.dart';
 import '../../services/asset_api.dart';
 import '../../services/asset_brand_api.dart';
@@ -168,9 +169,15 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
     final unitsPrintController = TextEditingController();
     final unitsMonthsController = TextEditingController();
     final consumablesController = TextEditingController();
+    final rentalThresholdController = TextEditingController();
+    final rentalWarningController = TextEditingController(
+      text: defaultRentalRetirementWarningPrints.toString(),
+    );
 
     bool isValid() =>
         nameController.text.trim().isNotEmpty &&
+        validateRentalThreshold(rentalThresholdController.text) == null &&
+        validateRentalWarning(rentalWarningController.text) == null &&
         int.tryParse(generalPrintController.text.trim()) != null &&
         int.tryParse(generalMonthsController.text.trim()) != null &&
         int.tryParse(unitsPrintController.text.trim()) != null &&
@@ -238,6 +245,34 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
                       labelText: 'Umbral insumos (impresiones) *',
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: rentalThresholdController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Impresiones para salir de alquiler',
+                      helperText:
+                          'Opcional; vacío = sin límite. Contador total del equipo; es informativo.',
+                      helperMaxLines: 2,
+                      errorText: validateRentalThreshold(
+                        rentalThresholdController.text,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: rentalWarningController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Avisar cuando falten (impresiones) *',
+                      helperText: 'Por defecto 50.000.',
+                      errorText: validateRentalWarning(
+                        rentalWarningController.text,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -270,6 +305,12 @@ class _AssetCreateScreenState extends State<AssetCreateScreen> {
         unitsMonthsInterval: int.parse(unitsMonthsController.text.trim()),
         consumablesPrintThreshold: int.parse(
           consumablesController.text.trim(),
+        ),
+        rentalRetirementPrintThreshold: parseRentalThreshold(
+          rentalThresholdController.text,
+        ),
+        rentalRetirementWarningPrints: int.parse(
+          rentalWarningController.text.trim(),
         ),
       );
       setState(() {

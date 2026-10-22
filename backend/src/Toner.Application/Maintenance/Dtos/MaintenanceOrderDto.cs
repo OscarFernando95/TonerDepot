@@ -25,6 +25,11 @@ public class MaintenanceOrderDto
     public bool IsSelfStarted { get; set; }
     public string? Reason { get; set; }
     public DateTime ScheduledDate { get; set; }
+
+    // Cuándo planea hacerlo el técnico (UTC), si ya lo programó, y el movimiento más reciente del hilo de comentarios.
+    public DateTime? PlannedAt { get; set; }
+    public DateTime? LastCommentAt { get; set; }
+    public int CommentCount { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime CreatedAt { get; set; }
 }

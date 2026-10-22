@@ -9,4 +9,7 @@ public class CreateAssetModelRequest
     public int UnitsPrintThreshold { get; set; } = 30000;
     public int UnitsMonthsInterval { get; set; } = 6;
     public int ConsumablesPrintThreshold { get; set; } = 60000;
+
+    public int? RentalRetirementPrintThreshold { get; set; }
+    public int RentalRetirementWarningPrints { get; set; } = 50000;
 }

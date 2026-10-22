@@ -24,6 +24,10 @@ public interface IUserService
     // política de sesión única no podría entrar desde otro dispositivo). Devuelve cuántas cerró.
     Task<int> RevokeSessionsAsync(Guid userId, Guid? performedByUserId = null, CancellationToken cancellationToken = default);
 
+    // Define a qué sedes de su empresa accede un usuario Cliente (null en la petición = todas). Surte efecto de inmediato:
+    // el alcance se consulta en cada petición, no viaja en el token.
+    Task<UserDto> SetClientLocationsAsync(Guid userId, SetUserClientLocationsRequest request, CancellationToken cancellationToken = default);
+
     // Últimas sesiones del usuario, para auditoría.
     Task<IReadOnlyList<UserSessionDto>> ListSessionsAsync(Guid userId, CancellationToken cancellationToken = default);
 }

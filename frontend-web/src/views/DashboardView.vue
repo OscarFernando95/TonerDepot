@@ -8,11 +8,13 @@ import { useRealtimeUpdates } from '../composables/useRealtime'
 import type { DashboardSummaryDto } from '../api/dashboard'
 import FlapText from '../components/board/FlapText.vue'
 import TechnicianHome from '../components/technicians/TechnicianHome.vue'
+import ClientHome from '../components/portal/ClientHome.vue'
 import LaneStatus from '../components/board/LaneStatus.vue'
 
 const auth = useAuthStore()
 const isStaff = computed(() => auth.hasRole(RoleNames.Administrador, RoleNames.Coordinador))
 const isTechnician = computed(() => auth.hasRole(RoleNames.Tecnico))
+const isClient = computed(() => auth.hasRole(RoleNames.Cliente))
 
 const loading = ref(false)
 const periodDays = ref(30)
@@ -111,6 +113,8 @@ useRealtimeUpdates(['Ticket', 'MaintenanceOrder', 'Visit'], () => {
 
 <template>
   <TechnicianHome v-if="isTechnician" />
+
+  <ClientHome v-else-if="isClient" />
 
   <div v-else-if="!isStaff" class="gate-welcome">
     <p class="gate-welcome-eyebrow">

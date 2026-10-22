@@ -42,7 +42,9 @@ public class AssetModelService : IAssetModelService
                 GeneralMonthsInterval = m.GeneralMonthsInterval,
                 UnitsPrintThreshold = m.UnitsPrintThreshold,
                 UnitsMonthsInterval = m.UnitsMonthsInterval,
-                ConsumablesPrintThreshold = m.ConsumablesPrintThreshold
+                ConsumablesPrintThreshold = m.ConsumablesPrintThreshold,
+                RentalRetirementPrintThreshold = m.RentalRetirementPrintThreshold,
+                RentalRetirementWarningPrints = m.RentalRetirementWarningPrints
             })
             .ToListAsync(cancellationToken);
 
@@ -75,7 +77,9 @@ public class AssetModelService : IAssetModelService
             GeneralMonthsInterval = request.GeneralMonthsInterval,
             UnitsPrintThreshold = request.UnitsPrintThreshold,
             UnitsMonthsInterval = request.UnitsMonthsInterval,
-            ConsumablesPrintThreshold = request.ConsumablesPrintThreshold
+            ConsumablesPrintThreshold = request.ConsumablesPrintThreshold,
+            RentalRetirementPrintThreshold = request.RentalRetirementPrintThreshold,
+            RentalRetirementWarningPrints = request.RentalRetirementWarningPrints
         };
         _db.AssetModels.Add(model);
         await _db.SaveChangesAsync(cancellationToken);
@@ -106,6 +110,8 @@ public class AssetModelService : IAssetModelService
         model.UnitsPrintThreshold = request.UnitsPrintThreshold;
         model.UnitsMonthsInterval = request.UnitsMonthsInterval;
         model.ConsumablesPrintThreshold = request.ConsumablesPrintThreshold;
+        model.RentalRetirementPrintThreshold = request.RentalRetirementPrintThreshold;
+        model.RentalRetirementWarningPrints = request.RentalRetirementWarningPrints;
 
         await RecalculateSchedulesForModelAsync(model, cancellationToken);
 
@@ -163,6 +169,8 @@ public class AssetModelService : IAssetModelService
         GeneralMonthsInterval = m.GeneralMonthsInterval,
         UnitsPrintThreshold = m.UnitsPrintThreshold,
         UnitsMonthsInterval = m.UnitsMonthsInterval,
-        ConsumablesPrintThreshold = m.ConsumablesPrintThreshold
+        ConsumablesPrintThreshold = m.ConsumablesPrintThreshold,
+        RentalRetirementPrintThreshold = m.RentalRetirementPrintThreshold,
+        RentalRetirementWarningPrints = m.RentalRetirementWarningPrints
     };
 }

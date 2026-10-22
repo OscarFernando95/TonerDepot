@@ -631,7 +631,7 @@ public class AssetServiceTests
 
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
-        var owningClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, client.Id, null);
+        var owningClientUser = await TestClientUsers.SeedAsync(dbName, client.Id);
 
         var result = await service.GetByIdAsync(owningClientUser, asset.Id);
 
@@ -655,7 +655,7 @@ public class AssetServiceTests
 
         using var actDb = TonerTestDb.CreateContext(dbName);
         var service = new AssetService(actDb, new MaintenanceScheduleEngine(actDb), TestAssignment.Create(actDb));
-        var otherClientUser = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, otherClient.Id, null);
+        var otherClientUser = await TestClientUsers.SeedAsync(dbName, otherClient.Id);
 
         await Assert.ThrowsAsync<ForbiddenException>(() => service.GetByIdAsync(otherClientUser, asset.Id));
     }

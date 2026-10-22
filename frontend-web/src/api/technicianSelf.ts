@@ -185,6 +185,8 @@ export function getMyHome() {
 
 // El técnico inicia por su cuenta un mantenimiento a demanda de un equipo de su zona (o vinculado a él): la orden
 // nace asignada a él y se atiende con el check-in de siempre. El servidor valida alcance, horario y orden abierta.
+// `request.plannedAt` (ISO UTC, opcional) la deja ya PROGRAMADA: el servidor exige fecha futura y a no más de 365 días,
+// y el cliente verá la fecha. Sin ella, la orden nace sin fecha, como siempre.
 export function startMaintenance(request: CreateManualMaintenanceOrderRequest) {
   return http.post<MaintenanceOrderDto>('/technicians/me/maintenance-orders', request)
 }
@@ -192,4 +194,10 @@ export function startMaintenance(request: CreateManualMaintenanceOrderRequest) {
 // Se arrepiente de un mantenimiento que inició él mismo y todavía no empezó (sin check-in).
 export function cancelStartedMaintenance(orderId: string) {
   return http.post<MaintenanceOrderDto>(`/technicians/me/maintenance-orders/${orderId}/cancel`)
+}
+
+// El técnico asignado fija (o cambia, volviendo a llamarlo) cuándo hará el mantenimiento. `plannedAt` es ISO UTC; el
+// servidor exige orden Asignada (sin iniciar), fecha futura y a no más de 365 días.
+export function scheduleMaintenanceOrder(orderId: string, plannedAtIso: string) {
+  return http.post<MaintenanceOrderDto>(`/technicians/me/maintenance-orders/${orderId}/schedule`, { plannedAt: plannedAtIso })
 }

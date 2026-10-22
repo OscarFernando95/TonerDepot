@@ -15,6 +15,9 @@ public interface IPushNotifier
     // A todo el staff activo (Administrador y Coordinador).
     Task NotifyStaffAsync(PushMessage message, CancellationToken cancellationToken = default);
 
+    // Al técnico asignado a una orden de mantenimiento; si la orden aún no tiene técnico, al staff (alguien debe enterarse).
+    Task NotifyOrderTechnicianAsync(Guid orderId, PushMessage message, CancellationToken cancellationToken = default);
+
     // Una instalación pendiente no se asigna: la puede tomar cualquier técnico que cubra el municipio de su sede. Se
     // avisa a esos técnicos (los mismos que la ven en su lista de instalaciones pendientes).
     Task NotifyInstallersAsync(Guid assetId, PushMessage message, CancellationToken cancellationToken = default);

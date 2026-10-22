@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Toner.Application.Push;
+using Toner.Domain.Common;
 using Toner.Domain.Entities;
 using Toner.Domain.Enums;
 
@@ -15,6 +16,7 @@ namespace Toner.Infrastructure.Push;
 //
 // Avisos:
 //   - Al técnico: le asignan un ticket/orden, se lo quitan (reasignación) o se cancela uno que tenía.
+//   - Al técnico de una orden de mantenimiento (o al staff si no tiene): el cliente dejó un comentario en ella.
 //   - A los técnicos de la zona: un equipo queda pendiente de instalar (lista abierta, nadie lo tiene asignado).
 //   - Al staff: un ticket queda sin asignar (el motor no encontró técnico disponible).
 //
@@ -28,6 +30,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
     public const string EventCancelled = "cancelled";
     public const string EventUnassigned = "unassigned";
     public const string EventAvailable = "available";
+    public const string EventCommented = "commented";
 
     // Se resuelve al publicar y no al construir: el notificador depende de la fábrica de DbContext, y la fábrica
     // construye sus opciones con este interceptor — resolverlo en el constructor sería una dependencia circular
@@ -116,6 +119,11 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
                     break;
                 case Asset asset:
                     CaptureInstallation(events, entry, asset);
+                    break;
+                // Solo el comentario de un cliente avisa: lo que escribe el propio técnico o el staff no es para ellos.
+                case MaintenanceOrderComment comment when entry.State == EntityState.Added
+                    && comment.Kind == OrderCommentKind.Comentario && comment.AuthorRole == RoleNames.Cliente:
+                    events.Add(new("order", comment.MaintenanceOrderId, EventCommented, null));
                     break;
             }
         }
@@ -226,6 +234,10 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
                     {
                         await notifier.NotifyTechniciansAsync(new[] { e.TechnicianId.Value }, message);
                     }
+                    else if (e.Kind == "order" && e.Event == EventCommented)
+                    {
+                        await notifier.NotifyOrderTechnicianAsync(e.EntityId, message);
+                    }
                     else if (e.Kind == "installation")
                     {
                         await notifier.NotifyInstallersAsync(e.EntityId, message);
@@ -259,6 +271,7 @@ public sealed class PushChangeInterceptor : SaveChangesInterceptor
             (_, EventRemoved) => ("Cambio en tus asignaciones", "Un servicio que tenías ya no está a tu cargo."),
             (_, EventCancelled) => ("Servicio cancelado", "Un servicio asignado a ti fue cancelado."),
             (_, EventUnassigned) => ("Ticket sin asignar", "Hay un ticket esperando técnico."),
+            ("order", EventCommented) => ("Comentario del cliente", "Un cliente escribió sobre un mantenimiento."),
             ("installation", EventAvailable) => ("Instalación disponible", "Hay un equipo pendiente de instalar en tu zona."),
             _ => ("Toner", "Tienes novedades.")
         };

@@ -7,6 +7,8 @@ import * as ordersApi from '../../api/maintenanceOrders'
 import * as techniciansApi from '../../api/technicians'
 import { MaintenanceOrderStatusLabels, type AssignmentHistoryDto, type MaintenanceOrderDto } from '../../api/types'
 import EvidenceGallery from '../../components/EvidenceGallery.vue'
+import MaintenanceOrderThread from '../../components/maintenance/MaintenanceOrderThread.vue'
+import { plannedAtLabel } from '../../composables/useMaintenanceSchedule'
 import { useRealtimeUpdates } from '../../composables/useRealtime'
 import { useStatusTag } from '../../composables/useStatusTag'
 
@@ -138,8 +140,12 @@ useRealtimeUpdates(['MaintenanceOrder'], (event) => {
           </template>
           <dt>Técnico asignado</dt>
           <dd>{{ order.technicianName ?? '—' }}</dd>
-          <dt>Programada</dt>
+          <dt>Fecha objetivo</dt>
           <dd>{{ new Date(order.scheduledDate).toLocaleString() }}</dd>
+          <template v-if="order.plannedAt || order.technicianId">
+            <dt>Visita</dt>
+            <dd>{{ plannedAtLabel(order.plannedAt, order.status) || '—' }}</dd>
+          </template>
           <template v-if="order.completedAt">
             <dt>Completada</dt>
             <dd>{{ new Date(order.completedAt).toLocaleString() }}</dd>
@@ -166,6 +172,11 @@ useRealtimeUpdates(['MaintenanceOrder'], (event) => {
             Cancelar
           </el-button>
         </div>
+      </el-card>
+
+      <el-card class="section-card">
+        <template #header>Conversación con el cliente y el técnico</template>
+        <MaintenanceOrderThread :order-id="orderId" :order-status="order.status" max-height="360px" />
       </el-card>
 
       <el-card class="section-card">

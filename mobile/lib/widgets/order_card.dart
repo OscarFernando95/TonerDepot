@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/maintenance_order.dart';
+import '../models/maintenance_thread_text.dart';
 import '../models/status_labels.dart';
 import '../theme/app_theme.dart';
 import 'clay_icon_badge.dart';
@@ -17,6 +18,8 @@ class OrderCard extends StatelessWidget {
     required this.checkingIn,
     required this.onCheckIn,
     this.onCancel,
+    this.onSchedule,
+    this.onOpenThread,
   });
 
   final MaintenanceOrder order;
@@ -27,6 +30,12 @@ class OrderCard extends StatelessWidget {
 
   /// Solo para el mantenimiento que inició el propio técnico y aún no empezó (ver MaintenanceOrder.canCancelByTechnician).
   final VoidCallback? onCancel;
+
+  /// Programar/Reprogramar la fecha (solo mientras la orden sigue Asignada, ver MaintenanceOrder.canScheduleByTechnician).
+  final VoidCallback? onSchedule;
+
+  /// Abre el hilo de comentarios con el cliente y el staff (solo lectura si la visita ya está en curso).
+  final VoidCallback? onOpenThread;
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +89,34 @@ class OrderCard extends StatelessWidget {
             'Programada: ${order.scheduledDate.split('T').first}',
             style: const TextStyle(fontSize: 12),
           ),
+          Text(
+            'Fecha de visita: ${plannedLabelForStaff(order)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: order.plannedAt == null
+                  ? AppColors.inkSecondary
+                  : AppColors.signalBlue,
+            ),
+          ),
+          if (onSchedule != null || onOpenThread != null)
+            Wrap(
+              alignment: WrapAlignment.end,
+              children: [
+                if (onSchedule != null && order.canScheduleByTechnician)
+                  TextButton.icon(
+                    onPressed: checkingIn ? null : onSchedule,
+                    icon: const Icon(Icons.event_outlined, size: 18),
+                    label: Text(scheduleButtonLabel(order)),
+                  ),
+                if (onOpenThread != null)
+                  TextButton.icon(
+                    onPressed: onOpenThread,
+                    icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                    label: Text(commentsButtonLabel(order.commentCount)),
+                  ),
+              ],
+            ),
           if (canCheckIn && !isActive) ...[
             const SizedBox(height: 8),
             Row(

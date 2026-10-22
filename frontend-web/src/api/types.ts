@@ -40,6 +40,10 @@ export interface UserDto {
   mustChangePassword: boolean
   clientId: string | null
   technicianId: string | null
+  // Solo usuarios Cliente: si el administrador limitó el acceso a algunas sedes de su empresa.
+  // allowedLocationIds viene vacío cuando no hay restricción (ve todas las sedes).
+  restrictedToLocations: boolean
+  allowedLocationIds: string[]
   createdAt: string
 }
 
@@ -58,6 +62,8 @@ export interface CreateUserRequest {
   cityId: string
   roleName: RoleName
   clientId?: string | null
+  // Solo con roleName='Cliente'. null/ausente = todas las sedes de su empresa; si se envía, mínimo 1.
+  allowedLocationIds?: string[] | null
 }
 
 // Rol y cliente no son editables acá — ver comentario en UpdateUserRequest.cs del backend.
@@ -212,8 +218,13 @@ export interface AssetModelDto {
   unitsPrintThreshold: number
   unitsMonthsInterval: number
   consumablesPrintThreshold: number
+  // Límite de impresiones (contador total del equipo) al que sale de alquiler y pasa a venta; null = sin límite.
+  rentalRetirementPrintThreshold: number | null
+  // Se avisa (solo informativo) cuando faltan estas impresiones o menos. Por defecto 50.000.
+  rentalRetirementWarningPrints: number
 }
 
+// El update es reemplazo completo: ambos campos de retiro se reenvían siempre.
 export interface CreateAssetModelRequest {
   name: string
   generalPrintThreshold: number
@@ -221,11 +232,25 @@ export interface CreateAssetModelRequest {
   unitsPrintThreshold: number
   unitsMonthsInterval: number
   consumablesPrintThreshold: number
+  rentalRetirementPrintThreshold: number | null
+  rentalRetirementWarningPrints: number
 }
 
 export type UpdateAssetModelRequest = CreateAssetModelRequest
 
-export interface AssetDto {
+// Estado informativo del retiro de alquiler de un equipo; null = sin límite, sin lecturas o rol Cliente.
+export type RentalRetirementStatus = 'Proxima' | 'Superada'
+
+// Campos de retiro de alquiler que comparten AssetDto y MeterReadingAssetDto. Al rol Cliente siempre llegan null.
+export interface RentalRetirementInfoFields {
+  rentalRetirementPrintThreshold: number | null
+  rentalRetirementWarningPrints: number | null
+  // Impresiones que faltan; negativo = cuánto se pasó. null si no hay límite o lecturas.
+  printsUntilRetirement: number | null
+  rentalRetirementStatus: RentalRetirementStatus | null
+}
+
+export interface AssetDto extends RentalRetirementInfoFields {
   id: string
   assetModelId: string
   assetBrandName: string
@@ -430,7 +455,29 @@ export interface MaintenanceOrderDto {
   isSelfStarted: boolean
   reason: string | null
   scheduledDate: string
+  // Cuándo planea hacerlo el técnico asignado (ISO UTC); null mientras no haya programado una fecha.
+  plannedAt: string | null
+  // Última entrada del hilo de comentarios/programación y cuántas hay (el hilo se pide aparte).
+  lastCommentAt: string | null
+  commentCount: number
   completedAt: string | null
+  createdAt: string
+}
+
+export type MaintenanceCommentKind = 'Comentario' | 'Programacion'
+export type MaintenanceCommentAuthorRole = 'Cliente' | 'Tecnico' | 'Administrador' | 'Coordinador'
+
+// Entrada del hilo compartido entre cliente, técnico y staff. 'Programacion' es el evento "el técnico fijó la fecha".
+export interface MaintenanceOrderCommentDto {
+  id: string
+  maintenanceOrderId: string
+  kind: MaintenanceCommentKind
+  body: string
+  // Solo en 'Programacion'.
+  plannedAt: string | null
+  authorUserId: string
+  authorName: string
+  authorRole: MaintenanceCommentAuthorRole
   createdAt: string
 }
 
@@ -440,9 +487,11 @@ export interface CreateManualMaintenanceOrderRequest {
   includesUnits: boolean
   includesConsumables: boolean
   reason?: string | null
+  // Solo técnico (POST /technicians/me/maintenance-orders): ISO UTC. Si viene, la orden nace ya programada.
+  plannedAt?: string | null
 }
 
-export interface MeterReadingAssetDto {
+export interface MeterReadingAssetDto extends RentalRetirementInfoFields {
   assetId: string
   assetBrandName: string
   model: string
@@ -560,4 +609,54 @@ export interface ProblemDetails {
   title: string
   status: number
   errors: Record<string, string[]> | null
+}
+
+// Inicio del Cliente (GET /client-portal/home): el estado de SU servicio de un solo llamado. Sin nada de contratos ni
+// de límites de alquiler (el backend no los envía).
+export interface ClientHomeTicketDto {
+  id: string
+  equipment: string
+  locationName: string | null
+  description: string
+  status: ServiceTicketStatusName
+  priority: ServiceTicketPriorityName
+  technicianName: string | null
+  createdAt: string
+}
+
+export interface ClientHomeMaintenanceDto {
+  id: string
+  equipment: string
+  locationName: string | null
+  status: string
+  scheduledDate: string | null
+  plannedAt: string | null
+  technicianName: string | null
+  commentCount: number
+}
+
+export interface ClientHomeInstallationDto {
+  assetId: string
+  equipment: string
+  locationName: string | null
+  inProgress: boolean
+}
+
+export interface ClientHomeDto {
+  clientName: string
+  locationCount: number
+  openTickets: number
+  ticketsInProgress: number
+  openMaintenance: number
+  maintenanceScheduled: number
+  maintenanceInProgress: number
+  maintenanceWithoutVisitDate: number
+  pendingInstallations: number
+  installationsInProgress: number
+  installedAssets: number
+  assetsInMaintenance: number
+  assetsWithOpenTicket: number
+  recentTickets: ClientHomeTicketDto[]
+  upcomingMaintenance: ClientHomeMaintenanceDto[]
+  installations: ClientHomeInstallationDto[]
 }

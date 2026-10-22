@@ -13,5 +13,7 @@ public class UpdateAssetModelRequestValidator : AbstractValidator<UpdateAssetMod
         RuleFor(x => x.UnitsPrintThreshold).GreaterThan(0);
         RuleFor(x => x.UnitsMonthsInterval).GreaterThan(0);
         RuleFor(x => x.ConsumablesPrintThreshold).GreaterThan(0);
+        RuleFor(x => x.RentalRetirementPrintThreshold).GreaterThan(0).When(x => x.RentalRetirementPrintThreshold.HasValue);
+        RuleFor(x => x.RentalRetirementWarningPrints).GreaterThan(0);
     }
 }

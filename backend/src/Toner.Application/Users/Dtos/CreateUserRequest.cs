@@ -19,4 +19,8 @@ public class CreateUserRequest
 
     // Requerido únicamente cuando RoleName == Cliente.
     public Guid? ClientId { get; set; }
+
+    // Solo para RoleName == Cliente. null: ve todas las sedes de su empresa. Con valores: solo esas sedes (deben ser de
+    // su empresa); la lista no puede ir vacía — "ninguna sede" no es un usuario útil.
+    public IReadOnlyList<Guid>? AllowedLocationIds { get; set; }
 }

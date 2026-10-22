@@ -14,6 +14,9 @@ public class AssetModelConfiguration : IEntityTypeConfiguration<AssetModel>
         builder.Property(m => m.Name).IsRequired().HasMaxLength(100);
         builder.HasIndex(m => new { m.AssetBrandId, m.Name }).IsUnique();
 
+        // Default en la base: los inserts SQL directos (seeds, pruebas) que no conocen la columna siguen siendo válidos.
+        builder.Property(m => m.RentalRetirementWarningPrints).HasDefaultValue(50000);
+
         builder.HasOne(m => m.AssetBrand)
             .WithMany(b => b.Models)
             .HasForeignKey(m => m.AssetBrandId)

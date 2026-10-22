@@ -158,4 +158,38 @@ public class AbandonedSelfStartedOrderTests
             Assert.NotNull(await new MaintenanceScheduleEngine(db).EvaluateAsync(s.AssetId, 0, Now));
         }
     }
+
+    private static async Task PlanAsync(Scenario s, Guid orderId, DateTime plannedAt)
+    {
+        using var db = TonerTestDb.CreateContext(s.DbName);
+        (await db.MaintenanceOrders.SingleAsync(o => o.Id == orderId)).PlannedAt = plannedAt;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task UnaOrdenProgramadaParaMasAdelante_NoCaducaAunqueSeVieja()
+    {
+        // Creada hace 10 horas (pasado el plazo de 4), pero el técnico la programó para dentro de 5 días: no está abandonada.
+        var s = await SeedAsync();
+        var id = await AddOrderAsync(s, MaintenanceOrderStatus.Asignada, Now.AddHours(-10), AssignmentType.IniciadaPorTecnico);
+        await PlanAsync(s, id, Now.AddDays(5));
+
+        Assert.Equal(0, await RunAsync(s));
+        Assert.Equal(MaintenanceOrderStatus.Asignada, await StatusOfAsync(s, id));
+    }
+
+    [Fact]
+    public async Task UnaOrdenProgramada_CaducaSoloCuandoPasoElPlazoDesdeSuFecha()
+    {
+        var s = await SeedAsync();
+        var recent = await AddOrderAsync(s, MaintenanceOrderStatus.Asignada, Now.AddDays(-3), AssignmentType.IniciadaPorTecnico);
+        await PlanAsync(s, recent, Now.AddHours(-1)); // la hora pasó hace 1 h: todavía dentro del plazo de 4
+
+        Assert.Equal(0, await RunAsync(s));
+        Assert.Equal(MaintenanceOrderStatus.Asignada, await StatusOfAsync(s, recent));
+
+        await PlanAsync(s, recent, Now.AddHours(-5)); // pasó hace 5 h sin check-in: abandonada
+        Assert.Equal(1, await RunAsync(s));
+        Assert.Equal(MaintenanceOrderStatus.Cancelada, await StatusOfAsync(s, recent));
+    }
 }

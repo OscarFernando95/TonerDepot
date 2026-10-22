@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/asset_model.dart';
+import '../../models/rental_retirement.dart';
 import '../../services/api_client.dart';
 import '../../state/asset_brand_detail_state.dart';
 import '../../state/base_kit_state.dart';
@@ -89,8 +90,20 @@ class _BrandDetailBody extends StatelessWidget {
       text: existing?.consumablesPrintThreshold.toString() ?? '',
     );
 
+    final rentalThresholdController = TextEditingController(
+      text: existing?.rentalRetirementPrintThreshold?.toString() ?? '',
+    );
+    final rentalWarningController = TextEditingController(
+      text:
+          (existing?.rentalRetirementWarningPrints ??
+                  defaultRentalRetirementWarningPrints)
+              .toString(),
+    );
+
     bool isValid() =>
         nameController.text.trim().isNotEmpty &&
+        validateRentalThreshold(rentalThresholdController.text) == null &&
+        validateRentalWarning(rentalWarningController.text) == null &&
         int.tryParse(generalPrintController.text.trim()) != null &&
         int.tryParse(generalMonthsController.text.trim()) != null &&
         int.tryParse(unitsPrintController.text.trim()) != null &&
@@ -158,6 +171,34 @@ class _BrandDetailBody extends StatelessWidget {
                       labelText: 'Umbral insumos (impresiones) *',
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: rentalThresholdController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Impresiones para salir de alquiler',
+                      helperText:
+                          'Opcional; vacío = sin límite. Contador total del equipo; es informativo.',
+                      helperMaxLines: 2,
+                      errorText: validateRentalThreshold(
+                        rentalThresholdController.text,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: rentalWarningController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Avisar cuando falten (impresiones) *',
+                      helperText: 'Por defecto 50.000.',
+                      errorText: validateRentalWarning(
+                        rentalWarningController.text,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -186,6 +227,12 @@ class _BrandDetailBody extends StatelessWidget {
         unitsPrintThreshold: int.parse(unitsPrintController.text.trim()),
         unitsMonthsInterval: int.parse(unitsMonthsController.text.trim()),
         consumablesPrintThreshold: int.parse(consumablesController.text.trim()),
+        rentalRetirementPrintThreshold: parseRentalThreshold(
+          rentalThresholdController.text,
+        ),
+        rentalRetirementWarningPrints: int.parse(
+          rentalWarningController.text.trim(),
+        ),
       );
       final error = existing == null
           ? await state.addModel(
@@ -195,6 +242,10 @@ class _BrandDetailBody extends StatelessWidget {
               unitsPrintThreshold: params.unitsPrintThreshold,
               unitsMonthsInterval: params.unitsMonthsInterval,
               consumablesPrintThreshold: params.consumablesPrintThreshold,
+              rentalRetirementPrintThreshold:
+                  params.rentalRetirementPrintThreshold,
+              rentalRetirementWarningPrints:
+                  params.rentalRetirementWarningPrints,
             )
           : await state.updateModel(
               existing.id,
@@ -204,6 +255,10 @@ class _BrandDetailBody extends StatelessWidget {
               unitsPrintThreshold: params.unitsPrintThreshold,
               unitsMonthsInterval: params.unitsMonthsInterval,
               consumablesPrintThreshold: params.consumablesPrintThreshold,
+              rentalRetirementPrintThreshold:
+                  params.rentalRetirementPrintThreshold,
+              rentalRetirementWarningPrints:
+                  params.rentalRetirementWarningPrints,
             );
       if (context.mounted) {
         ScaffoldMessenger.of(context)
@@ -307,6 +362,16 @@ class _BrandDetailBody extends StatelessWidget {
                         ),
                         Text(
                           'Insumos: ${model.consumablesPrintThreshold} impr.',
+                          style: const TextStyle(
+                            color: AppColors.inkSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          rentalThresholdSummary(
+                            model.rentalRetirementPrintThreshold,
+                            model.rentalRetirementWarningPrints,
+                          ),
                           style: const TextStyle(
                             color: AppColors.inkSecondary,
                             fontSize: 12,

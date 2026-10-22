@@ -11,6 +11,11 @@ public sealed class RlsFixture
 {
     public static readonly Guid ClientA = Guid.Parse("11111111-1111-1111-1111-111111111111");
     public static readonly Guid ClientB = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+    // Usuarios Cliente reales de A y B: el alcance por sede (ClientScope) se consulta en la base, y un usuario que no existe
+    // no ve nada — con un id inventado, "el cliente B no ve lo de A" pasaría por la razón equivocada (usuario fantasma).
+    public static readonly Guid ClientUserA = Guid.Parse("c11e0000-0000-0000-0000-00000000000a");
+    public static readonly Guid ClientUserB = Guid.Parse("c11e0000-0000-0000-0000-00000000000b");
     public static readonly Guid CityId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
     public static readonly Guid AssetOfClientA = Guid.Parse("a55e7000-0000-0000-0000-000000000001");
@@ -79,6 +84,13 @@ public sealed class RlsFixture
                        (@contractB,@clientB,now(),'Activo',now())
                 ON CONFLICT (""Id"") DO NOTHING;
 
+                INSERT INTO ""Users"" (""Id"",""Cedula"",""PasswordHash"",""FullName"",""RoleId"",""ClientId"",""IsActive"",""MustChangePassword"",""FailedLoginAttempts"",""CreatedAt"")
+                SELECT u.id, 'RLS-CLIENTE-' || u.suffix, 'no-es-un-hash', 'Usuario cliente ' || u.suffix, r.""Id"", u.client, true, false, 0, now()
+                FROM ""Roles"" r,
+                     (VALUES (@clientUserA, 'A', @clientA), (@clientUserB, 'B', @clientB)) AS u(id, suffix, client)
+                WHERE r.""Name"" = 'Cliente'
+                ON CONFLICT DO NOTHING;
+
                 INSERT INTO ""Users"" (""Id"",""Cedula"",""Email"",""PasswordHash"",""FullName"",""RoleId"",""IsActive"",""MustChangePassword"",""SecurityStamp"",""FailedLoginAttempts"",""CreatedAt"")
                 SELECT @userId, 'RLS-FIXTURE', 'rls-fixture@test.local', 'no-es-un-hash', 'Usuario fixture RLS', r.""Id"", false, false, gen_random_uuid(), 0, now()
                 FROM ""Roles"" r WHERE r.""Name"" = 'Coordinador'
@@ -125,6 +137,8 @@ public sealed class RlsFixture
             command.Parameters.AddWithValue("evidenceA", Guid.Parse("eeeeeeee-0000-0000-0000-0000000000e1"));
             command.Parameters.AddWithValue("brandId", Guid.Parse("ffffffff-0000-0000-0000-000000000001"));
             command.Parameters.AddWithValue("modelId", Guid.Parse("ffffffff-0000-0000-0000-000000000002"));
+            command.Parameters.AddWithValue("clientUserA", ClientUserA);
+            command.Parameters.AddWithValue("clientUserB", ClientUserB);
             command.Parameters.AddWithValue("assetA", AssetOfClientA);
             command.Parameters.AddWithValue("assetB", AssetOfClientB);
             command.Parameters.AddWithValue("assetSinSede", AssetWithoutLocation);

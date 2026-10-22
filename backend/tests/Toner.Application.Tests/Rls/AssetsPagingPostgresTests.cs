@@ -77,7 +77,7 @@ public class AssetsPagingPostgresTests
             Assert.Equal(Total, atLocation.TotalCount);
 
             // Cliente B, pasando el clientId y la sede del A: no ve nada (RLS + AND del servicio).
-            var asClientB = new RequestingUser(Guid.NewGuid(), RoleNames.Cliente, RlsFixture.ClientB, null);
+            var asClientB = new RequestingUser(RlsFixture.ClientUserB, RoleNames.Cliente, RlsFixture.ClientB, null);
             using var clientScope = tenant.Push(() => TenantContext.ForClient(RlsFixture.ClientB));
             await using var clientDb = AppContext(tenant);
             var clientService = new AssetService(clientDb, new MaintenanceScheduleEngine(clientDb), TestAssignment.Create(clientDb));

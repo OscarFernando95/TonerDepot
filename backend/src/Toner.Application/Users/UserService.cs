@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Toner.Application.Auth;
 using Toner.Application.Common.Paging;
@@ -68,6 +69,12 @@ public class UserService : IUserService
 
         _db.Users.Add(user);
 
+        if (request.RoleName == RoleNames.Cliente && request.AllowedLocationIds is not null)
+        {
+            user.RestrictedToLocations = true;
+            AddAllowedLocations(user.Id, request.ClientId!.Value, request.AllowedLocationIds);
+        }
+
         if (request.RoleName == RoleNames.Tecnico)
         {
             _db.Technicians.Add(new Technician
@@ -118,6 +125,65 @@ public class UserService : IUserService
         await _db.SaveChangesAsync(cancellationToken);
 
         return await ToDtoAsync(userId, cancellationToken);
+    }
+
+    public async Task<UserDto> SetClientLocationsAsync(Guid userId, SetUserClientLocationsRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await _db.Users
+            .Include(u => u.Role)
+            .Include(u => u.AllowedLocations)
+            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new NotFoundException(nameof(User), userId);
+
+        if (user.Role.Name != RoleNames.Cliente || user.ClientId is not { } clientId)
+        {
+            throw new ConflictException("Solo un usuario con rol Cliente tiene sedes asignadas.");
+        }
+
+        if (request.AllowedLocationIds is null)
+        {
+            // Sin restricción: ve todas las sedes de su empresa. Las filas se descartan para que no queden huérfanas.
+            user.RestrictedToLocations = false;
+            _db.UserClientLocations.RemoveRange(user.AllowedLocations);
+        }
+        else
+        {
+            var wanted = request.AllowedLocationIds.Distinct().ToList();
+            if (wanted.Count == 0)
+            {
+                throw new ValidationException("Indica al menos una sede, o quita la restricción para que vea todas.");
+            }
+
+            var valid = await _db.ClientLocations
+                .CountAsync(l => wanted.Contains(l.Id) && l.ClientId == clientId, cancellationToken);
+            if (valid != wanted.Count)
+            {
+                throw new ValidationException("Alguna de las sedes no existe o no pertenece a la empresa del usuario.");
+            }
+
+            user.RestrictedToLocations = true;
+            // Diferencia, no borrar y reinsertar: el índice único (usuario, sede) no admite el mismo par dos veces en un guardado.
+            _db.UserClientLocations.RemoveRange(user.AllowedLocations.Where(l => !wanted.Contains(l.ClientLocationId)));
+            var existing = user.AllowedLocations.Select(l => l.ClientLocationId).ToHashSet();
+            AddAllowedLocations(userId, clientId, wanted.Where(id => !existing.Contains(id)));
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Sedes de acceso actualizadas para el usuario Cliente {TargetUserId}: {Mode}",
+            userId, user.RestrictedToLocations ? $"{request.AllowedLocationIds!.Distinct().Count()} sede(s)" : "todas");
+
+        return await ToDtoAsync(userId, cancellationToken);
+    }
+
+    private void AddAllowedLocations(Guid userId, Guid clientId, IEnumerable<Guid> locationIds)
+    {
+        foreach (var locationId in locationIds.Distinct())
+        {
+            // ClientId capturado al escribir (ver UserClientLocation): las sedes ya se validaron como de esta empresa.
+            _db.UserClientLocations.Add(new UserClientLocation { UserId = userId, ClientLocationId = locationId, ClientId = clientId });
+        }
     }
 
     public async Task<UserDto> SetActiveStatusAsync(Guid userId, bool isActive, CancellationToken cancellationToken = default)
@@ -210,6 +276,8 @@ public class UserService : IUserService
             IsActive = dto.IsActive,
             MustChangePassword = dto.MustChangePassword,
             ClientId = dto.ClientId,
+            RestrictedToLocations = dto.RestrictedToLocations,
+            AllowedLocationIds = dto.AllowedLocationIds,
             TechnicianId = dto.TechnicianId,
             CreatedAt = dto.CreatedAt,
             GeneratedPassword = generatedPassword
@@ -231,6 +299,8 @@ public class UserService : IUserService
                 IsActive = u.IsActive,
                 MustChangePassword = u.MustChangePassword,
                 ClientId = u.ClientId,
+                RestrictedToLocations = u.RestrictedToLocations,
+                AllowedLocationIds = u.AllowedLocations.Select(l => l.ClientLocationId).ToList(),
                 TechnicianId = u.Technician != null ? u.Technician.Id : null,
                 CreatedAt = u.CreatedAt
             });

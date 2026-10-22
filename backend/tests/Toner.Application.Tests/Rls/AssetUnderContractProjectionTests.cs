@@ -99,7 +99,7 @@ public class AssetUnderContractProjectionTests
         var (db, conn) = await OpenContextAsync(isStaff, clientId);
         await using var _ = conn;
         using var __ = db;
-        var user = new RequestingUser(Guid.NewGuid(), isStaff ? RoleNames.Administrador : RoleNames.Cliente, clientId, null);
+        var user = new RequestingUser(isStaff ? Guid.NewGuid() : RlsFixture.ClientUserA, isStaff ? RoleNames.Administrador : RoleNames.Cliente, clientId, null);
         var service = new ServiceTicketService(db, null!);
 
         // El cliente no ve nada de contratos: la marca llega siempre en false, aunque el equipo sí tenga uno vigente.

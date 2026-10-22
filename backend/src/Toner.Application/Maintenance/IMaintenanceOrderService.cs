@@ -39,6 +39,18 @@ public interface IMaintenanceOrderService
     Task<MaintenanceOrder> PrepareCompleteAsync(Guid id, CompleteMaintenanceOrderRequest request, Guid completedByUserId, CancellationToken cancellationToken = default);
     Task<MaintenanceOrderDto> CancelAsync(Guid id, CancellationToken cancellationToken = default);
 
+    // El técnico asignado fija o cambia cuándo hará el mantenimiento (solo orden Asignada, fecha futura). Queda registrado en el
+    // hilo, que el cliente ve para poder pedir un cambio.
+    Task<MaintenanceOrderDto> ScheduleAsync(Guid id, Guid technicianId, Guid authorUserId, DateTime plannedAtUtc, CancellationToken cancellationToken = default);
+
+    // Fija la fecha en la orden y deja el registro en el hilo, SIN guardar: la comparten ScheduleAsync y el técnico que crea su
+    // mantenimiento ya programado (un solo SaveChanges para toda la operación).
+    void ApplySchedule(MaintenanceOrder order, Guid authorUserId, DateTime plannedAtUtc);
+
+    // Hilo de la orden. Mismo alcance que ver la orden: staff, el técnico asignado y el cliente (y sus sedes) dueño de ella.
+    Task<IReadOnlyList<MaintenanceOrderCommentDto>> ListCommentsAsync(RequestingUser requestingUser, Guid id, CancellationToken cancellationToken = default);
+    Task<MaintenanceOrderCommentDto> AddCommentAsync(RequestingUser requestingUser, Guid id, string body, CancellationToken cancellationToken = default);
+
     // El técnico cancela un mantenimiento que inició él mismo y que aún no empezó (Asignada, sin check-in).
     Task<MaintenanceOrderDto> CancelSelfStartedAsync(Guid id, Guid technicianId, CancellationToken cancellationToken = default);
     Task<PagedResult<AssignmentHistoryDto>> GetAssignmentHistoryAsync(Guid id, string? cursor, int? pageSize, CancellationToken cancellationToken = default);

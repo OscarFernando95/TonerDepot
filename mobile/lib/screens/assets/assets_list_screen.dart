@@ -13,6 +13,7 @@ import '../../widgets/clay_segmented_control.dart';
 import '../../widgets/clay_surface.dart';
 import '../../widgets/grouped_collapse.dart';
 import '../../widgets/list_filter_dropdown.dart';
+import '../../widgets/rental_retirement_badge.dart';
 import '../../widgets/status_chip.dart';
 import '../common/placeholder_screen.dart';
 
@@ -243,6 +244,10 @@ class _AssetItem extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+          if (asset.rentalRetirementAlert != null) ...[
+            const SizedBox(height: 6),
+            RentalRetirementBadge(alert: asset.rentalRetirementAlert),
+          ],
         ],
       ),
     );

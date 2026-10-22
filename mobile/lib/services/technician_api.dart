@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/inventory.dart';
 import '../models/maintenance_order.dart';
+import '../models/maintenance_thread_text.dart';
 import '../models/paged_result.dart';
 import '../models/pending_installation.dart';
 import '../models/service_ticket.dart';
@@ -161,24 +162,27 @@ class TechnicianApi {
 
   /// Inicia por su cuenta un mantenimiento a demanda de un equipo de su zona (o vinculado a él): la orden nace
   /// asignada a él y se atiende con el check-in de siempre. El servidor valida alcance, horario y que el equipo
-  /// no tenga ya una orden abierta.
+  /// no tenga ya una orden abierta. Con [plannedAt] (hora local; viaja en ISO UTC) la orden nace ya programada y el
+  /// cliente ve la fecha.
   Future<MaintenanceOrder> startMaintenance({
     required String assetId,
     required bool includesGeneral,
     required bool includesUnits,
     required bool includesConsumables,
     String? reason,
+    DateTime? plannedAt,
   }) async {
     try {
       final response = await _client.dio.post(
         '/technicians/me/maintenance-orders',
-        data: {
-          'assetId': assetId,
-          'includesGeneral': includesGeneral,
-          'includesUnits': includesUnits,
-          'includesConsumables': includesConsumables,
-          'reason': ?reason,
-        },
+        data: startMaintenanceBody(
+          assetId: assetId,
+          includesGeneral: includesGeneral,
+          includesUnits: includesUnits,
+          includesConsumables: includesConsumables,
+          reason: reason,
+          plannedAt: plannedAt,
+        ),
       );
       return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
     } catch (e, st) {

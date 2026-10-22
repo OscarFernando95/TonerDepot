@@ -51,10 +51,14 @@ public class ClientRoleSurfaceTests
             "ClientLocations.List",
             // Sus equipos (incluye las instalaciones pendientes en sus sedes)
             "Assets.GetById", "Assets.List",
+            // Su inicio: el resumen de su servicio
+            "ClientPortal.GetHome",
             // Tickets: reportar y seguir
             "ServiceTickets.Create", "ServiceTickets.GetById", "ServiceTickets.List",
             // Mantenimientos programados: solo lectura
             "MaintenanceOrders.GetById", "MaintenanceOrders.List",
+            // ...y el hilo de cada una: el cliente avisa si la fecha programada no le sirve
+            "MaintenanceOrders.AddComment", "MaintenanceOrders.ListComments",
         };
 
         Assert.Equal(expected.OrderBy(n => n, StringComparer.Ordinal), EndpointsOpenTo(RoleNames.Cliente));

@@ -46,6 +46,11 @@ public class User : BaseEntity
     public Guid? ClientId { get; set; }
     public Client? Client { get; set; }
 
+    // Solo rol Cliente. false (por defecto): ve todas las sedes de su empresa. true: solo las de AllowedLocations — y si
+    // esa lista está vacía no ve ninguna (falla cerrado; nunca vuelve a "todas" por perder filas).
+    public bool RestrictedToLocations { get; set; }
+    public ICollection<UserClientLocation> AllowedLocations { get; set; } = new List<UserClientLocation>();
+
     // Perfil de técnico asociado, si el usuario tiene rol Tecnico.
     public Technician? Technician { get; set; }
 }

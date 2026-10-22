@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import * as ticketsApi from '../../api/tickets'
@@ -24,6 +24,7 @@ import {
 import { useStatusTag } from '../../composables/useStatusTag'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const isClient = auth.hasRole(RoleNames.Cliente)
 
@@ -124,6 +125,20 @@ async function openCreateDialog() {
 
   dialogVisible.value = true
 }
+
+// "Reportar un problema" del inicio del Cliente llega con ?nuevo=1: abre directo el diálogo de nuevo ticket. El parámetro
+// se quita para que recargar la página o volver atrás no vuelva a abrirlo.
+onMounted(async () => {
+  if (route.query.nuevo === undefined) return
+  const { nuevo: _nuevo, ...rest } = route.query
+  await router.replace({ query: rest })
+  try {
+    await openCreateDialog()
+  } catch (err) {
+    console.error('TicketsListView: no se pudo abrir el diálogo de nuevo ticket', err)
+    ElMessage.error('No se pudo abrir el formulario de nuevo ticket.')
+  }
+})
 
 // Los activos del selector se piden por SEDE, en el servidor (AUDIT.md H-11): antes se cargaba todo el inventario y se
 // truncaba en silencio a 200. El backend ya limita a un Cliente a los activos de sus propias sedes.

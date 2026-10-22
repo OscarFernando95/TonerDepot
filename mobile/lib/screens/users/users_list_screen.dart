@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/client_location_access.dart';
 import '../../models/managed_user.dart';
 import '../../models/role_names.dart';
 import '../../services/api_client.dart';
@@ -193,6 +194,15 @@ class _UserItem extends StatelessWidget {
           if (user.cityName != null)
             Text(
               user.cityName!,
+              style: const TextStyle(
+                color: AppColors.inkSecondary,
+                fontSize: 12,
+              ),
+            ),
+          // Solo usuarios Cliente: a cuántas sedes de su empresa acceden.
+          if (clientLocationAccessCompact(user) case final access?)
+            Text(
+              'Sedes: $access',
               style: const TextStyle(
                 color: AppColors.inkSecondary,
                 fontSize: 12,

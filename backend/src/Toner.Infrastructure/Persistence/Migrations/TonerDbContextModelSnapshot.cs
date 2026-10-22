@@ -127,6 +127,14 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<int?>("RentalRetirementPrintThreshold")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RentalRetirementWarningPrints")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(50000);
+
                     b.Property<int>("UnitsMonthsInterval")
                         .HasColumnType("integer");
 
@@ -893,8 +901,14 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsManual")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime?>("LastCommentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("MaintenanceScheduleId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PlannedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Reason")
                         .HasMaxLength(500)
@@ -937,6 +951,55 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasFilter("\"Status\" IN ('Pendiente', 'Asignada', 'EnProceso')");
 
                     b.ToTable("MaintenanceOrders", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.MaintenanceOrderComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorRole")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("AuthorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("MaintenanceOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PlannedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("MaintenanceOrderId", "CreatedAt");
+
+                    b.ToTable("MaintenanceOrderComments", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.MaintenanceSchedule", b =>
@@ -1557,6 +1620,9 @@ namespace Toner.Infrastructure.Persistence.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<bool>("RestrictedToLocations")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("RoleId")
                         .HasColumnType("uuid");
 
@@ -1580,6 +1646,38 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("Toner.Domain.Entities.UserClientLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId");
+
+                    b.HasIndex("ClientLocationId");
+
+                    b.HasIndex("UserId", "ClientLocationId")
+                        .IsUnique();
+
+                    b.ToTable("UserClientLocations", (string)null);
                 });
 
             modelBuilder.Entity("Toner.Domain.Entities.UserSession", b =>
@@ -1945,6 +2043,25 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("Technician");
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.MaintenanceOrderComment", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Toner.Domain.Entities.MaintenanceOrder", "MaintenanceOrder")
+                        .WithMany("Comments")
+                        .HasForeignKey("MaintenanceOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("MaintenanceOrder");
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.MaintenanceSchedule", b =>
                 {
                     b.HasOne("Toner.Domain.Entities.Asset", "Asset")
@@ -2173,6 +2290,25 @@ namespace Toner.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("Toner.Domain.Entities.UserClientLocation", b =>
+                {
+                    b.HasOne("Toner.Domain.Entities.ClientLocation", "ClientLocation")
+                        .WithMany()
+                        .HasForeignKey("ClientLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Toner.Domain.Entities.User", "User")
+                        .WithMany("AllowedLocations")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientLocation");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Toner.Domain.Entities.UserSession", b =>
                 {
                     b.HasOne("Toner.Domain.Entities.User", "User")
@@ -2245,6 +2381,8 @@ namespace Toner.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("AssignmentHistories");
 
+                    b.Navigation("Comments");
+
                     b.Navigation("Evidences");
 
                     b.Navigation("TimeLogs");
@@ -2290,6 +2428,8 @@ namespace Toner.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Toner.Domain.Entities.User", b =>
                 {
+                    b.Navigation("AllowedLocations");
+
                     b.Navigation("Technician");
                 });
 

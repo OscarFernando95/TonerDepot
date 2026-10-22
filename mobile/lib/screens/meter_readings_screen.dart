@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/maintenance_thread_text.dart';
 import '../models/meter_reading_asset.dart';
 import '../models/role_names.dart';
 import '../state/auth_state.dart';
@@ -13,6 +14,7 @@ import '../widgets/clay_date_field.dart';
 import '../widgets/clay_segmented_control.dart';
 import '../widgets/clay_surface.dart';
 import '../widgets/list_filter_dropdown.dart';
+import '../widgets/rental_retirement_badge.dart';
 import '../widgets/maintenance_choice_dialog.dart';
 import '../widgets/toner_sheet.dart';
 
@@ -98,6 +100,12 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                             ).merge(AppTextStyles.tabularNumber),
                           ),
                         ),
+                      if (asset.rentalRetirementAlert != null) ...[
+                        const SizedBox(height: 8),
+                        RentalRetirementBadge(
+                          alert: asset.rentalRetirementAlert,
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: counterController,
@@ -183,6 +191,7 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
           'Marca lo que vas a hacer. Al cerrar la visita, el cronograma del '
           'equipo reinicia solo eso.',
       confirmLabel: 'Iniciar',
+      allowSchedule: true,
     );
     if (choice == null) return;
 
@@ -195,13 +204,12 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
       includesUnits: choice.units,
       includesConsumables: choice.consumables,
       reason: choice.reason,
+      plannedAt: choice.plannedAt,
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          error ?? 'Mantenimiento listo. Haz el check-in en Mi trabajo.',
-        ),
+        content: Text(error ?? startMaintenanceDoneMessage(choice.plannedAt)),
         duration: const Duration(seconds: 6),
         action: error != null
             ? null
@@ -368,6 +376,10 @@ class _MeterReadingsScreenState extends State<MeterReadingsScreen> {
                       fontSize: 12,
                     ).merge(AppTextStyles.tabularNumber),
                   ),
+                  if (asset.rentalRetirementAlert != null) ...[
+                    const SizedBox(height: 6),
+                    RentalRetirementBadge(alert: asset.rentalRetirementAlert),
+                  ],
                 ],
               ),
             ),

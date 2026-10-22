@@ -32,26 +32,29 @@ public class TechnicianSelfServiceController : ControllerBase
     private readonly ITechnicianCheckInService _checkInService;
     private readonly IValidator<CheckInRequest> _checkInValidator;
     private readonly IValidator<CheckOutRequest> _checkOutValidator;
-    private readonly IValidator<CreateManualMaintenanceOrderRequest> _startMaintenanceValidator;
+    private readonly IValidator<StartSelfMaintenanceRequest> _startMaintenanceValidator;
     private readonly IAssetService _assetService;
     private readonly IMaintenanceOrderService _maintenanceOrderService;
     private readonly IMaintenanceScheduleService _maintenanceScheduleService;
     private readonly IServiceTicketService _serviceTicketService;
     private readonly IEvidenceService _evidenceService;
     private readonly ITechnicianHomeService _homeService;
+    private readonly IValidator<ScheduleMaintenanceOrderRequest> _scheduleValidator;
 
     public TechnicianSelfServiceController(
         ITechnicianCheckInService checkInService,
         IValidator<CheckInRequest> checkInValidator,
         IValidator<CheckOutRequest> checkOutValidator,
-        IValidator<CreateManualMaintenanceOrderRequest> startMaintenanceValidator,
+        IValidator<StartSelfMaintenanceRequest> startMaintenanceValidator,
         IAssetService assetService,
         IMaintenanceOrderService maintenanceOrderService,
         IMaintenanceScheduleService maintenanceScheduleService,
         IServiceTicketService serviceTicketService,
         IEvidenceService evidenceService,
-        ITechnicianHomeService homeService)
+        ITechnicianHomeService homeService,
+        IValidator<ScheduleMaintenanceOrderRequest> scheduleValidator)
     {
+        _scheduleValidator = scheduleValidator;
         _homeService = homeService;
         _evidenceService = evidenceService;
         _checkInService = checkInService;
@@ -122,10 +125,21 @@ public class TechnicianSelfServiceController : ControllerBase
         return Ok(await _maintenanceOrderService.ClaimAsync(id, CurrentTechnicianId, cancellationToken));
     }
 
-    // Mantenimiento a demanda iniciado por el propio técnico: el body es el mismo que el del staff
-    // (POST /maintenance-orders) y la orden nace asignada a él. Después sigue el check-in normal.
+    // Fija o cambia cuándo planea hacer el mantenimiento. El cliente lo ve y puede pedir un cambio en el hilo de comentarios.
+    [HttpPost("maintenance-orders/{id:guid}/schedule")]
+    public async Task<ActionResult<MaintenanceOrderDto>> ScheduleMaintenanceOrder(Guid id, [FromBody] ScheduleMaintenanceOrderRequest request, CancellationToken cancellationToken)
+    {
+        await _scheduleValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        return Ok(await _maintenanceOrderService.ScheduleAsync(id, CurrentTechnicianId, userId, request.PlannedAt, cancellationToken));
+    }
+
+    // Mantenimiento a demanda iniciado por el propio técnico: el body es el del staff (POST /maintenance-orders) más un
+    // plannedAt opcional, y la orden nace asignada a él. Sin plannedAt lo empieza ahora; con él queda programado y el
+    // cliente ve la fecha. Después sigue el check-in normal.
     [HttpPost("maintenance-orders")]
-    public async Task<ActionResult<MaintenanceOrderDto>> StartMaintenance([FromBody] CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<MaintenanceOrderDto>> StartMaintenance([FromBody] StartSelfMaintenanceRequest request, CancellationToken cancellationToken)
     {
         await _startMaintenanceValidator.ValidateAndThrowAsync(request, cancellationToken);
 

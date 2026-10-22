@@ -63,6 +63,13 @@ public class ServiceTicketService : IServiceTicketService
             throw new ForbiddenException("No puedes reportar tickets para una sede que no pertenece a tu cliente.");
         }
 
+        // Un cliente con acceso a ciertas sedes solo reporta en ellas.
+        var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+        if (allowedLocations is not null && !allowedLocations.Contains(request.ClientLocationId))
+        {
+            throw new ForbiddenException("No tienes acceso a esa sede.");
+        }
+
         var ticket = new ServiceTicket
         {
             ClientLocationId = request.ClientLocationId,
@@ -107,6 +114,12 @@ public class ServiceTicketService : IServiceTicketService
         {
             var clientId = requestingUser.RequireClientId();
             query = query.Where(t => t.ClientId == clientId);
+
+            var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+            if (allowedLocations is not null)
+            {
+                query = query.Where(t => allowedLocations.Contains(t.ClientLocationId));
+            }
         }
 
         // Filtros del servidor (AUDIT.md H-11): van DESPUÉS del aislamiento del rol, así que son un AND y un clientId
@@ -211,6 +224,12 @@ public class ServiceTicketService : IServiceTicketService
         if (!requestingUser.IsStaff && !requestingUser.IsTechnician && ticket.ClientId != requestingUser.RequireClientId())
         {
             throw new ForbiddenException("No puedes ver un ticket que no pertenece a tu cliente.");
+        }
+
+        var allowedLocations = await _db.AllowedLocationIdsAsync(requestingUser, cancellationToken);
+        if (allowedLocations is not null && !allowedLocations.Contains(ticket.ClientLocationId))
+        {
+            throw new ForbiddenException("No tienes acceso a la sede de este ticket.");
         }
 
         // El cliente no ve nada de contratos: ni si el equipo está bajo uno.

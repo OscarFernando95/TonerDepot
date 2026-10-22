@@ -1,3 +1,5 @@
+import 'rental_retirement.dart';
+
 /// Los 5 campos de umbral/intervalo son la config que usa el motor de
 /// programaciones de mantenimiento (Fase F, módulo Programaciones) — acá
 /// solo se editan, no se interpretan.
@@ -11,6 +13,13 @@ class AssetModel {
   final int unitsMonthsInterval;
   final int consumablesPrintThreshold;
 
+  /// Contador total del equipo al que sale de alquiler y pasa a venta; null =
+  /// sin límite. Solo informativo.
+  final int? rentalRetirementPrintThreshold;
+
+  /// Se avisa cuando faltan estas impresiones o menos (>0).
+  final int rentalRetirementWarningPrints;
+
   AssetModel({
     required this.id,
     required this.assetBrandId,
@@ -20,6 +29,8 @@ class AssetModel {
     required this.unitsPrintThreshold,
     required this.unitsMonthsInterval,
     required this.consumablesPrintThreshold,
+    this.rentalRetirementPrintThreshold,
+    this.rentalRetirementWarningPrints = defaultRentalRetirementWarningPrints,
   });
 
   factory AssetModel.fromJson(Map<String, dynamic> json) => AssetModel(
@@ -31,5 +42,11 @@ class AssetModel {
     unitsPrintThreshold: json['unitsPrintThreshold'] as int,
     unitsMonthsInterval: json['unitsMonthsInterval'] as int,
     consumablesPrintThreshold: json['consumablesPrintThreshold'] as int,
+    rentalRetirementPrintThreshold: parseNullableInt(
+      json['rentalRetirementPrintThreshold'],
+    ),
+    rentalRetirementWarningPrints:
+        parseNullableInt(json['rentalRetirementWarningPrints']) ??
+        defaultRentalRetirementWarningPrints,
   );
 }

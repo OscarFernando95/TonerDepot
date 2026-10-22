@@ -14,6 +14,10 @@ public class UserDto
     public bool IsActive { get; set; }
     public bool MustChangePassword { get; set; }
     public Guid? ClientId { get; set; }
+
+    // Solo Cliente. false: ve todas las sedes de su empresa. true: solo AllowedLocationIds.
+    public bool RestrictedToLocations { get; set; }
+    public IReadOnlyList<Guid> AllowedLocationIds { get; set; } = Array.Empty<Guid>();
     public Guid? TechnicianId { get; set; }
     public DateTime CreatedAt { get; set; }
 }

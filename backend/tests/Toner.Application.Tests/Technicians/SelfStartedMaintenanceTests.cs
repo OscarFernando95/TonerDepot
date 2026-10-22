@@ -57,13 +57,13 @@ public class SelfStartedMaintenanceTests
         return new Scenario(dbName, asset.Id, schedule.Id, technician.Id, techUser.Id, client.Id);
     }
 
-    private static CreateManualMaintenanceOrderRequest Request(
+    private static StartSelfMaintenanceRequest Request(
         Scenario s, bool general = false, bool units = true, bool consumables = false, string? reason = "Preventivo en sitio") => new()
     {
         AssetId = s.AssetId, IncludesGeneral = general, IncludesUnits = units, IncludesConsumables = consumables, Reason = reason
     };
 
-    private static Task<MaintenanceOrderDto> StartAsync(Scenario s, CreateManualMaintenanceOrderRequest request, TimeProvider? time = null)
+    private static Task<MaintenanceOrderDto> StartAsync(Scenario s, StartSelfMaintenanceRequest request, TimeProvider? time = null)
     {
         var db = TonerTestDb.CreateContext(s.DbName);
         return TestCheckIn.Create(db, time: time).StartMaintenanceAsync(s.TechnicianId, request);
@@ -350,5 +350,64 @@ public class SelfStartedMaintenanceTests
         Assert.True(dto.IsManual);
         Assert.Equal(s.TechnicianId, dto.TechnicianId);
         Assert.False(dto.IsSelfStarted);
+    }
+
+    [Fact]
+    public async Task IniciarProgramado_QuedaConLaFecha_ElClienteLaVe_YElHiloLoRegistra()
+    {
+        var s = await SeedAsync();
+        var when = DateTime.UtcNow.AddDays(6);
+        var request = Request(s);
+        request.PlannedAt = when;
+
+        var dto = await StartAsync(s, request);
+
+        Assert.Equal(nameof(MaintenanceOrderStatus.Asignada), dto.Status);
+        Assert.Equal(when, dto.PlannedAt!.Value, TimeSpan.FromSeconds(1));
+        using var check = TonerTestDb.CreateContext(s.DbName);
+        var entry = await check.MaintenanceOrderComments.SingleAsync();
+        Assert.Equal(OrderCommentKind.Programacion, entry.Kind);
+        Assert.Equal(s.ClientId, entry.ClientId);
+        Assert.Equal(s.UserId, entry.AuthorUserId);
+    }
+
+    [Fact]
+    public async Task IniciarProgramado_NoExigeEstarLibreNiEnHorarioAhora_ElCheckInSi()
+    {
+        // Ocupado hoy y en sábado: no podría empezarlo ahora, pero sí dejarlo programado para otro día.
+        var s = await SeedAsync(status: TechnicianStatus.Ocupado);
+        var request = Request(s);
+
+        await Assert.ThrowsAsync<ConflictException>(() => StartAsync(s, request, FixedTimeProvider.Weekend)); // ahora: no
+
+        request.PlannedAt = DateTime.UtcNow.AddDays(4);
+        var dto = await StartAsync(s, request, FixedTimeProvider.Weekend); // programado: sí
+        Assert.NotNull(dto.PlannedAt);
+    }
+
+    [Fact]
+    public async Task IniciarSinFecha_SigueIgual_SinProgramacion()
+    {
+        var s = await SeedAsync();
+
+        var dto = await StartAsync(s, Request(s));
+
+        Assert.Null(dto.PlannedAt);
+        using var check = TonerTestDb.CreateContext(s.DbName);
+        Assert.Empty(check.MaintenanceOrderComments);
+    }
+
+    [Fact]
+    public void ValidadorDeIniciar_LaFechaEsOpcional_PeroSiVaDebeSerFuturaYAcotada()
+    {
+        var validator = new Toner.Application.Maintenance.Validators.StartSelfMaintenanceRequestValidator();
+        StartSelfMaintenanceRequest R(DateTime? planned) => new() { AssetId = Guid.NewGuid(), IncludesUnits = true, PlannedAt = planned };
+
+        Assert.True(validator.Validate(R(null)).IsValid);
+        Assert.True(validator.Validate(R(DateTime.UtcNow.AddDays(3))).IsValid);
+        Assert.False(validator.Validate(R(DateTime.UtcNow.AddMinutes(-5))).IsValid);
+        Assert.False(validator.Validate(R(DateTime.UtcNow.AddDays(500))).IsValid);
+        // Las reglas del pedido normal siguen valiendo (al menos un tipo de mantenimiento).
+        Assert.False(validator.Validate(new StartSelfMaintenanceRequest { AssetId = Guid.NewGuid() }).IsValid);
     }
 }

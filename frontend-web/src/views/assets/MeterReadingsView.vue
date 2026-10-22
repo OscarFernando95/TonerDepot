@@ -10,8 +10,9 @@ import * as meterReadingsApi from '../../api/meterReadings'
 import * as technicianSelfApi from '../../api/technicianSelf'
 import type { CityDto, ClientDto, MeterReadingAssetDto } from '../../api/types'
 import TonerDialog from '../../components/inventory/TonerDialog.vue'
+import RentalRetirementTag from '../../components/assets/RentalRetirementTag.vue'
 import MaintenanceChoiceDialog from '../../components/maintenance/MaintenanceChoiceDialog.vue'
-import type { MaintenanceChoice } from '../../composables/useMaintenanceChoice'
+import { maintenanceStartedMessage, type MaintenanceChoice } from '../../composables/useMaintenanceChoice'
 import { useAuthStore } from '../../stores/auth'
 import { RoleNames } from '../../api/types'
 
@@ -119,7 +120,7 @@ async function startMaintenance(choice: MaintenanceChoice) {
   try {
     await technicianSelfApi.startMaintenance({ assetId: maintenanceAsset.value.assetId, ...choice })
     maintenanceDialogVisible.value = false
-    ElMessage.success('Mantenimiento listo. Haz el check-in en Mi trabajo.')
+    ElMessage.success(maintenanceStartedMessage(choice.plannedAt))
     router.push({ name: 'my-work' })
   } catch (err: any) {
     console.error('No se pudo iniciar el mantenimiento:', err)
@@ -220,8 +221,11 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
       <el-table-column prop="cityName" label="Ciudad" width="140">
         <template #default="{ row }">{{ row.cityName ?? '—' }}</template>
       </el-table-column>
-      <el-table-column prop="lastMeterReading" label="Último contador" width="140">
-        <template #default="{ row }">{{ row.lastMeterReading ?? '—' }}</template>
+      <el-table-column prop="lastMeterReading" label="Último contador" width="210">
+        <template #default="{ row }">
+          {{ row.lastMeterReading ?? '—' }}
+          <RentalRetirementTag :subject="row" />
+        </template>
       </el-table-column>
       <el-table-column label="Último tóner" min-width="220">
         <template #default="{ row }">{{ lastTonerLabel(row) }}</template>
@@ -280,6 +284,7 @@ useRealtimeUpdates(['MeterReading', 'Asset', 'TechnicianAsset', 'Inventory', 'Te
     :subtitle="maintenanceSubtitle"
     hint="Marca lo que vas a hacer. Al cerrar la visita, el cronograma del equipo reinicia solo eso."
     :loading="startingMaintenance"
+    allow-schedule
     @confirm="startMaintenance"
   />
   <TonerDialog ref="tonerDialogRef" @saved="loadAll()" />

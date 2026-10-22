@@ -44,7 +44,7 @@ public class TechnicianCheckOutValidationTests
     {
         var claims = new[] { new Claim(ClaimTypes.Role, RoleNames.Tecnico), new Claim("technician_id", Guid.NewGuid().ToString()) };
         return new TechnicianSelfServiceController(
-            service, null!, new CheckOutRequestValidator(), null!, null!, null!, null!, null!, null!, null!)
+            service, null!, new CheckOutRequestValidator(), null!, null!, null!, null!, null!, null!, null!, null!)
         {
             ControllerContext = new ControllerContext
             {
@@ -65,7 +65,7 @@ public class TechnicianCheckOutValidationTests
 
         public Task<TechnicianSelfStatusDto> GetMyStatusAsync(Guid technicianId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TechnicianSelfStatusDto> CheckInAsync(Guid technicianId, CheckInRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<MaintenanceOrderDto> StartMaintenanceAsync(Guid technicianId, CreateManualMaintenanceOrderRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<MaintenanceOrderDto> StartMaintenanceAsync(Guid technicianId, StartSelfMaintenanceRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PagedResult<PendingInstallationDto>> ListPendingInstallationsAsync(Guid technicianId, int? page, int? pageSize, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

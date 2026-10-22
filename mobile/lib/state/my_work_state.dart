@@ -276,6 +276,26 @@ class MyWorkState extends ChangeNotifier {
     }
   }
 
+  /// El técnico programa (o reprograma) cuándo hará un mantenimiento Asignado. [plannedAt] es la hora local
+  /// elegida; viaja como ISO UTC. Devuelve null si salió bien o el mensaje del servidor (fecha pasada, orden ya
+  /// iniciada…) para mostrarlo.
+  Future<String?> scheduleOrder(
+    MaintenanceOrder order,
+    DateTime plannedAt,
+  ) async {
+    try {
+      final updated = await _orderApi.schedule(order.id, plannedAt);
+      orders = [for (final o in orders) o.id == updated.id ? updated : o];
+      notifyListeners();
+      return null;
+    } catch (e, st) {
+      debugPrint('MyWorkState.scheduleOrder failed: $e\n$st');
+      return e is ApiException
+          ? e.message
+          : 'No se pudo programar el mantenimiento.';
+    }
+  }
+
   Future<String?> _runAction(
     Future<TechnicianSelfStatus> Function() action,
   ) async {

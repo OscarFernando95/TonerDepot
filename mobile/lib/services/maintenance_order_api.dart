@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../models/assignment_history.dart';
 import '../models/maintenance_order.dart';
+import '../models/maintenance_order_comment.dart';
+import '../models/maintenance_thread_text.dart';
 import '../models/paged_result.dart';
 import 'api_client.dart';
 
@@ -127,6 +129,58 @@ class MaintenanceOrderApi {
       return page.items;
     } catch (e, st) {
       debugPrint('MaintenanceOrderApi.getAssignmentHistory failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Hilo compartido de la orden (cliente dueño, técnico asignado y staff), en orden cronológico.
+  Future<List<MaintenanceOrderComment>> listComments(String id) async {
+    try {
+      final response = await _client.dio.get(
+        '/maintenance-orders/$id/comments',
+      );
+      final data = response.data;
+      // Tolera tanto la lista suelta como el envelope paginado.
+      final raw = data is List
+          ? data
+          : (data as Map<String, dynamic>)['items'] as List;
+      return [
+        for (final item in raw)
+          MaintenanceOrderComment.fromJson(item as Map<String, dynamic>),
+      ];
+    } catch (e, st) {
+      debugPrint('MaintenanceOrderApi.listComments failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Agrega un comentario al hilo (1..1000 caracteres). Si la orden ya cerró, el servidor responde 409.
+  Future<MaintenanceOrderComment> addComment(String id, String body) async {
+    try {
+      final response = await _client.dio.post(
+        '/maintenance-orders/$id/comments',
+        data: {'body': body.trim()},
+      );
+      return MaintenanceOrderComment.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } catch (e, st) {
+      debugPrint('MaintenanceOrderApi.addComment failed: $e\n$st');
+      throw ApiClient.translate(e);
+    }
+  }
+
+  /// Técnico asignado únicamente (endpoint propio del técnico): programa o reprograma cuándo hará el
+  /// mantenimiento. [plannedAt] se envía como ISO UTC; el servidor exige orden Asignada y fecha futura a <= 365 días.
+  Future<MaintenanceOrder> schedule(String id, DateTime plannedAt) async {
+    try {
+      final response = await _client.dio.post(
+        '/technicians/me/maintenance-orders/$id/schedule',
+        data: {'plannedAt': plannedAtToUtcIso(plannedAt)},
+      );
+      return MaintenanceOrder.fromJson(response.data as Map<String, dynamic>);
+    } catch (e, st) {
+      debugPrint('MaintenanceOrderApi.schedule failed: $e\n$st');
       throw ApiClient.translate(e);
     }
   }

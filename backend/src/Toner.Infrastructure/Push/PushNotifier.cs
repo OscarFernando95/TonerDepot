@@ -67,6 +67,30 @@ public sealed class PushNotifier : IPushNotifier
         await SendToUsersAsync(db, userIds, message, cancellationToken);
     }
 
+    public async Task NotifyOrderTechnicianAsync(Guid orderId, PushMessage message, CancellationToken cancellationToken = default)
+    {
+        if (!_transport.IsEnabled)
+        {
+            return;
+        }
+
+        using var tenantScope = _tenant.Push(() => TenantContext.Staff);
+        await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
+
+        var technicianId = await db.MaintenanceOrders
+            .Where(o => o.Id == orderId)
+            .Select(o => o.TechnicianId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (technicianId is null)
+        {
+            await NotifyStaffAsync(message, cancellationToken);
+            return;
+        }
+
+        await NotifyTechniciansAsync(new[] { technicianId.Value }, message, cancellationToken);
+    }
+
     public async Task NotifyInstallersAsync(Guid assetId, PushMessage message, CancellationToken cancellationToken = default)
     {
         if (!_transport.IsEnabled)

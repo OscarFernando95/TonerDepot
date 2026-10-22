@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/managed_user.dart';
+import '../services/client_location_api.dart';
 import '../services/api_client.dart';
 import '../services/user_api.dart';
 
@@ -10,9 +11,35 @@ import '../services/user_api.dart';
 class UserDetailState extends ChangeNotifier {
   UserDetailState(ApiClient client, ManagedUser initialUser)
     : _api = UserApi(client),
+      _locationApi = ClientLocationApi(client),
       user = initialUser;
 
   final UserApi _api;
+  final ClientLocationApi _locationApi;
+
+  /// Nombres de las sedes de la empresa del usuario Cliente (id → nombre),
+  /// para mostrar a qué sedes accede. Vacío hasta que cargue (o si falla: la
+  /// etiqueta cae a "N sedes" sin nombres).
+  Map<String, String> locationNames = {};
+
+  Future<void> loadLocationNames() async {
+    final clientId = user.clientId;
+    if (clientId == null) return;
+    try {
+      final locations = await _locationApi.listForClient(clientId);
+      locationNames = {for (final l in locations) l.id: l.name};
+      notifyListeners();
+    } catch (e, st) {
+      debugPrint('UserDetailState.loadLocationNames failed: $e\n$st');
+    }
+  }
+
+  /// null = todas las sedes de la empresa. Devuelve el mensaje de error, o
+  /// null si salió bien.
+  Future<String?> setClientLocations(List<String>? allowedLocationIds) =>
+      _runAction(() async {
+        user = await _api.setClientLocations(user.id, allowedLocationIds);
+      });
 
   bool busyWithAction = false;
   ManagedUser user;

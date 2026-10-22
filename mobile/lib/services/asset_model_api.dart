@@ -31,6 +31,8 @@ class AssetModelApi {
     required int unitsPrintThreshold,
     required int unitsMonthsInterval,
     required int consumablesPrintThreshold,
+    required int? rentalRetirementPrintThreshold,
+    required int rentalRetirementWarningPrints,
   }) async {
     try {
       final response = await _client.dio.post(
@@ -42,6 +44,9 @@ class AssetModelApi {
           'unitsPrintThreshold': unitsPrintThreshold,
           'unitsMonthsInterval': unitsMonthsInterval,
           'consumablesPrintThreshold': consumablesPrintThreshold,
+          // PUT = reemplazo completo: siempre ambos campos (null = sin límite).
+          'rentalRetirementPrintThreshold': rentalRetirementPrintThreshold,
+          'rentalRetirementWarningPrints': rentalRetirementWarningPrints,
         },
       );
       return AssetModel.fromJson(response.data as Map<String, dynamic>);
@@ -60,6 +65,8 @@ class AssetModelApi {
     required int unitsPrintThreshold,
     required int unitsMonthsInterval,
     required int consumablesPrintThreshold,
+    required int? rentalRetirementPrintThreshold,
+    required int rentalRetirementWarningPrints,
   }) async {
     try {
       final response = await _client.dio.put(
@@ -71,6 +78,9 @@ class AssetModelApi {
           'unitsPrintThreshold': unitsPrintThreshold,
           'unitsMonthsInterval': unitsMonthsInterval,
           'consumablesPrintThreshold': consumablesPrintThreshold,
+          // PUT = reemplazo completo: siempre ambos campos (null = sin límite).
+          'rentalRetirementPrintThreshold': rentalRetirementPrintThreshold,
+          'rentalRetirementWarningPrints': rentalRetirementWarningPrints,
         },
       );
       return AssetModel.fromJson(response.data as Map<String, dynamic>);
